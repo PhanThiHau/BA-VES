@@ -4,28 +4,18 @@ import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
 
 const learnerItems: Array<{ route: RouteKey; label: string; icon: typeof LayoutDashboard }> = [
-  { route: "dashboard", label: "Overview", icon: LayoutDashboard },
-  { route: "applications", label: "Applications", icon: AppWindow },
-  { route: "scenarios", label: "Scenarios", icon: BookOpenCheck },
-  { route: "simulation", label: "Simulation Session", icon: MessageSquareText },
-  { route: "analysis", label: "Analysis & Confirmation", icon: SearchCheck },
-  { route: "artifacts", label: "Final Deliverables", icon: FileStack },
-  { route: "assessment", label: "Assessment", icon: ClipboardCheck },
-  { route: "progress", label: "Competency Profile", icon: BarChart3 },
+  { route: "dashboard", label: "Tổng quan", icon: LayoutDashboard },
+  { route: "applications", label: "Ứng dụng nghiệp vụ", icon: AppWindow },
+  { route: "scenarios", label: "Kịch bản mô phỏng", icon: BookOpenCheck },
+  { route: "simulation", label: "Phiên phỏng vấn AI", icon: MessageSquareText },
+  { route: "analysis", label: "Phân tích bằng chứng", icon: SearchCheck },
+  { route: "artifacts", label: "Hồ sơ bàn giao BA", icon: FileStack },
+  { route: "assessment", label: "Đánh giá & Chấm điểm", icon: ClipboardCheck },
+  { route: "progress", label: "Hồ sơ năng lực BABOK", icon: BarChart3 },
 ];
 
 const instructorItems: Array<{ route: RouteKey; label: string; icon: typeof LayoutDashboard }> = [
-  { route: "instructor", label: "Instructor Workspace", icon: ShieldCheck },
-];
-
-const navTones = [
-  { icon: "bg-[#dcecf8] text-[#2f6f9f]", active: "bg-[#dcecf8] text-[#214f73]", bar: "bg-[#2f79ad]" },
-  { icon: "bg-[#e5e2f5] text-[#645b9c]", active: "bg-[#e9e6f7] text-[#514a82]", bar: "bg-[#7569ad]" },
-  { icon: "bg-[#dff1ea] text-[#2d8068]", active: "bg-[#e1f2ec] text-[#276b5a]", bar: "bg-[#3a9279]" },
-  { icon: "bg-[#fff0d9] text-[#a56a22]", active: "bg-[#fff1de] text-[#8a591d]", bar: "bg-[#d18a31]" },
-  { icon: "bg-[#f7e2e8] text-[#9d5066]", active: "bg-[#f8e6eb] text-[#834456]", bar: "bg-[#b96078]" },
-  { icon: "bg-[#e1edf5] text-[#3f7297]", active: "bg-[#e1edf5] text-[#315f82]", bar: "bg-[#4e84a9]" },
-  { icon: "bg-[#ece8dd] text-[#7d6d43]", active: "bg-[#f0ece2] text-[#695c39]", bar: "bg-[#93804d]" },
+  { route: "instructor", label: "Không gian Giảng viên", icon: ShieldCheck },
 ];
 
 export function Sidebar({ active, navigate, open, onClose }: { active: RouteKey; navigate: (route: RouteKey) => void; open: boolean; onClose: () => void }) {
@@ -33,40 +23,124 @@ export function Sidebar({ active, navigate, open, onClose }: { active: RouteKey;
   const items = role === "learner" ? learnerItems : instructorItems;
   const homeRoute: RouteKey = role === "learner" ? "dashboard" : "instructor";
 
-  return <>
-    <div onClick={onClose} className={classNames("fixed inset-0 z-30 bg-[#102a42]/45 backdrop-blur-sm lg:hidden", open ? "block" : "hidden")} />
-    <aside className={classNames("fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-white/80 bg-gradient-to-b from-[#f8fbfd] via-[#f1f7fa] to-[#f8fbfd] shadow-[12px_0_45px_rgba(20,54,82,.055)] backdrop-blur-xl transition-transform lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
-      <div className="flex h-16 items-center justify-between px-4">
-        <button onClick={() => navigate(homeRoute)} className="group flex items-center gap-3 text-left">
-          <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-[14px] bg-[#193f60] font-black text-white shadow-[0_10px_24px_rgba(25,63,96,.22)]"><span className="absolute inset-x-0 bottom-0 h-1/2 bg-[#2f638c]" /><span className="relative">BV</span></span>
-          <span><strong className="block tracking-[-.02em] text-[#18344f]">BA-VES</strong><small className="text-[#8091a2]">Virtual Enterprise</small></span>
-        </button>
-        <button onClick={onClose} aria-label="Close menu" className="grid h-10 w-10 place-items-center rounded-xl text-[#60758d] hover:bg-[#eaf1f6] lg:hidden"><X size={20} /></button>
-      </div>
-
-      <div className="px-3 pb-3 pt-2">
-        <div className="relative overflow-hidden rounded-2xl border border-[#d5e6f2] bg-gradient-to-br from-[#ddecf7] via-[#edf5fa] to-[#f8fbfd] p-3.5 shadow-[0_8px_22px_rgba(47,99,140,.1)]">
-          <span className="breathe absolute -right-3 -top-3 h-16 w-16 rounded-full bg-[#8fb8d5]/45" />
-          <div className="relative flex items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#2f638c] text-white shadow-[0_6px_16px_rgba(47,99,140,.2)]">{role === "learner" ? <GraduationCap size={19} /> : <ShieldCheck size={19} />}</span><div><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#64839d]">Workspace</p><strong className="text-sm text-[#1f4b6c]">{role === "learner" ? "Learner" : "Instructor"}</strong></div></div>
+  return (
+    <>
+      <div
+        onClick={onClose}
+        className={classNames("fixed inset-0 z-30 bg-navy/50 backdrop-blur-sm lg:hidden", open ? "block" : "hidden")}
+      />
+      <aside
+        className={classNames(
+          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate/15 bg-white shadow-[8px_0_36px_rgba(16,42,67,0.04)] backdrop-blur-xl transition-transform lg:translate-x-0 font-sans",
+          open ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {/* Brand Header */}
+        <div className="flex h-16 items-center justify-between border-b border-slate/10 px-4">
+          <button
+            onClick={() => navigate(homeRoute)}
+            className="group flex items-center gap-3 text-left transition-opacity hover:opacity-90"
+            aria-label="Về trang tổng quan"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-navy font-display text-lg font-extrabold text-white shadow-md transition-transform group-hover:scale-105">
+              B
+            </span>
+            <span>
+              <span className="flex items-center gap-1.5">
+                <span className="block font-display text-base font-extrabold tracking-tight text-navy">
+                  BA-VES
+                </span>
+                <span className="rounded-full bg-brass/20 px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider text-brass">
+                  FA26SE185
+                </span>
+              </span>
+              <span className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate">
+                Mô phỏng Doanh nghiệp Ảo
+              </span>
+            </span>
+          </button>
+          <button
+            onClick={onClose}
+            aria-label="Đóng menu"
+            className="grid h-9 w-9 place-items-center rounded-xl text-slate hover:bg-offwhite lg:hidden"
+          >
+            <X size={18} />
+          </button>
         </div>
-      </div>
 
-      <div className="px-5 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#9aa8b5]">Navigation</div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2.5" aria-label="Primary navigation">
-        {items.map(({ route, label, icon: Icon }, index) => {
-          const isActive = active === route;
-          const tone = navTones[index % navTones.length];
-          return <button key={route} onClick={() => { navigate(route); onClose(); }} className={classNames("group relative flex min-h-11 w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-1.5 text-left text-sm font-semibold transition duration-200", isActive ? `${tone.active} shadow-[inset_0_0_0_1px_rgba(82,126,161,.08)]` : "text-[#667c90] hover:bg-white hover:text-[#244e70] hover:shadow-sm")}>
-            {isActive && <span className={classNames("absolute inset-y-2 left-0 w-1 rounded-r-full", tone.bar)} />}
-            <span className={classNames("grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition group-hover:scale-105", tone.icon)}><Icon size={16} /></span>{label}
-          </button>;
-        })}
-      </nav>
+        {/* User Workspace Role Chip */}
+        <div className="p-3">
+          <div className="relative overflow-hidden rounded-2xl border border-slate/15 bg-gradient-to-br from-offwhite to-white p-3 shadow-sm">
+            <div className="relative flex items-center gap-2.5">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy text-white shadow-sm">
+                {role === "learner" ? <GraduationCap size={18} /> : <ShieldCheck size={18} />}
+              </span>
+              <div className="overflow-hidden">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate">Không gian làm việc</p>
+                <strong className="block truncate text-xs font-bold text-navy">
+                  {role === "learner" ? "Học viên (Learner)" : "Giảng viên (Instructor)"}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <div className="space-y-1 border-t border-[#e2eaf0] p-3">
-        <button className="flex min-h-11 w-full items-center gap-3 rounded-[14px] px-3.5 py-3 text-sm font-semibold text-[#718399] transition hover:bg-white hover:text-[#315b7c] hover:shadow-sm"><Settings2 size={18} />Settings</button>
-        <button onClick={() => navigate("role-selection")} className="flex min-h-11 w-full items-center gap-3 rounded-[14px] px-3.5 py-3 text-sm font-semibold text-[#315f84] transition hover:bg-[#e6f0f7]"><Repeat2 size={18} />Switch role</button>
-      </div>
-    </aside>
-  </>;
+        {/* Navigation Links */}
+        <div className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate/70">
+          Danh mục chức năng
+        </div>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-1" aria-label="Menu chính">
+          {items.map(({ route, label, icon: Icon }) => {
+            const isActive = active === route;
+            return (
+              <button
+                key={route}
+                onClick={() => {
+                  navigate(route);
+                  onClose();
+                }}
+                className={classNames(
+                  "group relative flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-all duration-200",
+                  isActive
+                    ? "bg-navy text-white shadow-sm"
+                    : "text-slate hover:bg-offwhite hover:text-navy"
+                )}
+              >
+                {isActive && (
+                  <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brass" />
+                )}
+                <span
+                  className={classNames(
+                    "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
+                    isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                  )}
+                >
+                  <Icon size={15} />
+                </span>
+                <span className="truncate whitespace-nowrap">{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Footer Actions */}
+        <div className="space-y-1 border-t border-slate/10 p-3">
+          <button
+            onClick={() => navigate("role-selection")}
+            className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-slate transition hover:bg-offwhite hover:text-navy"
+          >
+            <Repeat2 size={16} className="text-brass" />
+            Đổi vai trò
+          </button>
+          <button
+            onClick={() => navigate("landing")}
+            className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-slate transition hover:bg-offwhite hover:text-navy"
+          >
+            <Settings2 size={16} />
+            Về trang chủ
+          </button>
+        </div>
+      </aside>
+    </>
+  );
 }
