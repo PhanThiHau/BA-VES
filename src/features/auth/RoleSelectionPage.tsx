@@ -4,145 +4,197 @@ import type { RouteKey } from "../../types/models";
 
 export function RoleSelectionPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { setRole, setSelectedDomainId } = useApp();
-  const enterLearner = () => { setRole("learner"); setSelectedDomainId("all"); navigate("dashboard"); };
-  const enterInstructor = () => { setRole("instructor"); navigate("instructor"); };
+  const enterLearner = () => {
+    setRole("learner");
+    setSelectedDomainId("all");
+    navigate("dashboard");
+  };
+  const enterInstructor = () => {
+    setRole("instructor");
+    navigate("instructor");
+  };
 
   return (
-    <main className="relative min-h-[100dvh] bg-[#0A0F19] text-white overflow-hidden font-sans selection:bg-[#00F0FF]/30">
-      {/* Atmospheric Background Gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#00F0FF]/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-[#6366F1]/10 blur-[150px] pointer-events-none" />
-      <div className="absolute top-[20%] right-[20%] w-[30%] h-[30%] rounded-full bg-[#3B82F6]/5 blur-[100px] pointer-events-none" />
+    <main className="relative min-h-[100dvh] bg-navy-deep text-white overflow-hidden font-sans selection:bg-brass/25 selection:text-white">
+      {/* Background Image & Atmospheric Gradients */}
+      <div className="absolute inset-0 opacity-20 mix-blend-luminosity pointer-events-none" aria-hidden="true">
+        <img
+          src="/images/landing/hero.webp"
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      </div>
+      <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] rounded-full bg-brass/10 blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-[-15%] right-[-10%] w-[55%] h-[55%] rounded-full bg-mist/10 blur-[150px] pointer-events-none" />
 
-      {/* Grid Pattern Overlay for subtle tech/education vibe */}
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAyKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] pointer-events-none opacity-50 mask-image:linear-gradient(to_bottom,transparent,black)]" />
+      {/* Grid Pattern Overlay */}
+      <div className="absolute inset-0 opacity-10 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:linear-gradient(to_bottom,black,transparent)] pointer-events-none" />
 
       <div className="relative z-10 mx-auto grid min-h-[100dvh] max-w-[1536px] lg:grid-cols-[1fr_1.2fr]">
-        
-        {/* Left Section - Vibe & Brand */}
+        {/* Left Section - Brand & Philosophy */}
         <section className="flex flex-col justify-between p-8 sm:p-12 lg:p-20">
           <div>
-            <button onClick={() => navigate("landing")} className="group flex items-center gap-4 text-left transition-all hover:opacity-80" aria-label="Back to landing page">
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white/5 border border-white/10 font-black text-white shadow-lg backdrop-blur-md transition-transform group-hover:scale-105">
-                BV
+            <button
+              onClick={() => navigate("landing")}
+              className="group flex items-center gap-3.5 text-left transition-opacity hover:opacity-90"
+              aria-label="Về trang chủ BA-VES"
+            >
+              <span className="grid h-12 w-12 place-items-center rounded-xl bg-white font-display text-xl font-extrabold text-navy shadow-lg transition-transform group-hover:scale-105">
+                B
               </span>
               <span>
-                <strong className="block text-xl tracking-tight text-white">BA-VES</strong>
-                <span className="text-sm font-medium text-[#94A3B8]">Virtual Enterprise Simulation</span>
+                <span className="flex items-center gap-2">
+                  <span className="block font-display text-xl font-extrabold tracking-tight text-white">
+                    BA-VES
+                  </span>
+                  <span className="rounded-full bg-brass/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-brass">
+                    FA26SE185
+                  </span>
+                </span>
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-mist/80">
+                  Mô phỏng BA Đa tác tử AI
+                </span>
               </span>
             </button>
-            
-            <div className="mt-24">
-              <p className="flex w-fit items-center gap-2 rounded-full border border-[#00F0FF]/30 bg-[#00F0FF]/10 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-[#00F0FF] shadow-[0_0_20px_rgba(0,240,255,0.15)]">
-                <Sparkles size={14} className="animate-pulse" />
-                Learning Operations Studio
+
+            <div className="mt-20">
+              <p className="flex w-fit items-center gap-2 rounded-full border border-brass/30 bg-brass/10 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-brass backdrop-blur-md">
+                <Sparkles size={14} />
+                Không gian làm việc chuyên biệt
               </p>
-              <h1 className="mt-8 max-w-xl text-[clamp(2.5rem,5vw,5rem)] font-extrabold leading-[1.05] tracking-tight">
-                One virtual enterprise.<br />
-                <span className="bg-gradient-to-r from-[#00F0FF] to-[#6366F1] bg-clip-text text-transparent italic pr-2">Two real perspectives.</span>
+              <h1 className="mt-6 max-w-xl font-display text-[clamp(2.4rem,4.8vw,4.6rem)] font-extrabold leading-[1.05] tracking-tight">
+                Một doanh nghiệp ảo.<br />
+                <span className="text-brass">Hai góc nhìn thực chiến.</span>
               </h1>
-              <p className="mt-8 max-w-lg text-lg leading-relaxed text-[#94A3B8]">
-                Practice business analysis in a hyper-realistic simulated workplace, or command the complete training operation from one unified platform.
+              <p className="mt-6 max-w-lg text-base leading-relaxed text-mist/85">
+                Thực hành phân tích yêu cầu trong môi trường doanh nghiệp giả lập trung thực, hoặc điều hành và theo dõi toàn bộ hoạt động đào tạo từ trung tâm kiểm soát giảng viên.
               </p>
             </div>
           </div>
 
-          <div className="mt-16 grid grid-cols-3 gap-6 border-t border-white/10 pt-10">
+          <div className="mt-14 grid grid-cols-3 gap-6 border-t border-white/10 pt-8">
             <div className="flex flex-col gap-1">
-              <strong className="text-3xl font-light tracking-tight text-white">06</strong>
-              <span className="text-xs font-medium uppercase tracking-wider text-[#64748B]">Domains</span>
+              <strong className="font-display text-3xl font-bold tracking-tight text-white">04</strong>
+              <span className="text-xs font-medium uppercase tracking-wider text-mist/70">Lĩnh vực nghiệp vụ</span>
             </div>
             <div className="flex flex-col gap-1">
-              <strong className="text-3xl font-light tracking-tight text-white">24</strong>
-              <span className="text-xs font-medium uppercase tracking-wider text-[#64748B]">Applications</span>
+              <strong className="font-display text-3xl font-bold tracking-tight text-white">24</strong>
+              <span className="text-xs font-medium uppercase tracking-wider text-mist/70">Ứng dụng mô phỏng</span>
             </div>
             <div className="flex flex-col gap-1">
-              <strong className="text-3xl font-light tracking-tight text-white">32</strong>
-              <span className="text-xs font-medium uppercase tracking-wider text-[#64748B]">Learners</span>
+              <strong className="font-display text-3xl font-bold tracking-tight text-white">AI</strong>
+              <span className="text-xs font-medium uppercase tracking-wider text-mist/70">Multi-Agent Stakeholders</span>
             </div>
           </div>
         </section>
 
-        {/* Right Section - Role Selection */}
-        <section className="flex flex-col justify-center p-8 sm:p-12 lg:p-20 relative">
+        {/* Right Section - Role Cards */}
+        <section className="relative flex flex-col justify-center p-8 sm:p-12 lg:p-20">
           <div className="max-w-xl">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#64748B]">Choose your role</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">Where would you like to begin?</h2>
-            <p className="mt-4 leading-relaxed text-[#94A3B8]">Each workspace is meticulously crafted with specialized tools and workflows.</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brass">Lựa chọn vai trò</p>
+            <h2 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+              Bạn muốn bắt đầu ở đâu?
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-mist/80">
+              Mỗi không gian được thiết kế tỉ mỉ với bộ công cụ và luồng công việc tối ưu cho từng mục tiêu.
+            </p>
           </div>
 
-          <div className="mt-12 flex flex-col gap-6">
-            
+          <div className="mt-10 flex flex-col gap-5">
             {/* Learner Card */}
-            <button 
-              onClick={enterLearner} 
-              className="group relative w-full overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-1 transition-all duration-500 hover:-translate-y-1 hover:border-[#00F0FF]/30 hover:bg-white/[0.05] hover:shadow-[0_24px_80px_-12px_rgba(0,240,255,0.15)] text-left backdrop-blur-2xl focus:outline-none focus:ring-2 focus:ring-[#00F0FF]/50"
+            <button
+              onClick={enterLearner}
+              className="group relative w-full overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] p-1 text-left transition-all duration-300 hover:-translate-y-1 hover:border-brass/40 hover:bg-white/[0.07] hover:shadow-[0_20px_60px_rgba(197,139,82,0.15)] focus:outline-none focus:ring-2 focus:ring-brass/50 backdrop-blur-xl"
             >
-              {/* Inner ambient glow on hover */}
-              <div className="absolute inset-0 bg-gradient-to-br from-[#00F0FF]/0 to-[#00F0FF]/0 opacity-0 transition-opacity duration-500 group-hover:from-[#00F0FF]/5 group-hover:to-transparent group-hover:opacity-100" />
-              
-              <div className="relative flex flex-col sm:flex-row gap-6 p-6 sm:items-center">
-                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#00F0FF]/20 to-transparent border border-[#00F0FF]/20 text-[#00F0FF] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] transition-transform duration-500 group-hover:scale-110">
-                  <GraduationCap size={28} strokeWidth={1.5} />
+              <div className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-brass/30 bg-brass/15 text-brass shadow-md transition-transform duration-300 group-hover:scale-105">
+                  <GraduationCap size={30} strokeWidth={1.75} />
                 </div>
-                
+
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <strong className="text-2xl font-semibold tracking-tight text-white transition-colors group-hover:text-[#00F0FF]">Learner Workspace</strong>
-                    <span className="rounded-full border border-[#00F0FF]/30 bg-[#00F0FF]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#00F0FF]">Learner</span>
+                    <strong className="font-display text-2xl font-bold tracking-tight text-white transition-colors group-hover:text-brass">
+                      Không gian Học viên (Learner)
+                    </strong>
+                    <span className="rounded-full border border-brass/30 bg-brass/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-brass">
+                      Thực hành
+                    </span>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-[#94A3B8]">Choose a domain, interview AI stakeholders, and complete BABOK-aligned deliverables in a risk-free environment.</p>
-                  
-                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-[#64748B]">
-                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-[#94A3B8]"><BookOpenCheck size={14} className="text-[#00F0FF]/70" />Realistic scenarios</span>
-                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-[#94A3B8]"><Bot size={14} className="text-[#00F0FF]/70" />AI stakeholders</span>
-                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-[#94A3B8]"><CheckCircle2 size={14} className="text-[#00F0FF]/70" />Assessment</span>
+                  <p className="mt-2 text-sm leading-relaxed text-mist/80">
+                    Chọn kịch bản nghiệp vụ, phỏng vấn các tác tử AI đa vai trò, bóc tách bằng chứng và hoàn thiện hồ sơ đặc tả theo chuẩn BABOK®.
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-mist/60">
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <BookOpenCheck size={14} className="text-brass" /> Kịch bản thực chiến
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <Bot size={14} className="text-brass" /> Tác tử AI phản hồi
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <CheckCircle2 size={14} className="text-brass" /> Đánh giá minh chứng
+                    </span>
                   </div>
                 </div>
-                
-                <div className="hidden sm:grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white backdrop-blur-md transition-all duration-500 group-hover:bg-[#00F0FF] group-hover:text-[#0A0F19] group-hover:border-transparent">
-                  <ArrowRight size={20} className="transition-transform duration-500 group-hover:translate-x-1" />
+
+                <div className="hidden sm:grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 group-hover:bg-brass group-hover:text-navy group-hover:border-transparent">
+                  <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
                 </div>
               </div>
             </button>
 
             {/* Instructor Card */}
-            <button 
-              onClick={enterInstructor} 
-              className="group relative w-full overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-1 transition-all duration-500 hover:-translate-y-1 hover:border-[#6366F1]/30 hover:bg-white/[0.05] hover:shadow-[0_24px_80px_-12px_rgba(99,102,241,0.15)] text-left backdrop-blur-2xl focus:outline-none focus:ring-2 focus:ring-[#6366F1]/50"
+            <button
+              onClick={enterInstructor}
+              className="group relative w-full overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] p-1 text-left transition-all duration-300 hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.07] hover:shadow-[0_20px_60px_rgba(255,255,255,0.1)] focus:outline-none focus:ring-2 focus:ring-white/50 backdrop-blur-xl"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-[#6366F1]/0 to-[#6366F1]/0 opacity-0 transition-opacity duration-500 group-hover:from-[#6366F1]/5 group-hover:to-transparent group-hover:opacity-100" />
-              
-              <div className="relative flex flex-col sm:flex-row gap-6 p-6 sm:items-center">
-                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#6366F1]/20 to-transparent border border-[#6366F1]/20 text-[#818CF8] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] transition-transform duration-500 group-hover:scale-110">
-                  <ShieldCheck size={28} strokeWidth={1.5} />
+              <div className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-md transition-transform duration-300 group-hover:scale-105">
+                  <ShieldCheck size={30} strokeWidth={1.75} />
                 </div>
-                
+
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <strong className="text-2xl font-semibold tracking-tight text-white transition-colors group-hover:text-[#818CF8]">Instructor Workspace</strong>
-                    <span className="rounded-full border border-[#6366F1]/30 bg-[#6366F1]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-[#818CF8]">Instructor</span>
+                    <strong className="font-display text-2xl font-bold tracking-tight text-white transition-colors group-hover:text-mist">
+                      Không gian Giảng viên (Instructor)
+                    </strong>
+                    <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-mist">
+                      Quản trị
+                    </span>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-[#94A3B8]">Design scenarios, manage agents, and moderate learner outcomes from a powerful command center.</p>
-                  
-                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-[#64748B]">
-                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-[#94A3B8]"><Layers3 size={14} className="text-[#818CF8]/70" />Scenario builder</span>
-                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-[#94A3B8]"><Users size={14} className="text-[#818CF8]/70" />Cohort management</span>
-                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-[#94A3B8]"><BarChart3 size={14} className="text-[#818CF8]/70" />Analytics</span>
+                  <p className="mt-2 text-sm leading-relaxed text-mist/80">
+                    Cấu hình kịch bản đào tạo, phân bổ tác tử AI, theo dõi tiến độ lớp học và hiệu chuẩn bảng điểm đánh giá của học viên.
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-mist/60">
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <Layers3 size={14} className="text-mist" /> Quản lý kịch bản
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <Users size={14} className="text-mist" /> Giám sát lớp học
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <BarChart3 size={14} className="text-mist" /> Phân tích & Hiệu chuẩn
+                    </span>
                   </div>
                 </div>
-                
-                <div className="hidden sm:grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white backdrop-blur-md transition-all duration-500 group-hover:bg-[#6366F1] group-hover:text-white group-hover:border-transparent">
-                  <ArrowRight size={20} className="transition-transform duration-500 group-hover:translate-x-1" />
+
+                <div className="hidden sm:grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 group-hover:bg-white group-hover:text-navy group-hover:border-transparent">
+                  <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
                 </div>
               </div>
             </button>
-
           </div>
 
-          <p className="mt-12 text-center text-xs font-medium tracking-wide text-[#475569]">
-            Demo data · Supply-chain inventory management domain
-          </p>
+          <div className="mt-10 flex items-center justify-between text-xs text-mist/60">
+            <button
+              onClick={() => navigate("landing")}
+              className="inline-flex items-center gap-1.5 text-mist/80 hover:text-white transition-colors"
+            >
+              ← Quay lại trang chủ
+            </button>
+            <span>Dữ liệu kịch bản: Chuỗi cung ứng & Quản lý kho</span>
+          </div>
         </section>
       </div>
     </main>

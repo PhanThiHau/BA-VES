@@ -1,4 +1,4 @@
-import { ArrowRight, Eye, EyeOff, GraduationCap, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, GraduationCap, LockKeyhole, Mail, ShieldCheck, Zap } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useApp } from "../../contexts/AppContext";
 import type { AppRole, RouteKey } from "../../types/models";
@@ -14,14 +14,20 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [submitting, setSubmitting] = useState(false);
+  const [demoNotice, setDemoNotice] = useState<string | null>(null);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const nextErrors: typeof errors = {};
-    if (!/^\S+@\S+\.\S+$/.test(email)) nextErrors.email = "Enter a valid email address.";
-    if (password.length < 6) nextErrors.password = "Password must contain at least 6 characters.";
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      nextErrors.email = "Vui lòng nhập địa chỉ email hợp lệ.";
+    }
+    if (password.length < 6) {
+      nextErrors.password = "Mật khẩu phải chứa ít nhất 6 ký tự.";
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
+
     setSubmitting(true);
     window.setTimeout(() => {
       setRole(role);
@@ -34,35 +40,211 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
     }, 450);
   };
 
-  const useDemo = () => {
-    setEmail(role === "learner" ? "user@gmail.com" : "user2@gmail.com");
+  const fillDemoAccount = (demoRole: AppRole) => {
+    setLoginRole(demoRole);
+    setEmail(demoRole === "learner" ? "user@gmail.com" : "user2@gmail.com");
     setPassword("123456");
     setErrors({});
+    setDemoNotice(demoRole === "learner" ? "Đã điền tài khoản Học viên" : "Đã điền tài khoản Giảng viên");
+    window.setTimeout(() => setDemoNotice(null), 2200);
   };
 
-  return <AuthLayout navigate={navigate} mode="login">
-    <div className="reveal-up">
-      <p className="text-xs font-bold uppercase tracking-[.16em] text-[#64829b]">Welcome back</p>
-      <h2 className="mt-2 text-3xl font-bold tracking-[-.04em] text-[#17314d] sm:text-4xl">Sign in to BA-VES</h2>
-      <p className="mt-3 leading-7 text-[#718498]">Continue your simulation or manage the training environment.</p>
-    </div>
+  return (
+    <AuthLayout navigate={navigate} mode="login">
+      {/* Concise Header */}
+      <div>
+        <h2 className="font-display text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
+          Đăng nhập
+        </h2>
+        <p className="mt-1 text-xs text-slate">
+          Truy cập không gian làm việc mô phỏng doanh nghiệp
+        </p>
+      </div>
 
-    <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-[#dce5ec] bg-[#f1f5f8] p-1.5" role="radiogroup" aria-label="Account role">
-      {(["learner", "instructor"] as AppRole[]).map((item) => { const Icon = item === "learner" ? GraduationCap : ShieldCheck; return <button key={item} type="button" role="radio" aria-checked={role === item} onClick={() => setLoginRole(item)} className={classNames("flex min-h-12 items-center justify-center gap-2 rounded-xl text-sm font-bold capitalize transition", role === item ? "bg-white text-[#244d6d] shadow-sm" : "text-[#718498] hover:text-[#385b77]")}><Icon size={17}/>{item}</button>; })}
-    </div>
+      {/* Compact Role Switcher */}
+      <div
+        className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-slate/15 bg-[#f4f7fa] p-1"
+        role="radiogroup"
+        aria-label="Chọn vai trò"
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={role === "learner"}
+          onClick={() => setLoginRole("learner")}
+          className={classNames(
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all duration-200",
+            role === "learner"
+              ? "bg-navy text-white shadow-sm"
+              : "text-slate hover:text-navy hover:bg-white/60"
+          )}
+        >
+          <GraduationCap size={16} className={role === "learner" ? "text-brass" : ""} />
+          Học viên
+        </button>
 
-    <form onSubmit={submit} className="mt-7 space-y-5" noValidate>
-      <label className="block"><span className="text-sm font-bold text-[#36516b]">Email address</span><span className={classNames("mt-2 flex min-h-13 items-center gap-3 rounded-2xl border bg-white px-4 transition focus-within:ring-4", errors.email ? "border-[#d99aa4] focus-within:border-[#b75d6c] focus-within:ring-[#f8e8eb]" : "border-[#d5e0e8] focus-within:border-[#7798b5] focus-within:ring-[#e5eff6]")}><Mail size={18} className="shrink-0 text-[#7890a5]"/><input value={email} onChange={(event) => { setEmail(event.target.value); setErrors(current => ({...current,email:undefined})); }} className="w-full bg-transparent text-sm text-[#29445f] outline-none placeholder:text-[#9aa8b5]" placeholder="name@company.com" autoComplete="email"/></span>{errors.email && <span className="mt-1.5 block text-xs font-medium text-[#aa4457]">{errors.email}</span>}</label>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={role === "instructor"}
+          onClick={() => setLoginRole("instructor")}
+          className={classNames(
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all duration-200",
+            role === "instructor"
+              ? "bg-navy text-white shadow-sm"
+              : "text-slate hover:text-navy hover:bg-white/60"
+          )}
+        >
+          <ShieldCheck size={16} className={role === "instructor" ? "text-brass" : ""} />
+          Giảng viên
+        </button>
+      </div>
 
-      <label className="block"><span className="flex items-center justify-between"><span className="text-sm font-bold text-[#36516b]">Password</span><button type="button" className="text-xs font-bold text-[#4f7697] hover:text-[#2e5c80]">Forgot password?</button></span><span className={classNames("mt-2 flex min-h-13 items-center gap-3 rounded-2xl border bg-white px-4 transition focus-within:ring-4", errors.password ? "border-[#d99aa4] focus-within:border-[#b75d6c] focus-within:ring-[#f8e8eb]" : "border-[#d5e0e8] focus-within:border-[#7798b5] focus-within:ring-[#e5eff6]")}><LockKeyhole size={18} className="shrink-0 text-[#7890a5]"/><input value={password} onChange={(event) => { setPassword(event.target.value); setErrors(current => ({...current,password:undefined})); }} type={showPassword ? "text" : "password"} className="w-full bg-transparent text-sm text-[#29445f] outline-none placeholder:text-[#9aa8b5]" placeholder="Enter your password" autoComplete="current-password"/><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="text-[#71879a] hover:text-[#355f80]">{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></span>{errors.password && <span className="mt-1.5 block text-xs font-medium text-[#aa4457]">{errors.password}</span>}</label>
+      <form onSubmit={submit} className="mt-4 space-y-3.5" noValidate>
+        {/* Email Field */}
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-navy">
+            Email
+          </label>
+          <div
+            className={classNames(
+              "group mt-1 flex min-h-11 items-center gap-2.5 rounded-xl border bg-white px-3 transition-all duration-200",
+              errors.email
+                ? "border-rose-400 ring-2 ring-rose-100"
+                : "border-slate/20 hover:border-slate/40 focus-within:border-brass focus-within:ring-2 focus-within:ring-brass/20"
+            )}
+          >
+            <Mail size={16} className="shrink-0 text-slate group-focus-within:text-navy" />
+            <input
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setErrors((current) => ({ ...current, email: undefined }));
+              }}
+              className="w-full bg-transparent text-sm text-navy outline-none placeholder:text-slate/40"
+              placeholder={role === "learner" ? "user@gmail.com" : "user2@gmail.com"}
+              autoComplete="email"
+            />
+          </div>
+          {errors.email && (
+            <span className="mt-1 block text-xs text-rose-600">{errors.email}</span>
+          )}
+        </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 text-sm text-[#63788c]"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="h-4 w-4 rounded accent-[#315f84]"/>Keep me signed in</label><button type="button" onClick={useDemo} className="text-xs font-bold text-[#4c7596] hover:text-[#2d5c80]">Use demo account</button></div>
+        {/* Password Field */}
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-navy">
+              Mật khẩu
+            </label>
+            <button
+              type="button"
+              className="text-[11px] font-semibold text-brass hover:underline"
+            >
+              Quên mật khẩu?
+            </button>
+          </div>
+          <div
+            className={classNames(
+              "group mt-1 flex min-h-11 items-center gap-2.5 rounded-xl border bg-white px-3 transition-all duration-200",
+              errors.password
+                ? "border-rose-400 ring-2 ring-rose-100"
+                : "border-slate/20 hover:border-slate/40 focus-within:border-brass focus-within:ring-2 focus-within:ring-brass/20"
+            )}
+          >
+            <LockKeyhole size={16} className="shrink-0 text-slate group-focus-within:text-navy" />
+            <input
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setErrors((current) => ({ ...current, password: undefined }));
+              }}
+              type={showPassword ? "text" : "password"}
+              className="w-full bg-transparent text-sm text-navy outline-none placeholder:text-slate/40"
+              placeholder="Nhập mật khẩu"
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="text-slate hover:text-navy"
+              aria-label={showPassword ? "Ẩn" : "Hiện"}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          {errors.password && (
+            <span className="mt-1 block text-xs text-rose-600">{errors.password}</span>
+          )}
+        </div>
 
-      <button type="submit" disabled={submitting} className="group inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#285d82] px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(40,93,130,.22)] transition hover:-translate-y-0.5 hover:bg-[#214f70] disabled:cursor-wait disabled:opacity-70">{submitting ? "Signing in…" : <>Sign in <ArrowRight size={16} className="transition group-hover:translate-x-1"/></>}</button>
-    </form>
+        {/* Helpers: Remember & Quick Demo */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+          <label className="flex items-center gap-2 text-xs text-slate cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(event) => setRemember(event.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate/30 accent-navy"
+            />
+            Ghi nhớ
+          </label>
 
-    <div className="mt-7 flex items-center gap-3"><span className="h-px flex-1 bg-[#dfe7ed]"/><span className="text-xs text-[#8b9aa8]">New to BA-VES?</span><span className="h-px flex-1 bg-[#dfe7ed]"/></div>
-    <button onClick={() => navigate("register")} className="mt-5 min-h-12 w-full rounded-2xl border border-[#cbd9e4] bg-white text-sm font-bold text-[#315978] transition hover:-translate-y-0.5 hover:border-[#91abc0] hover:shadow-sm">Create an account</button>
-    <p className="mt-6 text-center text-xs leading-5 text-[#8a99a7]">Instructor access may require approval from your BA-VES program administrator.</p>
-  </AuthLayout>;
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-slate/70">Thử nhanh:</span>
+            <button
+              type="button"
+              onClick={() => fillDemoAccount("learner")}
+              className="inline-flex items-center gap-1 rounded-md border border-slate/20 bg-offwhite px-2 py-0.5 text-[11px] font-medium text-navy hover:bg-white hover:border-brass/50 transition-all"
+            >
+              <Zap size={11} className="text-brass" /> Học viên
+            </button>
+            <button
+              type="button"
+              onClick={() => fillDemoAccount("instructor")}
+              className="inline-flex items-center gap-1 rounded-md border border-slate/20 bg-offwhite px-2 py-0.5 text-[11px] font-medium text-navy hover:bg-white hover:border-brass/50 transition-all"
+            >
+              <Zap size={11} className="text-brass" /> Giảng viên
+            </button>
+          </div>
+        </div>
+
+        {demoNotice && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">
+            <Check size={13} className="text-emerald-600" />
+            {demoNotice} (MK: 123456)
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="group relative mt-2 flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-navy px-4 text-sm font-bold text-white shadow-md transition-all duration-300 hover:bg-navy-deep hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-75"
+        >
+          <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
+          {submitting ? (
+            "Đang đăng nhập..."
+          ) : (
+            <>
+              Đăng nhập
+              <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+            </>
+          )}
+        </button>
+      </form>
+
+      {/* Switch to Register */}
+      <div className="mt-5 text-center text-xs text-slate">
+        Chưa có tài khoản?{" "}
+        <button
+          type="button"
+          onClick={() => navigate("register")}
+          className="font-bold text-navy hover:text-brass transition-colors"
+        >
+          Đăng ký ngay
+        </button>
+      </div>
+    </AuthLayout>
+  );
 }
