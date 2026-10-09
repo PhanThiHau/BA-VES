@@ -27,3 +27,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# Local AI logs & documentation (do not track in git)
+AI_USAGE_LOG.md
+*_LOG.md
