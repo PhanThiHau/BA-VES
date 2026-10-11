@@ -20,8 +20,8 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
 
   // Password validation criteria
   const passwordCriteria = useMemo(() => [
-    { label: "8+ ký tự", valid: password.length >= 8 },
-    { label: "Chữ hoa (A-Z)", valid: /[A-Z]/.test(password) },
+    { label: "Tối thiểu 8 ký tự", valid: password.length >= 8 },
+    { label: "Chữ in hoa (A-Z)", valid: /[A-Z]/.test(password) },
     { label: "Chữ số (0-9)", valid: /[0-9]/.test(password) },
     { label: "Ký tự đặc biệt", valid: /[^A-Za-z0-9]/.test(password) },
   ], [password]);
@@ -41,6 +41,7 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
       next.email = "Vui lòng nhập địa chỉ email hợp lệ.";
     }
 
+    // Explicit password validation rules
     if (password.length < 8) {
       next.password = "Mật khẩu phải có ít nhất 8 ký tự.";
     } else if (!/[A-Z]/.test(password)) {
@@ -64,25 +65,25 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
   if (created) {
     return (
       <AuthLayout navigate={navigate} mode="register">
-        <div className="text-center py-6">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/30">
-            <CheckCircle2 size={36} />
+        <div className="reveal-up text-center py-4">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-100 text-emerald-600 shadow-sm border border-emerald-200">
+            <CheckCircle2 size={34} />
           </div>
 
-          <h2 className="mt-4 font-['Josefin_Sans',sans-serif] text-2xl font-bold tracking-tight text-white">
-            Đăng ký tài khoản thành công!
+          <h2 className="mt-4 font-display text-2xl font-extrabold tracking-tight text-navy">
+            Đăng ký thành công!
           </h2>
-          <p className="mx-auto mt-2 max-w-sm text-xs sm:text-sm leading-relaxed text-slate-300">
-            Chào mừng <strong className="text-white">{name}</strong>. Tài khoản {role === "learner" ? "Học viên" : "Giảng viên"} của bạn đã sẵn sàng trên hệ thống BA-VES.
+          <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-slate">
+            Chào mừng <strong className="text-navy">{name}</strong>. Tài khoản {role === "learner" ? "Học viên" : "Giảng viên"} của bạn đã sẵn sàng trên hệ thống BA-VES.
           </p>
 
           <button
             type="button"
             onClick={() => navigate("login")}
-            className="mt-6 w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 px-4 text-sm font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 active:bg-blue-700 transition-colors"
+            className="group relative mt-6 flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-navy px-4 text-sm font-bold text-white shadow-md transition-all hover:bg-navy-deep hover:-translate-y-0.5"
           >
             Đăng nhập ngay
-            <ArrowRight size={15} />
+            <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
           </button>
         </div>
       </AuthLayout>
@@ -91,123 +92,115 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
 
   const inputFrame = (error?: string) =>
     classNames(
-      "flex items-center gap-2.5 rounded-xl border bg-[#171c35]/90 px-3 py-2 transition-all duration-150",
+      "group mt-1 flex min-h-11 items-center gap-2.5 rounded-xl border bg-white px-3 transition-all duration-200",
       error
-        ? "border-rose-400 ring-2 ring-rose-500/20"
-        : "border-white/15 hover:border-white/25 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/20"
+        ? "border-rose-400 ring-2 ring-rose-100"
+        : "border-slate/20 hover:border-slate/40 focus-within:border-brass focus-within:ring-2 focus-within:ring-brass/20"
     );
 
   return (
     <AuthLayout navigate={navigate} mode="register">
-      {/* Title & Subtitle */}
+      {/* Header */}
       <div>
-        <h2 className="font-['Josefin_Sans',sans-serif] text-2xl font-bold tracking-tight text-white sm:text-3xl">
-          Tạo tài khoản mới
+        <h2 className="font-display text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
+          Tạo tài khoản
         </h2>
-        <p className="mt-1 text-xs text-slate-300">
-          Bắt đầu hành trình phân tích nghiệp vụ thực chiến cùng BA-VES
+        <p className="mt-1 text-xs text-slate">
+          Bắt đầu hành trình thực hành phân tích nghiệp vụ thực chiến
         </p>
       </div>
 
-      {/* Segmented Role Switcher */}
-      <div className="mt-4">
-        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-          Chọn vai trò đăng ký
-        </label>
-        <div
-          className="grid grid-cols-2 gap-1 rounded-xl bg-[#171c35] p-1 border border-white/10"
-          role="radiogroup"
-          aria-label="Chọn vai trò đăng ký"
+      {/* Role Switcher */}
+      <div
+        className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-slate/15 bg-[#f4f7fa] p-1"
+        role="radiogroup"
+        aria-label="Chọn vai trò đăng ký"
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={role === "learner"}
+          onClick={() => setRole("learner")}
+          className={classNames(
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all duration-200",
+            role === "learner"
+              ? "bg-navy text-white shadow-sm"
+              : "text-slate hover:text-navy hover:bg-white/60"
+          )}
         >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={role === "learner"}
-            onClick={() => setRole("learner")}
-            className={classNames(
-              "flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold transition-all duration-150",
-              role === "learner"
-                ? "bg-blue-600 text-white shadow-md font-bold"
-                : "text-slate-400 hover:text-white"
-            )}
-          >
-            <GraduationCap size={15} />
-            Học viên (Learner)
-          </button>
+          <GraduationCap size={16} className={role === "learner" ? "text-brass" : ""} />
+          Học viên
+        </button>
 
-          <button
-            type="button"
-            role="radio"
-            aria-checked={role === "instructor"}
-            onClick={() => setRole("instructor")}
-            className={classNames(
-              "flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold transition-all duration-150",
-              role === "instructor"
-                ? "bg-blue-600 text-white shadow-md font-bold"
-                : "text-slate-400 hover:text-white"
-            )}
-          >
-            <ShieldCheck size={15} />
-            Giảng viên (Instructor)
-          </button>
-        </div>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={role === "instructor"}
+          onClick={() => setRole("instructor")}
+          className={classNames(
+            "flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all duration-200",
+            role === "instructor"
+              ? "bg-navy text-white shadow-sm"
+              : "text-slate hover:text-navy hover:bg-white/60"
+          )}
+        >
+          <ShieldCheck size={16} className={role === "instructor" ? "text-brass" : ""} />
+          Giảng viên
+        </button>
       </div>
 
-      {/* Main Register Form */}
-      <form onSubmit={submit} className="mt-3.5 space-y-3" noValidate>
+      <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
         {/* Full Name */}
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-navy">
             Họ và tên
           </label>
           <div className={inputFrame(errors.name)}>
-            <UserRound size={15} className="shrink-0 text-slate-400" />
+            <UserRound size={16} className="shrink-0 text-slate group-focus-within:text-navy" />
             <input
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
                 setErrors((c) => ({ ...c, name: undefined }));
               }}
-              type="text"
-              autoComplete="name"
+              className="w-full bg-transparent text-sm text-navy outline-none placeholder:text-slate/40"
               placeholder="Nguyễn Văn A"
-              className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 outline-none"
+              autoComplete="name"
             />
           </div>
-          {errors.name && <p className="mt-1 text-xs text-rose-400 font-medium">{errors.name}</p>}
+          {errors.name && <span className="mt-1 block text-xs text-rose-600">{errors.name}</span>}
         </div>
 
         {/* Email */}
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
-            Địa chỉ Email
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-navy">
+            Email
           </label>
           <div className={inputFrame(errors.email)}>
-            <Mail size={15} className="shrink-0 text-slate-400" />
+            <Mail size={16} className="shrink-0 text-slate group-focus-within:text-navy" />
             <input
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
                 setErrors((c) => ({ ...c, email: undefined }));
               }}
-              type="email"
-              autoComplete="email"
+              className="w-full bg-transparent text-sm text-navy outline-none placeholder:text-slate/40"
               placeholder="name@example.com"
-              className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 outline-none"
+              autoComplete="email"
             />
           </div>
-          {errors.email && <p className="mt-1 text-xs text-rose-400 font-medium">{errors.email}</p>}
+          {errors.email && <span className="mt-1 block text-xs text-rose-600">{errors.email}</span>}
         </div>
 
-        {/* Password & Confirm Password Row */}
+        {/* Password & Confirm Password Grid */}
         <div className="grid gap-2.5 sm:grid-cols-2">
           {/* Password */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-navy">
               Mật khẩu
             </label>
             <div className={inputFrame(errors.password)}>
-              <LockKeyhole size={15} className="shrink-0 text-slate-400" />
+              <LockKeyhole size={16} className="shrink-0 text-slate group-focus-within:text-navy" />
               <input
                 value={password}
                 onChange={(e) => {
@@ -215,31 +208,31 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
                   setErrors((c) => ({ ...c, password: undefined }));
                 }}
                 type={showPassword ? "text" : "password"}
-                autoComplete="new-password"
+                className="w-full bg-transparent text-sm text-navy outline-none placeholder:text-slate/40"
                 placeholder="Tối thiểu 8 ký tự"
-                className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 outline-none"
+                autoComplete="new-password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="text-slate-400 hover:text-slate-200 focus:outline-none"
+                className="text-slate hover:text-navy"
                 aria-label={showPassword ? "Ẩn" : "Hiện"}
               >
-                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
             {errors.password && (
-              <p className="mt-1 text-xs text-rose-400 font-medium">{errors.password}</p>
+              <span className="mt-1 block text-xs text-rose-600">{errors.password}</span>
             )}
           </div>
 
           {/* Confirm Password */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-navy">
               Xác nhận mật khẩu
             </label>
             <div className={inputFrame(errors.confirm)}>
-              <LockKeyhole size={15} className="shrink-0 text-slate-400" />
+              <LockKeyhole size={16} className="shrink-0 text-slate group-focus-within:text-navy" />
               <input
                 value={confirm}
                 onChange={(e) => {
@@ -247,33 +240,34 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
                   setErrors((c) => ({ ...c, confirm: undefined }));
                 }}
                 type={showConfirmPassword ? "text" : "password"}
-                autoComplete="new-password"
+                className="w-full bg-transparent text-sm text-navy outline-none placeholder:text-slate/40"
                 placeholder="Nhập lại mật khẩu"
-                className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 outline-none"
+                autoComplete="new-password"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword((v) => !v)}
-                className="text-slate-400 hover:text-slate-200 focus:outline-none"
+                className="text-slate hover:text-navy"
                 aria-label={showConfirmPassword ? "Ẩn" : "Hiện"}
               >
-                {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
             {errors.confirm && (
-              <p className="mt-1 text-xs text-rose-400 font-medium">{errors.confirm}</p>
+              <span className="mt-1 block text-xs text-rose-600">{errors.confirm}</span>
             )}
           </div>
         </div>
 
-        {/* Compact Password Strength Indicator */}
-        <div className="rounded-xl border border-white/10 bg-[#171c35]/80 p-2.5 space-y-1.5">
+        {/* Live Password Requirements & Micro Strength Indicator */}
+        <div className="rounded-xl border border-slate/15 bg-[#f8fafc] p-2.5 space-y-2">
+          {/* Strength Bar */}
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Độ bảo mật mật khẩu:</span>
+            <span className="text-slate/80">Yêu cầu bảo mật mật khẩu:</span>
             {password.length > 0 && (
               <span className={classNames(
-                "font-bold text-[11px]",
-                validCount <= 1 ? "text-rose-400" : validCount <= 2 ? "text-amber-400" : "text-emerald-400"
+                "font-bold text-[10px]",
+                validCount <= 1 ? "text-rose-500" : validCount <= 2 ? "text-amber-500" : "text-emerald-600"
               )}>
                 {strengthLabels[validCount]}
               </span>
@@ -286,48 +280,49 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
                 <span
                   key={lvl}
                   className={classNames(
-                    "h-full flex-1 rounded-full transition-all duration-200",
+                    "h-full flex-1 rounded-full transition-all duration-300",
                     lvl <= validCount
                       ? validCount <= 1
                         ? "bg-rose-500"
                         : validCount <= 2
                         ? "bg-amber-400"
-                        : "bg-emerald-400"
-                      : "bg-white/10"
+                        : "bg-emerald-500"
+                      : "bg-slate/20"
                   )}
                 />
               ))}
             </div>
           )}
 
-          <div className="grid grid-cols-4 gap-1 text-[10px]">
+          {/* Interactive Checklist Pills */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
             {passwordCriteria.map((c) => (
               <div
                 key={c.label}
                 className={classNames(
-                  "flex items-center gap-1",
-                  c.valid ? "text-emerald-300 font-medium" : "text-slate-500"
+                  "flex items-center gap-1.5 transition-colors duration-200",
+                  c.valid ? "text-emerald-700 font-semibold" : "text-slate/70"
                 )}
               >
                 <span
                   className={classNames(
-                    "grid h-3 w-3 place-items-center rounded-full border transition-all shrink-0",
+                    "grid h-3.5 w-3.5 place-items-center rounded-full border transition-all duration-200",
                     c.valid
-                      ? "border-emerald-400 bg-emerald-500/20 text-emerald-400"
-                      : "border-white/15 bg-white/5"
+                      ? "border-emerald-600 bg-emerald-100 text-emerald-700 scale-105"
+                      : "border-slate/30 bg-white"
                   )}
                 >
-                  {c.valid ? <Check size={8} /> : <span className="h-0.5 w-0.5 rounded-full bg-slate-500" />}
+                  {c.valid ? <Check size={9} /> : <span className="h-1 w-1 rounded-full bg-slate/40" />}
                 </span>
-                <span className="truncate">{c.label}</span>
+                <span>{c.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Terms Checkbox */}
-        <div>
-          <label className="flex items-start gap-2 text-xs text-slate-300 cursor-pointer select-none">
+        {/* Terms */}
+        <div className="pt-0.5">
+          <label className="flex items-center gap-2 text-xs text-slate cursor-pointer select-none">
             <input
               type="checkbox"
               checked={terms}
@@ -335,39 +330,36 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
                 setTerms(e.target.checked);
                 setErrors((c) => ({ ...c, terms: undefined }));
               }}
-              className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-[#171c35] text-blue-600 focus:ring-blue-500 accent-blue-600"
+              className="h-3.5 w-3.5 rounded border-slate/30 accent-navy"
             />
             <span>
               Tôi đồng ý với{" "}
-              <button type="button" className="font-semibold text-blue-400 hover:text-blue-300 hover:underline">
+              <button type="button" className="font-semibold text-navy hover:text-brass underline">
                 Điều khoản dịch vụ
-              </button>{" "}
-              và{" "}
-              <button type="button" className="font-semibold text-blue-400 hover:text-blue-300 hover:underline">
-                Chính sách bảo mật
               </button>
             </span>
           </label>
-          {errors.terms && <p className="mt-1 text-xs text-rose-400 font-medium">{errors.terms}</p>}
+          {errors.terms && <p className="mt-1 text-xs text-rose-600">{errors.terms}</p>}
         </div>
 
         {/* Submit Button */}
         <button
           type="submit"
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 px-4 text-sm font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 active:bg-blue-700 transition-all"
+          className="group relative mt-2 flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-navy px-4 text-sm font-bold text-white shadow-md transition-all duration-300 hover:bg-navy-deep hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
         >
+          <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
           Đăng ký tài khoản {role === "learner" ? "Học viên" : "Giảng viên"}
-          <ArrowRight size={15} />
+          <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
         </button>
       </form>
 
       {/* Switch to Login */}
-      <div className="mt-3.5 text-center text-xs text-slate-400">
-        Đã có tài khoản trên BA-VES?{" "}
+      <div className="mt-4 text-center text-xs text-slate">
+        Đã có tài khoản?{" "}
         <button
           type="button"
           onClick={() => navigate("login")}
-          className="font-bold text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+          className="font-bold text-navy hover:text-brass transition-colors"
         >
           Đăng nhập ngay
         </button>
