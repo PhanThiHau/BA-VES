@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import type { RouteKey } from "../../types/models";
-import { contextThemes, babokKnowledgeAreas, type BabokArea } from "./data";
+import { contextThemes, babokKnowledgeAreas } from "./data";
 import { Reveal } from "./Reveal";
 import { Photo } from "./Photo";
 import { Eyebrow } from "./primitives";
@@ -16,15 +16,6 @@ import {
   ArrowRight,
   ShieldCheck,
   Check,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  Maximize2,
-  SlidersHorizontal,
-  Grid3x3,
-  Film,
-  ExternalLink,
 } from "lucide-react";
 
 interface ContextSectionProps {
@@ -34,27 +25,6 @@ interface ContextSectionProps {
 export function ContextSection({ navigate }: ContextSectionProps) {
   const [activeThemeIdx, setActiveThemeIdx] = useState(0);
   const [selectedKaId, setSelectedKaId] = useState<string>("ec"); // Default to Elicitation & Collaboration
-  const [viewMode, setViewMode] = useState<"marquee" | "grid" | "video">("marquee");
-  const [isVideoPlaying, setIsVideoPlaying] = useState(true);
-  const [isVideoMuted, setIsVideoMuted] = useState(true);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  const toggleVideoPlay = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      videoRef.current.play();
-      setIsVideoPlaying(true);
-    } else {
-      videoRef.current.pause();
-      setIsVideoPlaying(false);
-    }
-  };
-
-  const toggleVideoMute = () => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = !videoRef.current.muted;
-    setIsVideoMuted(videoRef.current.muted);
-  };
 
   const activeTheme = contextThemes[activeThemeIdx];
   const selectedKa = babokKnowledgeAreas.find((k) => k.id === selectedKaId) || babokKnowledgeAreas[1];
@@ -358,320 +328,112 @@ export function ContextSection({ navigate }: ContextSectionProps) {
               <p className="mt-3 text-sm leading-relaxed text-slate sm:text-base max-w-2xl mx-auto">
                 Trực quan hóa lộ trình thực hành chuẩn IIBA® qua mô phỏng tác tử AI sống động. Dễ dàng theo dõi mục tiêu, kỹ năng cốt lõi và hồ sơ bàn giao thực tế.
               </p>
-
-              {/* View Mode Switcher Tabs */}
-              <div className="mt-8 inline-flex flex-wrap items-center justify-center gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm border border-mist/80">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("marquee")}
-                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all sm:text-sm cursor-pointer ${
-                    viewMode === "marquee"
-                      ? "bg-navy text-white shadow-md shadow-navy/20"
-                      : "text-slate hover:bg-offwhite hover:text-navy"
-                  }`}
-                >
-                  <SlidersHorizontal className="h-4 w-4 text-brass" />
-                  <span>Băng chuyền tự động</span>
-                  <span className="rounded-full bg-brass/20 px-1.5 py-0.5 text-[10px] font-extrabold text-brass">Auto-Reel</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all sm:text-sm cursor-pointer ${
-                    viewMode === "grid"
-                      ? "bg-navy text-white shadow-md shadow-navy/20"
-                      : "text-slate hover:bg-offwhite hover:text-navy"
-                  }`}
-                >
-                  <Grid3x3 className="h-4 w-4 text-brass" />
-                  <span>Lưới ma trận tinh gọn</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("video")}
-                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all sm:text-sm cursor-pointer ${
-                    viewMode === "video"
-                      ? "bg-navy text-white shadow-md shadow-navy/20"
-                      : "text-slate hover:bg-offwhite hover:text-navy"
-                  }`}
-                >
-                  <Film className="h-4 w-4 text-brass" />
-                  <span>Video mô phỏng</span>
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                </button>
-              </div>
             </div>
           </Reveal>
 
-          {/* VIEW MODE 1: DEDICATED CINEMA VIDEO SHOWCASE */}
-          {viewMode === "video" && (
-            <div className="mt-10">
-              <Reveal variant="up">
-                <div className="relative overflow-hidden rounded-3xl border border-brass/40 bg-navy-deep shadow-2xl">
-                  {/* Video Screen Container */}
-                  <div className="relative aspect-[16/7] w-full overflow-hidden bg-slate-950 sm:aspect-[21/9]">
-                    <video
-                      ref={videoRef}
-                      src="/intro-preview.mp4"
-                      autoPlay
-                      loop
-                      muted={isVideoMuted}
-                      playsInline
-                      className="h-full w-full object-cover"
-                    />
-
-                    {/* Subtle Gradient Overlays */}
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-navy-deep/90 via-transparent to-navy-deep/40" />
-
-                    {/* Floating HUD Badges */}
-                    <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-                      <div className="flex items-center gap-2 rounded-full bg-navy-deep/80 px-3.5 py-1.5 text-xs font-bold text-white backdrop-blur-md border border-white/15">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>LIVE DEMO · MÔ PHỎNG DOANH NGHIỆP THỰC CHIẾN</span>
-                      </div>
-                      <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-brass/90 px-3 py-1 text-xs font-extrabold text-navy-deep shadow-sm">
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        <span>Chuẩn IIBA® BABOK®</span>
-                      </div>
-                    </div>
-
-                    {/* Control Bar Overlay */}
-                    <div className="absolute bottom-4 left-4 right-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl bg-navy-deep/85 p-3.5 backdrop-blur-md border border-white/10">
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={toggleVideoPlay}
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brass text-navy-deep transition-all hover:bg-brass/90 hover:scale-105"
-                          title={isVideoPlaying ? "Tạm dừng" : "Phát video"}
-                        >
-                          {isVideoPlaying ? <Pause className="h-4 w-4 fill-navy-deep" /> : <Play className="h-4 w-4 fill-navy-deep" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={toggleVideoMute}
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white transition-all hover:bg-white/20"
-                          title={isVideoMuted ? "Bật âm thanh" : "Tắt âm thanh"}
-                        >
-                          {isVideoMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                        </button>
-                        <div>
-                          <div className="text-xs font-bold text-white">Video Minh Họa Băng Chuyền Thực Chiến BA-VES</div>
-                          <div className="text-[11px] text-mist/70">Mô phỏng quy trình tương tác đa tác tử AI tự động</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setViewMode("marquee")}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-mist hover:bg-white/20 hover:text-white transition-colors"
-                        >
-                          <SlidersHorizontal className="h-3.5 w-3.5" />
-                          <span>Xem dạng băng chuyền thẻ</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => navigate("scenario-detail")}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-brass px-4 py-2 text-xs font-bold text-navy-deep hover:bg-brass/90 shadow-md transition-all"
-                        >
-                          <span>Vào thực hành</span>
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
+          {/* AUTO-SCROLLING MARQUEE REEL (Runs Permanently & Automatically) */}
+          <div className="mt-10">
+            {/* Informative Hint Pill */}
+            <div className="mb-4 flex items-center justify-between px-2 text-xs text-slate">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span className="inline-block h-2 w-2 rounded-full bg-brass animate-ping" />
+                <span>Băng chuyền tự động trượt ngang · Di chuột để tạm dừng & chọn thẻ</span>
+              </span>
+              <span className="hidden sm:inline text-[11px] text-slate/70">
+                Nhấn vào thẻ bất kỳ để xem chi tiết ma trận bên dưới
+              </span>
             </div>
-          )}
 
-          {/* VIEW MODE 2: AUTO-SCROLLING MARQUEE REEL (Matches User's Demo Video) */}
-          {viewMode === "marquee" && (
-            <div className="mt-10">
-              {/* Informative Hint Pill */}
-              <div className="mb-4 flex items-center justify-between px-2 text-xs text-slate">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <span className="inline-block h-2 w-2 rounded-full bg-brass animate-ping" />
-                  <span>Băng chuyền tự động trượt ngang · Di chuột để tạm dừng & chọn thẻ</span>
-                </span>
-                <span className="hidden sm:inline text-[11px] text-slate/70">
-                  Nhấn vào thẻ bất kỳ để xem chi tiết ma trận
-                </span>
-              </div>
+            {/* Infinite Marquee Container */}
+            <div className="relative overflow-hidden py-4 -mx-6 px-6 lg:-mx-10 lg:px-10">
+              {/* Side Fade Gradients for smooth infinite look */}
+              <div className="pointer-events-none absolute left-0 top-0 bottom-0 z-10 w-16 bg-gradient-to-r from-offwhite to-transparent" />
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-16 bg-gradient-to-l from-offwhite to-transparent" />
 
-              {/* Infinite Marquee Container */}
-              <div className="relative overflow-hidden py-4 -mx-6 px-6 lg:-mx-10 lg:px-10">
-                {/* Side Fade Gradients for smooth infinite look */}
-                <div className="pointer-events-none absolute left-0 top-0 bottom-0 z-10 w-16 bg-gradient-to-r from-offwhite to-transparent" />
-                <div className="pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-16 bg-gradient-to-l from-offwhite to-transparent" />
-
-                <div className="animate-marquee flex gap-5">
-                  {/* Render 2 sets of cards to create a seamless infinite loop */}
-                  {[...babokKnowledgeAreas, ...babokKnowledgeAreas].map((ka, idx) => {
-                    const isSelected = ka.id === selectedKaId;
-                    return (
-                      <div
-                        key={`${ka.id}-${idx}`}
-                        onClick={() => setSelectedKaId(ka.id)}
-                        className={`group relative flex w-[300px] sm:w-[340px] shrink-0 flex-col justify-between overflow-hidden rounded-3xl transition-all duration-300 cursor-pointer ${
-                          isSelected
-                            ? "border-2 border-brass bg-white shadow-xl shadow-brass/15 scale-[1.02]"
-                            : "border border-mist/80 bg-white/95 hover:bg-white hover:border-brass/50 hover:shadow-lg hover:-translate-y-1"
-                        }`}
-                      >
-                        {/* Card Image Banner */}
-                        <div className="relative h-32 w-full overflow-hidden bg-navy">
-                          {ka.image ? (
-                            <img
-                              src={ka.image}
-                              alt={ka.nameVi}
-                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-108"
-                            />
-                          ) : (
-                            <div className="h-full w-full bg-gradient-to-br from-navy to-navy-deep" />
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-navy/90 via-navy/30 to-transparent" />
-
-                          {/* Code and Category Badges */}
-                          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-                            <span className="rounded-lg bg-brass px-2.5 py-0.5 text-xs font-mono font-extrabold text-navy-deep shadow-sm">
-                              {ka.code}
-                            </span>
-                            <span className="rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-bold text-navy backdrop-blur-sm border border-white/20">
-                              {ka.badge}
-                            </span>
-                          </div>
-
-                          {/* Floating Icon at Bottom Left of Image */}
-                          <div className="absolute bottom-2.5 left-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-navy shadow-md transition-colors group-hover:bg-brass group-hover:text-navy-deep">
-                            {renderKaIcon(ka.iconName, "h-4 w-4")}
-                          </div>
-                        </div>
-
-                        {/* Card Body */}
-                        <div className="flex flex-1 flex-col justify-between p-4 sm:p-5">
-                          <div>
-                            <h4 className="font-display text-base font-bold text-navy group-hover:text-brass transition-colors line-clamp-1">
-                              {ka.nameVi}
-                            </h4>
-                            <p className="text-[11px] italic text-slate line-clamp-1">{ka.nameEn}</p>
-
-                            <p className="mt-2 text-xs leading-relaxed text-slate line-clamp-2">
-                              {ka.shortDesc || ka.description}
-                            </p>
-
-                            {/* Crisp Skill Tags */}
-                            {ka.tags && (
-                              <div className="mt-3 flex flex-wrap gap-1.5">
-                                {ka.tags.map((tag, tIdx) => (
-                                  <span
-                                    key={tIdx}
-                                    className="rounded-md bg-offwhite px-2 py-0.5 text-[10px] font-semibold text-navy/80 border border-mist/60"
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Card Footer */}
-                          <div className="mt-4 flex items-center justify-between border-t border-mist/50 pt-3 text-[11px]">
-                            <span className="font-bold text-navy group-hover:text-brass transition-colors">
-                              {isSelected ? "Đang chọn vùng này" : "Bấm xem nhiệm vụ & đầu ra"}
-                            </span>
-                            <ArrowRight className={`h-3.5 w-3.5 text-brass transition-transform ${isSelected ? "translate-x-1" : "group-hover:translate-x-1"}`} />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* VIEW MODE 3: CLEAN MINIMALIST GRID (No text overload) */}
-          {viewMode === "grid" && (
-            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {babokKnowledgeAreas.map((ka) => {
-                const isSelected = ka.id === selectedKaId;
-                return (
-                  <div
-                    key={ka.id}
-                    onClick={() => setSelectedKaId(ka.id)}
-                    className={`group relative flex flex-col justify-between overflow-hidden rounded-3xl transition-all duration-300 cursor-pointer ${
-                      isSelected
-                        ? "border-2 border-brass bg-white shadow-xl shadow-brass/15 -translate-y-1"
-                        : "border border-mist/80 bg-white/90 hover:bg-white hover:border-brass/40 hover:shadow-lg hover:-translate-y-0.5"
-                    }`}
-                  >
-                    {/* Visual Card Header */}
-                    <div className="relative h-28 w-full overflow-hidden bg-navy">
-                      {ka.image ? (
-                        <img
-                          src={ka.image}
-                          alt={ka.nameVi}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-108"
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-navy to-navy-deep" />
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-navy/90 via-navy/30 to-transparent" />
-
-                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-                        <span className="rounded-lg bg-brass px-2.5 py-0.5 text-xs font-mono font-extrabold text-navy-deep shadow-sm">
-                          {ka.code}
-                        </span>
-                        <span className="rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-bold text-navy backdrop-blur-sm border border-white/20">
-                          {ka.badge}
-                        </span>
-                      </div>
-
-                      <div className="absolute bottom-2 left-3 flex h-8 w-8 items-center justify-center rounded-xl bg-white text-navy shadow-md group-hover:bg-brass group-hover:text-navy-deep transition-colors">
-                        {renderKaIcon(ka.iconName, "h-4 w-4")}
-                      </div>
-                    </div>
-
-                    {/* Card Content without text overload */}
-                    <div className="flex flex-1 flex-col justify-between p-5">
-                      <div>
-                        <h4 className="font-display text-base font-bold text-navy group-hover:text-brass transition-colors">
-                          {ka.nameVi}
-                        </h4>
-                        <p className="text-[11px] italic text-slate line-clamp-1">{ka.nameEn}</p>
-
-                        <p className="mt-2 text-xs leading-relaxed text-slate line-clamp-2">
-                          {ka.shortDesc || ka.description}
-                        </p>
-
-                        {/* Skill Tags */}
-                        {ka.tags && (
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {ka.tags.map((tag, tIdx) => (
-                              <span
-                                key={tIdx}
-                                className="rounded-md bg-offwhite px-2 py-0.5 text-[10px] font-semibold text-navy/80 border border-mist/60"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
+              <div className="animate-marquee flex gap-5">
+                {/* Render 2 sets of cards to create a seamless infinite loop */}
+                {[...babokKnowledgeAreas, ...babokKnowledgeAreas].map((ka, idx) => {
+                  const isSelected = ka.id === selectedKaId;
+                  return (
+                    <div
+                      key={`${ka.id}-${idx}`}
+                      onClick={() => setSelectedKaId(ka.id)}
+                      className={`group relative flex w-[300px] sm:w-[340px] shrink-0 flex-col justify-between overflow-hidden rounded-3xl transition-all duration-300 cursor-pointer ${
+                        isSelected
+                          ? "border-2 border-brass bg-white shadow-xl shadow-brass/15 scale-[1.02]"
+                          : "border border-mist/80 bg-white/95 hover:bg-white hover:border-brass/50 hover:shadow-lg hover:-translate-y-1"
+                      }`}
+                    >
+                      {/* Card Image Banner */}
+                      <div className="relative h-32 w-full overflow-hidden bg-navy">
+                        {ka.image ? (
+                          <img
+                            src={ka.image}
+                            alt={ka.nameVi}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-108"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-gradient-to-br from-navy to-navy-deep" />
                         )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-navy/90 via-navy/30 to-transparent" />
+
+                        {/* Code and Category Badges */}
+                        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                          <span className="rounded-lg bg-brass px-2.5 py-0.5 text-xs font-mono font-extrabold text-navy-deep shadow-sm">
+                            {ka.code}
+                          </span>
+                          <span className="rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-bold text-navy backdrop-blur-sm border border-white/20">
+                            {ka.badge}
+                          </span>
+                        </div>
+
+                        {/* Floating Icon at Bottom Left of Image */}
+                        <div className="absolute bottom-2.5 left-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-navy shadow-md transition-colors group-hover:bg-brass group-hover:text-navy-deep">
+                          {renderKaIcon(ka.iconName, "h-4 w-4")}
+                        </div>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between border-t border-mist/50 pt-3 text-xs">
-                        <span className="font-bold text-navy group-hover:text-brass transition-colors">
-                          {isSelected ? "Đang chọn vùng này" : "Xem chi tiết nhiệm vụ & đầu ra"}
-                        </span>
-                        <ArrowRight className={`h-3.5 w-3.5 text-brass transition-transform ${isSelected ? "translate-x-1" : "group-hover:translate-x-1"}`} />
+                      {/* Card Body */}
+                      <div className="flex flex-1 flex-col justify-between p-4 sm:p-5">
+                        <div>
+                          <h4 className="font-display text-base font-bold text-navy group-hover:text-brass transition-colors line-clamp-1">
+                            {ka.nameVi}
+                          </h4>
+                          <p className="text-[11px] italic text-slate line-clamp-1">{ka.nameEn}</p>
+
+                          <p className="mt-2 text-xs leading-relaxed text-slate line-clamp-2">
+                            {ka.shortDesc || ka.description}
+                          </p>
+
+                          {/* Crisp Skill Tags */}
+                          {ka.tags && (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {ka.tags.map((tag, tIdx) => (
+                                <span
+                                  key={tIdx}
+                                  className="rounded-md bg-offwhite px-2 py-0.5 text-[10px] font-semibold text-navy/80 border border-mist/60"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Card Footer */}
+                        <div className="mt-4 flex items-center justify-between border-t border-mist/50 pt-3 text-[11px]">
+                          <span className="font-bold text-navy group-hover:text-brass transition-colors">
+                            {isSelected ? "Đang chọn vùng này" : "Bấm xem nhiệm vụ & đầu ra"}
+                          </span>
+                          <ArrowRight className={`h-3.5 w-3.5 text-brass transition-transform ${isSelected ? "translate-x-1" : "group-hover:translate-x-1"}`} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          )}
+          </div>
 
           {/* INTERACTIVE SELECTED KA SPOTLIGHT DETAILS DRAWER */}
           {selectedKa && (
