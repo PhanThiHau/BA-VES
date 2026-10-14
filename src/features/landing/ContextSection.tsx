@@ -5,12 +5,6 @@ import { Reveal } from "./Reveal";
 import { Photo } from "./Photo";
 import {
   Compass,
-  MessagesSquare,
-  Layers,
-  Target,
-  FileCheck,
-  Award,
-  Sparkles,
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
@@ -38,24 +32,7 @@ export function ContextSection({ navigate }: ContextSectionProps) {
   const activeTheme = contextThemes[activeThemeIdx];
   const selectedKa = babokKnowledgeAreas.find((k) => k.id === selectedKaId) || babokKnowledgeAreas[1];
 
-  const renderKaIcon = (iconName: string, className = "h-5 w-5") => {
-    switch (iconName) {
-      case "Compass":
-        return <Compass className={className} />;
-      case "MessagesSquare":
-        return <MessagesSquare className={className} />;
-      case "Layers":
-        return <Layers className={className} />;
-      case "Target":
-        return <Target className={className} />;
-      case "FileCheck":
-        return <FileCheck className={className} />;
-      case "Award":
-        return <Award className={className} />;
-      default:
-        return <Sparkles className={className} />;
-    }
-  };
+
 
   return (
     <section id="context" className="relative scroll-mt-20 overflow-hidden bg-gradient-to-b from-offwhite via-white to-offwhite py-24 lg:py-32">
@@ -77,12 +54,7 @@ export function ContextSection({ navigate }: ContextSectionProps) {
         {/* Section Header */}
         <Reveal>
           <div className="mx-auto max-w-3xl text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-brass/30 bg-brass/10 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-brass backdrop-blur-sm shadow-xs">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Chuẩn Quốc Tế IIBA® BABOK® v3 · AI Virtual Enterprise</span>
-            </div>
-
-            <h2 className="mt-5 font-display text-3xl font-extrabold tracking-tight text-navy sm:text-4xl lg:text-5xl">
+            <h2 className="font-display text-3xl font-extrabold tracking-tight text-navy sm:text-4xl lg:text-5xl">
               Bối cảnh Dự án & Chuẩn BABOK®
             </h2>
 
@@ -409,11 +381,6 @@ export function ContextSection({ navigate }: ContextSectionProps) {
                           <span className="rounded-full bg-white/90 px-2.5 py-0.5 text-[10px] font-bold text-navy backdrop-blur-sm border border-white/20">
                             {ka.badge}
                           </span>
-                        </div>
-
-                        {/* Floating Icon at Bottom Left of Image */}
-                        <div className="absolute bottom-2.5 left-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-navy shadow-md transition-colors group-hover:bg-brass group-hover:text-navy-deep">
-                          {renderKaIcon(ka.iconName, "h-4 w-4")}
                         </div>
                       </div>
 

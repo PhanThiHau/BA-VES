@@ -41,13 +41,8 @@ export function LandingNav({ navigate }: LandingNavProps) {
             B
           </span>
           <span className="hidden sm:block">
-            <span className="flex items-center gap-2">
-              <span className={`block font-display text-lg font-extrabold tracking-tight ${scrolled ? "text-navy" : "text-white"}`}>
-                BA-VES
-              </span>
-              <span className="rounded-full bg-brass/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-brass">
-                FA26SE185
-              </span>
+            <span className={`block font-display text-lg font-extrabold tracking-tight ${scrolled ? "text-navy" : "text-white"}`}>
+              BA-VES
             </span>
             <span className={`block text-[10px] font-semibold uppercase tracking-[0.16em] ${scrolled ? "text-slate" : "text-mist/80"}`}>
               Mô phỏng BA Đa tác tử AI
