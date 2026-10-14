@@ -46,3 +46,78 @@ export function useParallax(ref: RefObject<HTMLElement | null>, speed = 0.14, di
     };
   }, [ref, speed, disabled, reduced]);
 }
+
+export function useScrollProgress(): number {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let frame = 0;
+    const calculate = () => {
+      const scrollY = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) {
+        setProgress(0);
+        return;
+      }
+      const pct = Math.min(100, Math.max(0, (scrollY / docHeight) * 100));
+      setProgress(pct);
+    };
+
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(calculate);
+    };
+
+    calculate();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  return progress;
+}
+
+export function useActiveSection(sectionIds: string[], offset = 220): string {
+  const [activeSection, setActiveSection] = useState<string>("");
+
+  useEffect(() => {
+    let frame = 0;
+    const determineActive = () => {
+      const scrollPosition = window.scrollY + offset;
+      let current = "";
+
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const top = el.offsetTop;
+        const height = el.offsetHeight;
+        if (scrollPosition >= top && scrollPosition < top + height) {
+          current = id;
+          break;
+        }
+      }
+
+      setActiveSection(current);
+    };
+
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(determineActive);
+    };
+
+    determineActive();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [sectionIds, offset]);
+
+  return activeSection;
+}

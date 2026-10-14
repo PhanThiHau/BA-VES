@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { RouteKey } from "../../types/models";
 import { navItems } from "./data";
 import { scrollToSection } from "./primitives";
-import { useReducedMotion, useScrolledPast } from "./hooks";
+import { useScrolledPast } from "./hooks";
 
 interface LandingNavProps {
   navigate: (route: RouteKey) => void;
@@ -73,8 +73,8 @@ export function LandingNav({ navigate }: LandingNavProps) {
             type="button"
             onClick={() => go("login")}
             className={`rounded-full border px-5 py-2 text-sm font-semibold transition-colors ${scrolled
-                ? "border-navy/20 text-navy hover:border-navy/50"
-                : "border-white/40 text-white hover:border-white/80"
+              ? "border-navy/20 text-navy hover:border-navy/50"
+              : "border-white/40 text-white hover:border-white/80"
               }`}
           >
             Đăng nhập
@@ -83,8 +83,8 @@ export function LandingNav({ navigate }: LandingNavProps) {
             type="button"
             onClick={() => go("register")}
             className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${scrolled
-                ? "bg-navy text-white hover:bg-navy-deep"
-                : "bg-white text-navy hover:bg-offwhite"
+              ? "bg-navy text-white hover:bg-navy-deep"
+              : "bg-white text-navy hover:bg-offwhite"
               }`}
           >
             Đăng ký

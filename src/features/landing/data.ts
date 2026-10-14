@@ -143,10 +143,13 @@ export interface BabokArea {
   nameVi: string;
   nameEn: string;
   description: string;
+  shortDesc?: string;
   tasks: string[];
   deliverables: string;
   iconName: string;
   badge: string;
+  image?: string;
+  tags?: string[];
 }
 
 export const babokKnowledgeAreas: BabokArea[] = [
@@ -156,10 +159,13 @@ export const babokKnowledgeAreas: BabokArea[] = [
     nameVi: "Lập kế hoạch & Giám sát BA",
     nameEn: "Business Analysis Planning & Monitoring",
     description: "Tổ chức và điều phối toàn bộ nỗ lực phân tích nghiệp vụ, xác định các bên liên quan và quy trình quản trị thông tin.",
+    shortDesc: "Tổ chức nỗ lực phân tích, thiết lập quy trình quản trị và ma trận RACI các bên liên quan.",
     tasks: ["Lập kế hoạch tiếp cận phân tích", "Phân tích ma trận các bên liên quan (RACI)", "Quản trị thông tin và chỉ số đánh giá"],
     deliverables: "Kế hoạch BA & Ma trận Stakeholders",
     iconName: "Compass",
     badge: "Khởi tạo & Quản trị",
+    image: "/images/landing/journey-receive.webp",
+    tags: ["Ma trận RACI", "Kế hoạch tiếp cận", "Quản trị thông tin"],
   },
   {
     id: "ec",
@@ -167,10 +173,13 @@ export const babokKnowledgeAreas: BabokArea[] = [
     nameVi: "Khơi gợi & Cộng tác",
     nameEn: "Elicitation & Collaboration",
     description: "Khai thác thông tin tiềm ẩn từ các bên liên quan, xác nhận kết quả khơi gợi và duy trì sự phối hợp thông suốt.",
+    shortDesc: "Phỏng vấn tác tử AI đa vai trò, khai thác thông tin ẩn và ghi nhận biên bản xác thực.",
     tasks: ["Chuẩn bị phỏng vấn tác tử AI", "Tiến hành khơi gợi đa kênh", "Xác nhận kết quả & ghi nhận biên bản"],
     deliverables: "Biên bản phỏng vấn & Bằng chứng xác thực",
     iconName: "MessagesSquare",
     badge: "Tương tác thực chiến",
+    image: "/images/landing/journey-elicit.webp",
+    tags: ["Phỏng vấn AI tác tử", "Khơi gợi đa kênh", "Xác nhận biên bản"],
   },
   {
     id: "rlcm",
@@ -178,10 +187,13 @@ export const babokKnowledgeAreas: BabokArea[] = [
     nameVi: "Quản lý vòng đời yêu cầu",
     nameEn: "Requirements Life Cycle Management",
     description: "Quản lý và duy trì tính khả thi của yêu cầu từ lúc khởi tạo đến khi kết thúc, xử lý thay đổi và đảm bảo truy vết.",
+    shortDesc: "Thiết lập ma trận truy vết (RTM), kiểm soát biến động thay đổi và bảo toàn tính toàn vẹn yêu cầu.",
     tasks: ["Thiết lập ma trận truy vết (Traceability)", "Đánh giá tác động thay đổi yêu cầu", "Ưu tiên hóa danh mục yêu cầu"],
     deliverables: "Ma trận truy vết (RTM) & Yêu cầu ưu tiên",
     iconName: "Layers",
     badge: "Kiểm soát biến động",
+    image: "/images/landing/journey-analyze.webp",
+    tags: ["Ma trận RTM", "Đánh giá thay đổi", "Ưu tiên yêu cầu"],
   },
   {
     id: "sa",
@@ -189,10 +201,13 @@ export const babokKnowledgeAreas: BabokArea[] = [
     nameVi: "Phân tích chiến lược",
     nameEn: "Strategy Analysis",
     description: "Xác định nhu cầu nghiệp vụ, định hình trạng thái hiện tại (AS-IS), trạng thái tương lai (TO-BE) và rủi ro chuyển đổi.",
+    shortDesc: "Định vị bài toán kinh doanh, phân tích khoảng cách AS-IS/TO-BE và đề xuất chiến lược giải pháp.",
     tasks: ["Phân tích hiện trạng & điểm nghẽn", "Xác định mục tiêu tương lai & phạm vi", "Đánh giá rủi ro & đề xuất chiến lược"],
     deliverables: "Báo cáo phân tích khoảng cách & Chiến lược giải pháp",
     iconName: "Target",
     badge: "Định vị bài toán",
+    image: "/images/landing/journey-respond.webp",
+    tags: ["Khoảng cách AS-IS/TO-BE", "Đánh giá rủi ro", "Chiến lược giải pháp"],
   },
   {
     id: "radd",
@@ -200,10 +215,13 @@ export const babokKnowledgeAreas: BabokArea[] = [
     nameVi: "Phân tích yêu cầu & Định nghĩa thiết kế",
     nameEn: "Requirements Analysis & Design Definition",
     description: "Cấu trúc và mô hình hóa yêu cầu, xác định các phương án thiết kế khả thi để đáp ứng nhu cầu doanh nghiệp.",
+    shortDesc: "Mô hình hóa quy trình BPMN, viết User Stories và chuẩn hóa bộ hồ sơ BRD toàn diện.",
     tasks: ["Mô hình hóa quy trình (BPMN/Use Case)", "Viết User Stories & Tiêu chí chấp nhận", "Xác thực và thẩm định yêu cầu"],
     deliverables: "Hồ sơ BRD, User Stories, Use Case Specs",
     iconName: "FileCheck",
     badge: "Chuẩn hóa tài liệu",
+    image: "/images/landing/journey-deliver.webp",
+    tags: ["Quy trình BPMN", "User Stories & AC", "Hồ sơ BRD chuẩn"],
   },
   {
     id: "se",
@@ -211,10 +229,13 @@ export const babokKnowledgeAreas: BabokArea[] = [
     nameVi: "Đánh giá giải pháp",
     nameEn: "Solution Evaluation",
     description: "Đánh giá hiệu suất của giải pháp đang sử dụng, nhận diện hạn chế và đề xuất giải pháp tăng trưởng giá trị.",
+    shortDesc: "Đo lường chỉ số ROI/KPI giải pháp, nhận diện rào cản và đề xuất hành động tối ưu hóa giá trị.",
     tasks: ["Đo lường chỉ số hiệu quả giải pháp", "Phân tích rào cản tổ chức & công nghệ", "Đề xuất hành động tối ưu hóa giá trị"],
     deliverables: "Báo cáo đánh giá hiệu năng & Khuyến nghị",
     iconName: "Award",
     badge: "Đo lường giá trị",
+    image: "/images/landing/theme-evidence.webp",
+    tags: ["Đo lường hiệu năng", "Đánh giá giá trị", "Khuyến nghị tối ưu"],
   },
 ];
 

@@ -49,9 +49,6 @@ export function HeroSection({ navigate }: HeroSectionProps) {
       <div className="relative z-10 mx-auto w-full max-w-[1360px] px-6 pb-20 pt-36 lg:px-10 lg:pb-24">
         <div className="max-w-3xl">
           <div className={`hero-enter ${enterClass} flex flex-wrap items-center gap-2`} style={enter(0)}>
-            <span className="rounded-full bg-brass/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-brass backdrop-blur-sm">
-              FA26SE185 · GFA26SE16
-            </span>
             <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-mist/80">
               Chuẩn BABOK® · Mô phỏng Đa tác tử AI
             </span>
@@ -71,12 +68,6 @@ export function HeroSection({ navigate }: HeroSectionProps) {
             Thu hẹp khoảng cách giữa lý thuyết BABOK và thực hành thực tế. Luyện tập khơi gợi yêu cầu với các tác tử AI đa vai trò, ứng phó biến động kinh doanh và hoàn thiện hồ sơ BA có thể kiểm chứng.
           </p>
 
-          <div className={`hero-enter ${enterClass} mt-6 flex flex-wrap gap-2 text-xs text-mist/80`} style={enter(250)}>
-            <span className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1">🤖 AI Multi-Agent</span>
-            <span className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1">🌐 4 Lĩnh vực (Ngân hàng, Y tế, Logistics, Giáo dục)</span>
-            <span className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1">⚡ Sự kiện kịch bản động</span>
-            <span className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1">🎯 Đánh giá Rubric & Hiệu chuẩn</span>
-          </div>
 
           <div className={`hero-enter ${enterClass} mt-9 flex flex-wrap items-center gap-4`} style={enter(300)}>
             <button
