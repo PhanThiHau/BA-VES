@@ -332,17 +332,7 @@ export function ContextSection({ navigate }: ContextSectionProps) {
           </Reveal>
 
           {/* AUTO-SCROLLING MARQUEE REEL (Runs Permanently & Automatically) */}
-          <div className="mt-10">
-            {/* Informative Hint Pill */}
-            <div className="mb-4 flex items-center justify-between px-2 text-xs text-slate">
-              <span className="flex items-center gap-1.5 font-medium">
-                <span className="inline-block h-2 w-2 rounded-full bg-brass animate-ping" />
-                <span>Băng chuyền tự động trượt ngang · Di chuột để tạm dừng & chọn thẻ</span>
-              </span>
-              <span className="hidden sm:inline text-[11px] text-slate/70">
-                Nhấn vào thẻ bất kỳ để xem chi tiết ma trận bên dưới
-              </span>
-            </div>
+          <div className="mt-8">
 
             {/* Infinite Marquee Container */}
             <div className="relative overflow-hidden py-4 -mx-6 px-6 lg:-mx-10 lg:px-10">
