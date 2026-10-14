@@ -3,7 +3,6 @@ import type { RouteKey } from "../../types/models";
 import { contextThemes, babokKnowledgeAreas } from "./data";
 import { Reveal } from "./Reveal";
 import { Photo } from "./Photo";
-import { Eyebrow } from "./primitives";
 import {
   Compass,
   MessagesSquare,
@@ -16,6 +15,8 @@ import {
   ArrowRight,
   ShieldCheck,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface ContextSectionProps {
@@ -25,6 +26,14 @@ interface ContextSectionProps {
 export function ContextSection({ navigate }: ContextSectionProps) {
   const [activeThemeIdx, setActiveThemeIdx] = useState(0);
   const [selectedKaId, setSelectedKaId] = useState<string>("ec"); // Default to Elicitation & Collaboration
+
+  const handlePrevTheme = () => {
+    setActiveThemeIdx((prev) => (prev > 0 ? prev - 1 : contextThemes.length - 1));
+  };
+
+  const handleNextTheme = () => {
+    setActiveThemeIdx((prev) => (prev < contextThemes.length - 1 ? prev + 1 : 0));
+  };
 
   const activeTheme = contextThemes[activeThemeIdx];
   const selectedKa = babokKnowledgeAreas.find((k) => k.id === selectedKaId) || babokKnowledgeAreas[1];
@@ -84,53 +93,17 @@ export function ContextSection({ navigate }: ContextSectionProps) {
         </Reveal>
 
         {/* =========================================================================
-            SECTION PART 1: 3-PILLAR INTERACTIVE SPOTLIGHT SHOWCASE
+            SECTION PART 1: 3-PILLAR INTERACTIVE SPOTLIGHT SLIDER
            ========================================================================= */}
-        <div className="mt-16 lg:mt-24">
-          <Reveal>
-            <div className="flex flex-col items-center justify-between gap-4 border-b border-mist/80 pb-6 sm:flex-row">
-              <div>
-                <Eyebrow tone="brass">Trụ cột mô phỏng</Eyebrow>
-                <h3 className="mt-1 font-display text-2xl font-bold tracking-tight text-navy sm:text-3xl">
-                  3 Đột Phá Đào Tạo Thực Chiến BA-VES
-                </h3>
-              </div>
-
-              {/* Theme Tab Selector */}
-              <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-1.5 shadow-sm border border-mist/80">
-                {contextThemes.map((theme, idx) => {
-                  const isActive = idx === activeThemeIdx;
-                  return (
-                    <button
-                      key={theme.index}
-                      type="button"
-                      onClick={() => setActiveThemeIdx(idx)}
-                      className={`relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all sm:text-sm cursor-pointer ${
-                        isActive
-                          ? "bg-navy text-white shadow-md shadow-navy/20"
-                          : "text-slate hover:bg-offwhite hover:text-navy"
-                      }`}
-                    >
-                      <span className={`text-[10px] uppercase font-extrabold px-1.5 py-0.5 rounded ${isActive ? "bg-brass text-navy-deep font-bold" : "bg-mist/50 text-slate"}`}>
-                        {theme.index}
-                      </span>
-                      <span>{theme.tabLabel || theme.title}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </Reveal>
-
-          {/* Active Theme Spotlight Card */}
-          <div className="mt-8">
-            <Reveal variant="up">
-              <div className="overflow-hidden rounded-3xl border border-mist/80 bg-white shadow-xl shadow-navy/5 transition-all lg:grid lg:grid-cols-12">
-                {/* Left Content Area */}
-                <div className="flex flex-col justify-between p-7 sm:p-10 lg:col-span-7">
-                  <div>
-                    {/* Header tags */}
-                    <div className="flex flex-wrap items-center gap-2.5">
+        <div className="mt-12 lg:mt-16">
+          <Reveal variant="up">
+            <div className="overflow-hidden rounded-3xl border border-mist/80 bg-white shadow-xl shadow-navy/5 transition-all lg:grid lg:grid-cols-12">
+              {/* Left Content Area */}
+              <div className="flex flex-col justify-between p-7 sm:p-10 lg:col-span-7">
+                <div>
+                  {/* Header tags with Slider Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-mist/60 pb-4">
+                    <div className="flex items-center gap-2">
                       <span className="rounded-full bg-brass/15 px-3 py-1 text-xs font-bold text-brass">
                         {activeTheme.badge || "Enterprise Theme"}
                       </span>
@@ -138,6 +111,32 @@ export function ContextSection({ navigate }: ContextSectionProps) {
                         Trụ cột {activeTheme.index} / 03
                       </span>
                     </div>
+
+                    {/* Compact Slider Arrow Controls */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handlePrevTheme}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-mist bg-offwhite text-navy transition-all hover:border-brass hover:bg-brass/10 hover:text-brass cursor-pointer"
+                        title="Trụ cột trước"
+                        aria-label="Trụ cột trước"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <span className="text-[11px] font-mono font-bold text-slate px-1">
+                        {activeTheme.index} / 03
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleNextTheme}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-mist bg-offwhite text-navy transition-all hover:border-brass hover:bg-brass/10 hover:text-brass cursor-pointer"
+                        title="Trụ cột tiếp theo"
+                        aria-label="Trụ cột tiếp theo"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
 
                     <h4 className="mt-3 font-display text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
                       {activeTheme.title}
@@ -282,6 +281,27 @@ export function ContextSection({ navigate }: ContextSectionProps) {
                     {/* Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-navy-deep/80 via-navy-deep/20 to-transparent pointer-events-none" />
 
+                    {/* Slider Navigation Arrows Over Image */}
+                    <button
+                      type="button"
+                      onClick={handlePrevTheme}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-navy/85 text-white backdrop-blur-md border border-white/25 transition-all hover:bg-brass hover:text-navy-deep shadow-xl hover:scale-110 cursor-pointer"
+                      title="Lướt sang trụ cột trước"
+                      aria-label="Lướt sang trụ cột trước"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleNextTheme}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-navy/85 text-white backdrop-blur-md border border-white/25 transition-all hover:bg-brass hover:text-navy-deep shadow-xl hover:scale-110 cursor-pointer"
+                      title="Lướt sang trụ cột tiếp theo"
+                      aria-label="Lướt sang trụ cột tiếp theo"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+
                     {/* Floating Chip Top-Left */}
                     <div className="absolute left-4 top-4 rounded-full bg-navy-deep/80 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-md border border-white/20 flex items-center gap-1.5 shadow-lg">
                       <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -292,6 +312,21 @@ export function ContextSection({ navigate }: ContextSectionProps) {
                     <div className="absolute bottom-4 right-4 rounded-xl bg-white/95 px-3 py-1.5 text-xs font-extrabold text-navy shadow-lg backdrop-blur-md border border-mist flex items-center gap-1.5">
                       <ShieldCheck className="h-4 w-4 text-brass" />
                       <span>Chuẩn IIBA® BABOK®</span>
+                    </div>
+
+                    {/* Slider Indicator Dots at Bottom Center */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-full bg-navy-deep/80 px-2.5 py-1 backdrop-blur-md border border-white/20">
+                      {contextThemes.map((_, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setActiveThemeIdx(idx)}
+                          className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                            idx === activeThemeIdx ? "w-5 bg-brass" : "w-1.5 bg-white/40 hover:bg-white/70"
+                          }`}
+                          aria-label={`Trụ cột ${idx + 1}`}
+                        />
+                      ))}
                     </div>
                   </div>
 
@@ -310,7 +345,6 @@ export function ContextSection({ navigate }: ContextSectionProps) {
               </div>
             </Reveal>
           </div>
-        </div>
 
         {/* =========================================================================
             SECTION PART 2: BABOK® 6 KNOWLEDGE AREAS & VIDEO REEL SHOWCASE
