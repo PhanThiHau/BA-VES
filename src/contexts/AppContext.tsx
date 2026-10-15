@@ -18,6 +18,8 @@ interface AppContextValue {
   eventOpen: boolean;
   setEventOpen: (open: boolean) => void;
   isReplying: boolean;
+  instructorTab: string;
+  setInstructorTab: (tab: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -28,6 +30,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeStakeholderId, setActiveStakeholderId] = useState("warehouse");
   const [eventOpen, setEventOpen] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
+  const [instructorTab, setInstructorTab] = useState("overview");
   const [allMessages, setAllMessages] = useState<ChatMessage[]>(initialInterviewMessages);
   const messages = allMessages.filter((message) => message.stakeholderId === activeStakeholderId);
 
@@ -44,7 +47,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const toggleEvidence = (id: number) => setAllMessages((items) => items.map((message) => message.id === id ? { ...message, evidence: !message.evidence } : message));
   const evidenceCount = evidenceRegister.length + allMessages.filter((message) => message.evidence && message.id > 1000).length;
-  const value = useMemo(() => ({ role, setRole, selectedDomainId, setSelectedDomainId, activeStakeholderId, setActiveStakeholderId, messages, sendMessage, toggleEvidence, evidenceCount, eventOpen, setEventOpen, isReplying }), [role, selectedDomainId, activeStakeholderId, messages, evidenceCount, eventOpen, isReplying]);
+  const value = useMemo(() => ({ role, setRole, selectedDomainId, setSelectedDomainId, activeStakeholderId, setActiveStakeholderId, messages, sendMessage, toggleEvidence, evidenceCount, eventOpen, setEventOpen, isReplying, instructorTab, setInstructorTab }), [role, selectedDomainId, activeStakeholderId, messages, evidenceCount, eventOpen, isReplying, instructorTab]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 

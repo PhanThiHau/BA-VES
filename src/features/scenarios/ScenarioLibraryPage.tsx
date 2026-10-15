@@ -1,4 +1,4 @@
-import { ArrowRight, Boxes, CheckCircle2, Clock3, Filter, Layers, Search, Sparkles, Tag, Users } from "lucide-react";
+import { ArrowRight, Boxes, Clock3, Filter, Search, Sparkles, Tag, Users } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";

@@ -1,4 +1,21 @@
-import { AppWindow, BarChart3, BookOpenCheck, ClipboardCheck, FileStack, GraduationCap, LayoutDashboard, MessageSquareText, Repeat2, SearchCheck, Settings2, ShieldCheck, X } from "lucide-react";
+import {
+  AppWindow,
+  BarChart3,
+  BookOpenCheck,
+  ClipboardCheck,
+  FileStack,
+  GraduationCap,
+  Layers3,
+  LayoutDashboard,
+  MessageSquareText,
+  Radio,
+  Repeat2,
+  SearchCheck,
+  Settings2,
+  ShieldCheck,
+  Users,
+  X,
+} from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
@@ -14,13 +31,33 @@ const learnerItems: Array<{ route: RouteKey; label: string; icon: typeof LayoutD
   { route: "progress", label: "Hồ sơ năng lực BABOK", icon: BarChart3 },
 ];
 
-const instructorItems: Array<{ route: RouteKey; label: string; icon: typeof LayoutDashboard }> = [
-  { route: "instructor", label: "Không gian Giảng viên", icon: ShieldCheck },
+const instructorMenuItems: Array<{
+  tab: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  badge?: string;
+  badgeTone?: "green" | "amber";
+}> = [
+  { tab: "overview", label: "Tổng quan chung", icon: LayoutDashboard },
+  { tab: "authoring", label: "Đề bài & Nhân vật AI", icon: Layers3 },
+  { tab: "live", label: "Quan sát trực tiếp", icon: Radio, badge: "Live", badgeTone: "green" },
+  { tab: "review", label: "Chấm & Duyệt điểm", icon: ClipboardCheck },
+  { tab: "cohorts", label: "Lớp học & Giao bài", icon: Users },
+  { tab: "analytics", label: "Bảng điểm & Năng lực", icon: BarChart3 },
 ];
 
-export function Sidebar({ active, navigate, open, onClose }: { active: RouteKey; navigate: (route: RouteKey) => void; open: boolean; onClose: () => void }) {
-  const { role } = useApp();
-  const items = role === "learner" ? learnerItems : instructorItems;
+export function Sidebar({
+  active,
+  navigate,
+  open,
+  onClose,
+}: {
+  active: RouteKey;
+  navigate: (route: RouteKey) => void;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { role, instructorTab, setInstructorTab } = useApp();
   const homeRoute: RouteKey = role === "learner" ? "dashboard" : "instructor";
 
   return (
@@ -89,38 +126,89 @@ export function Sidebar({ active, navigate, open, onClose }: { active: RouteKey;
         <div className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate/70">
           Danh mục chức năng
         </div>
+
         <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-1" aria-label="Menu chính">
-          {items.map(({ route, label, icon: Icon }) => {
-            const isActive = active === route;
-            return (
-              <button
-                key={route}
-                onClick={() => {
-                  navigate(route);
-                  onClose();
-                }}
-                className={classNames(
-                  "group relative flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-all duration-200",
-                  isActive
-                    ? "bg-navy text-white shadow-sm"
-                    : "text-slate hover:bg-offwhite hover:text-navy"
-                )}
-              >
-                {isActive && (
-                  <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brass" />
-                )}
-                <span
+          {role === "learner" ? (
+            learnerItems.map(({ route, label, icon: Icon }) => {
+              const isActive = active === route;
+              return (
+                <button
+                  key={route}
+                  onClick={() => {
+                    navigate(route);
+                    onClose();
+                  }}
                   className={classNames(
-                    "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
-                    isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                    "group relative flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-all duration-200",
+                    isActive
+                      ? "bg-navy text-white shadow-sm"
+                      : "text-slate hover:bg-offwhite hover:text-navy"
                   )}
                 >
-                  <Icon size={15} />
-                </span>
-                <span className="truncate whitespace-nowrap">{label}</span>
-              </button>
-            );
-          })}
+                  {isActive && (
+                    <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brass" />
+                  )}
+                  <span
+                    className={classNames(
+                      "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
+                      isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                    )}
+                  >
+                    <Icon size={15} />
+                  </span>
+                  <span className="truncate whitespace-nowrap">{label}</span>
+                </button>
+              );
+            })
+          ) : (
+            instructorMenuItems.map(({ tab, label, icon: Icon, badge, badgeTone }) => {
+              const isActive = active === "instructor" && instructorTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    navigate("instructor");
+                    setInstructorTab(tab);
+                    onClose();
+                  }}
+                  className={classNames(
+                    "group relative flex min-h-10 w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-all duration-200",
+                    isActive
+                      ? "bg-navy text-white shadow-sm"
+                      : "text-slate hover:bg-offwhite hover:text-navy"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {isActive && (
+                      <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brass" />
+                    )}
+                    <span
+                      className={classNames(
+                        "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
+                        isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                      )}
+                    >
+                      <Icon size={15} />
+                    </span>
+                    <span className="truncate whitespace-nowrap">{label}</span>
+                  </div>
+
+                  {badge && (
+                    <span
+                      className={classNames(
+                        "rounded-full px-1.5 py-0.2 text-[9px] font-bold uppercase",
+                        badgeTone === "green"
+                          ? "bg-emerald-500/20 text-emerald-600"
+                          : "bg-brass/20 text-brass"
+                      )}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
         </nav>
 
         {/* Footer Actions */}
