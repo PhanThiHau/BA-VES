@@ -194,6 +194,12 @@ export const apiClient = {
       body: body !== undefined ? JSON.stringify(body) : undefined,
       headers,
     }),
+  patch: <T>(url: string, body?: any, headers?: Record<string, string>) =>
+    request<T>(url, {
+      method: "PATCH",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers,
+    }),
   delete: <T>(url: string, headers?: Record<string, string>) =>
     request<T>(url, { method: "DELETE", headers }),
 };

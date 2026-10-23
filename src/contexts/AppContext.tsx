@@ -4,7 +4,7 @@ import { evidenceRegister, initialInterviewMessages } from "../constants/trainin
 import { sendStakeholderMessage } from "../services/mockApi";
 import { authService, type UserProfile } from "../services/authService";
 import { getStoredTokens } from "../services/apiClient";
-import type { SessionAgentDto } from "../services/simulationService";
+import { simulationService, type SessionAgentDto } from "../services/simulationService";
 import type { AppRole, ChatMessage } from "../types/models";
 
 interface AppContextValue {
@@ -32,6 +32,7 @@ interface AppContextValue {
   setActiveStakeholderId: (id: string) => void;
   messages: ChatMessage[];
   sendMessage: (text: string) => Promise<void>;
+  loadAgentMessages: (sessionId: number, agentId: number) => Promise<void>;
   toggleEvidence: (id: number) => void;
   evidenceCount: number;
   eventOpen: boolean;
@@ -107,10 +108,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     setAllMessages((current) => [...current, learner]);
     setIsReplying(true);
+
+    try {
+      // Find active agent ID from backend agent list
+      const agent = activeAgents.find(
+        (a) =>
+          a.stakeholderRole?.toLowerCase().includes(activeStakeholderId.toLowerCase()) ||
+          a.name?.toLowerCase().includes(activeStakeholderId.toLowerCase())
+      ) || activeAgents[0];
+
+      if (currentSessionId && agent?.id) {
+        // API 13: POST /api/sessions/{sessionId}/agents/{agentId}/messages
+        const res = await simulationService.sendMessage(currentSessionId, agent.id, text);
+        if (res?.stakeholderMessage) {
+          const aiReply: ChatMessage = {
+            id: res.stakeholderMessage.id || Date.now() + 1,
+            stakeholderId: activeStakeholderId,
+            sender: "agent",
+            text: res.stakeholderMessage.content,
+            time: new Date(res.stakeholderMessage.createdAt || Date.now()).toLocaleTimeString("vi-VN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          };
+          setAllMessages((current) => [...current, aiReply]);
+          setIsReplying(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Backend chat message API unavailable or errored, falling back to local simulation:", err);
+    }
+
+    // Fallback to local simulation when offline
     const stakeholder = stakeholders.find((item) => item.id === activeStakeholderId) ?? stakeholders[2];
     const reply = await sendStakeholderMessage(stakeholder, text, messages.length);
     setAllMessages((current) => [...current, reply]);
     setIsReplying(false);
+  };
+
+  // API 14: GET /api/sessions/{sessionId}/agents/{agentId}/messages
+  const loadAgentMessages = async (sessionId: number, agentId: number) => {
+    try {
+      const data = await simulationService.getMessages(sessionId, agentId);
+      if (data?.messages && data.messages.length > 0) {
+        const loaded: ChatMessage[] = data.messages.map((m) => ({
+          id: m.id,
+          stakeholderId: activeStakeholderId,
+          sender: m.senderRole?.toLowerCase() === "learner" ? "learner" : "agent",
+          text: m.content,
+          time: new Date(m.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+        }));
+        setAllMessages((prev) => {
+          const other = prev.filter((p) => p.stakeholderId !== activeStakeholderId);
+          return [...other, ...loaded];
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to load transcript messages from backend:", err);
+    }
   };
 
   const toggleEvidence = (id: number) =>
@@ -146,6 +202,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActiveStakeholderId,
       messages,
       sendMessage,
+      loadAgentMessages,
       toggleEvidence,
       evidenceCount,
       eventOpen,
