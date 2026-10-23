@@ -63,6 +63,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     isReplying,
     activeAgents,
     currentSessionId,
+    loadAgentMessages,
   } = useApp();
 
   const [draft, setDraft] = useState("");
@@ -73,6 +74,19 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const activeEvidence = evidenceRegister.filter((item) => item.stakeholderId === active.id);
   const prompts = coachPrompts[active.id] ?? [];
   const quickPrompts = suggestedQuickPrompts[active.id] ?? [];
+
+  useEffect(() => {
+    if (currentSessionId && activeAgents.length > 0) {
+      const agent = activeAgents.find(
+        (a) =>
+          a.stakeholderRole?.toLowerCase().includes(activeStakeholderId.toLowerCase()) ||
+          a.name?.toLowerCase().includes(activeStakeholderId.toLowerCase())
+      ) || activeAgents[0];
+      if (agent?.id) {
+        loadAgentMessages(currentSessionId, agent.id);
+      }
+    }
+  }, [activeStakeholderId, currentSessionId, activeAgents]);
 
   const submit = async () => {
     const text = draft.trim();

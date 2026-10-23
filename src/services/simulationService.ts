@@ -37,4 +37,47 @@ export const simulationService = {
   async getSessionAgents(id: number): Promise<SessionAgentDto[]> {
     return apiClient.get<SessionAgentDto[]>(`/api/sessions/${id}/agents`);
   },
+
+  // API 13: POST /api/sessions/{sessionId}/agents/{agentId}/messages
+  async sendMessage(sessionId: number, agentId: number, content: string): Promise<SendMessageResponseDto> {
+    return apiClient.post<SendMessageResponseDto>(
+      `/api/sessions/${sessionId}/agents/${agentId}/messages`,
+      { content }
+    );
+  },
+
+  // API 14: GET /api/sessions/{sessionId}/agents/{agentId}/messages
+  async getMessages(
+    sessionId: number,
+    agentId: number,
+    limit = 100,
+    beforeSeq?: number
+  ): Promise<AgentMessagesListDto> {
+    const qs = beforeSeq ? `?limit=${limit}&beforeSeq=${beforeSeq}` : `?limit=${limit}`;
+    return apiClient.get<AgentMessagesListDto>(
+      `/api/sessions/${sessionId}/agents/${agentId}/messages${qs}`
+    );
+  },
 };
+
+export interface AgentMessageDto {
+  id: number;
+  sessionAgentId: number;
+  senderRole: "Learner" | "Stakeholder" | "System" | string;
+  content: string;
+  sequenceNumber: number;
+  createdAt: string;
+}
+
+export interface SendMessageResponseDto {
+  learnerMessage: AgentMessageDto;
+  stakeholderMessage: AgentMessageDto;
+  usedKnowledgeItemIds?: number[];
+}
+
+export interface AgentMessagesListDto {
+  sessionId: number;
+  agentId: number;
+  totalCount: number;
+  messages: AgentMessageDto[];
+}
