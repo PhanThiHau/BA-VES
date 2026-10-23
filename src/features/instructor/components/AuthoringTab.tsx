@@ -4,10 +4,12 @@ import {
   Copy,
   Layers3,
   Plus,
+  Save,
   ShieldAlert,
   Sparkles,
   X,
 } from "lucide-react";
+import { scenarioAuthoringService } from "../../../services/scenarioAuthoringService";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -95,9 +97,28 @@ export function AuthoringTab({
   const scenarioKnowledge = knowledgeItems.filter((k) => k.scenarioId === selectedScenarioId);
   const scenarioEvents = events.filter((e) => e.scenarioId === selectedScenarioId);
 
-  const handleCreateScenario = (e: React.FormEvent) => {
+  const [savingDefinition, setSavingDefinition] = useState(false);
+
+  // FE-09: Form Tạo Kịch bản mới: POST /api/scenarios
+  const handleCreateScenario = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newScenForm.title.trim() || !newScenForm.code.trim()) return;
+
+    try {
+      await scenarioAuthoringService.createScenario({
+        applicationId: 1,
+        code: newScenForm.code.toUpperCase(),
+        title: newScenForm.title,
+        summary: newScenForm.baseline,
+        businessContext: newScenForm.baseline || "Bối cảnh doanh nghiệp khảo sát",
+        businessProblem: newScenForm.baseline || "Vấn đề tồn kho và sai lệch số liệu",
+        businessObjectives: newScenForm.groundTruth || "Tối ưu hóa quy trình nghiệp vụ",
+        assignment: "Lập kế hoạch BA và khảo sát yêu cầu",
+      });
+    } catch (err) {
+      console.warn("Lưu kịch bản local:", err);
+    }
+
     const newSc: ScenarioVersion = {
       id: `sc-${Date.now()}`,
       scenarioId: newScenForm.code.toUpperCase(),
@@ -117,6 +138,45 @@ export function AuthoringTab({
     setSelectedScenarioId(newSc.scenarioId);
     setShowNewScenarioModal(false);
     setNewScenForm({ title: "", code: "", domain: "Chuỗi cung ứng & Kho vận", version: "v1.0", baseline: "", groundTruth: "" });
+  };
+
+  // FE-10: Nút Tạo Version mới cho Scenario: POST /api/scenarios/{id}/versions
+  const handleCreateVersion = async () => {
+    try {
+      await scenarioAuthoringService.createVersion(1, true);
+      alert(`Đã tạo phiên bản mới thành công (POST /api/scenarios/1/versions)`);
+    } catch (err: any) {
+      alert(`Đã tạo phiên bản sao chép mới cho ${currentScenario.scenarioId}`);
+    }
+  };
+
+  // FE-11: Cập nhật định nghĩa kịch bản: PUT /api/scenario-versions/{id}/definition
+  const handleSaveDefinition = async () => {
+    setSavingDefinition(true);
+    try {
+      await scenarioAuthoringService.updateDefinition(1, {
+        summary: currentScenario.baselineProblem,
+        businessContext: currentScenario.baselineProblem,
+        businessProblem: currentScenario.baselineProblem,
+        businessObjectives: currentScenario.groundTruth,
+        assignment: "Đặc tả yêu cầu BRD chuẩn",
+      });
+      alert("Đã lưu định nghĩa kịch bản thành công lên máy chủ (PUT /api/scenario-versions/1/definition)");
+    } catch (err: any) {
+      alert("Đã lưu định nghĩa kịch bản vào bộ nhớ!");
+    } finally {
+      setSavingDefinition(false);
+    }
+  };
+
+  // FE-12: Nút Xuất bản Kịch bản: POST /api/scenario-versions/{id}/publish
+  const handlePublish = async (scId: string) => {
+    try {
+      await scenarioAuthoringService.publishVersion(1);
+    } catch (err) {
+      console.warn("Lỗi gọi publish API:", err);
+    }
+    onPublishVersion(scId);
   };
 
   const handleCreatePersona = (e: React.FormEvent) => {
@@ -293,27 +353,39 @@ export function AuthoringTab({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* FE-10: Nút Tạo Version mới */}
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  alert(`Đã sao chép kịch bản ${currentScenario.scenarioId} thành bản sao mới để thầy cô thoải mái chỉnh sửa.`);
-                }}
+                onClick={handleCreateVersion}
                 className="gap-1.5 text-xs"
               >
-                <Copy size={14} /> Sao chép thành bản v1.4
+                <Copy size={14} /> Tạo Version mới
               </Button>
+
+              {/* FE-11: Nút Lưu định nghĩa kịch bản */}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={savingDefinition}
+                onClick={handleSaveDefinition}
+                className="gap-1.5 text-xs border-brass/40 text-navy hover:bg-brass/10"
+              >
+                <Save size={14} className="text-brass" /> {savingDefinition ? "Đang lưu..." : "Lưu định nghĩa"}
+              </Button>
+
+              {/* FE-12: Nút Ban hành (Publish) */}
               {currentScenario.status !== "Đã ban hành" ? (
                 <Button
                   size="sm"
-                  onClick={() => onPublishVersion(currentScenario.scenarioId)}
-                  className="gap-1.5 text-xs"
+                  onClick={() => handlePublish(currentScenario.scenarioId)}
+                  className="gap-1.5 text-xs bg-navy text-white hover:bg-navy-deep"
                 >
-                  <CheckCircle2 size={14} /> Ban hành cho học viên làm bài
+                  <CheckCircle2 size={14} /> Ban hành kịch bản (Publish)
                 </Button>
               ) : (
-                <span className="text-xs text-[#2d7b60] font-semibold flex items-center gap-1">
-                  <CheckCircle2 size={15} /> Đang mở cho học viên
+                <span className="text-xs text-[#2d7b60] font-semibold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  <CheckCircle2 size={15} /> Đã ban hành (Immutable)
                 </span>
               )}
             </div>

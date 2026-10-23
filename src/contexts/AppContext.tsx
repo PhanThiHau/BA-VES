@@ -1,12 +1,31 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { stakeholders } from "../constants/scenario";
 import { evidenceRegister, initialInterviewMessages } from "../constants/trainingScenario";
 import { sendStakeholderMessage } from "../services/mockApi";
+import { authService, type UserProfile } from "../services/authService";
+import { getStoredTokens } from "../services/apiClient";
+import type { SessionAgentDto } from "../services/simulationService";
 import type { AppRole, ChatMessage } from "../types/models";
 
 interface AppContextValue {
   role: AppRole;
   setRole: (role: AppRole) => void;
+  user: UserProfile | null;
+  setUser: (user: UserProfile | null) => void;
+  isLoadingUser: boolean;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+
+  byokModalOpen: boolean;
+  setByokModalOpen: (open: boolean) => void;
+
+  currentSessionId: number | null;
+  setCurrentSessionId: (id: number | null) => void;
+  currentScenarioVersionId: number | null;
+  setCurrentScenarioVersionId: (id: number | null) => void;
+  activeAgents: SessionAgentDto[];
+  setActiveAgents: (agents: SessionAgentDto[]) => void;
+
   selectedDomainId: string;
   setSelectedDomainId: (id: string) => void;
   activeStakeholderId: string;
@@ -26,17 +45,66 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole>("learner");
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  const [byokModalOpen, setByokModalOpen] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [currentScenarioVersionId, setCurrentScenarioVersionId] = useState<number | null>(1);
+  const [activeAgents, setActiveAgents] = useState<SessionAgentDto[]>([]);
+
   const [selectedDomainId, setSelectedDomainId] = useState("all");
   const [activeStakeholderId, setActiveStakeholderId] = useState("warehouse");
   const [eventOpen, setEventOpen] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [instructorTab, setInstructorTab] = useState("overview");
   const [allMessages, setAllMessages] = useState<ChatMessage[]>(initialInterviewMessages);
+
+  // Load current user profile if token is present
+  const refreshUser = async () => {
+    const { accessToken } = getStoredTokens();
+    if (!accessToken) {
+      setUser(null);
+      setIsLoadingUser(false);
+      return;
+    }
+    try {
+      const me = await authService.getMe();
+      setUser(me);
+      if (me.roles.includes("INSTRUCTOR") || me.roles.includes("ADMIN") || me.roles.includes("BAEXPERT")) {
+        setRole("instructor");
+      } else {
+        setRole("learner");
+      }
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoadingUser(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
+
+  const logout = async () => {
+    await authService.logout();
+    setUser(null);
+    window.location.hash = "#login";
+  };
+
   const messages = allMessages.filter((message) => message.stakeholderId === activeStakeholderId);
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
-    const learner: ChatMessage = { id: Date.now(), stakeholderId: activeStakeholderId, sender: "learner", text, time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }), technique: "Follow-up question" };
+    const learner: ChatMessage = {
+      id: Date.now(),
+      stakeholderId: activeStakeholderId,
+      sender: "learner",
+      text,
+      time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+      technique: "Follow-up question",
+    };
     setAllMessages((current) => [...current, learner]);
     setIsReplying(true);
     const stakeholder = stakeholders.find((item) => item.id === activeStakeholderId) ?? stakeholders[2];
@@ -45,9 +113,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsReplying(false);
   };
 
-  const toggleEvidence = (id: number) => setAllMessages((items) => items.map((message) => message.id === id ? { ...message, evidence: !message.evidence } : message));
-  const evidenceCount = evidenceRegister.length + allMessages.filter((message) => message.evidence && message.id > 1000).length;
-  const value = useMemo(() => ({ role, setRole, selectedDomainId, setSelectedDomainId, activeStakeholderId, setActiveStakeholderId, messages, sendMessage, toggleEvidence, evidenceCount, eventOpen, setEventOpen, isReplying, instructorTab, setInstructorTab }), [role, selectedDomainId, activeStakeholderId, messages, evidenceCount, eventOpen, isReplying, instructorTab]);
+  const toggleEvidence = (id: number) =>
+    setAllMessages((items) =>
+      items.map((message) =>
+        message.id === id ? { ...message, evidence: !message.evidence } : message
+      )
+    );
+
+  const evidenceCount =
+    evidenceRegister.length + allMessages.filter((message) => message.evidence && message.id > 1000).length;
+
+  const value = useMemo(
+    () => ({
+      role,
+      setRole,
+      user,
+      setUser,
+      isLoadingUser,
+      logout,
+      refreshUser,
+      byokModalOpen,
+      setByokModalOpen,
+      currentSessionId,
+      setCurrentSessionId,
+      currentScenarioVersionId,
+      setCurrentScenarioVersionId,
+      activeAgents,
+      setActiveAgents,
+      selectedDomainId,
+      setSelectedDomainId,
+      activeStakeholderId,
+      setActiveStakeholderId,
+      messages,
+      sendMessage,
+      toggleEvidence,
+      evidenceCount,
+      eventOpen,
+      setEventOpen,
+      isReplying,
+      instructorTab,
+      setInstructorTab,
+    }),
+    [
+      role,
+      user,
+      isLoadingUser,
+      byokModalOpen,
+      currentSessionId,
+      currentScenarioVersionId,
+      activeAgents,
+      selectedDomainId,
+      activeStakeholderId,
+      messages,
+      evidenceCount,
+      eventOpen,
+      isReplying,
+      instructorTab,
+    ]
+  );
+
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 

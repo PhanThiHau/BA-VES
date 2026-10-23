@@ -1,26 +1,72 @@
-import { ArrowLeft, ArrowRight, Building2, CheckCircle2, Clock3, Database, FileText, LockKeyhole, Sparkles, Target, Users, Waypoints } from "lucide-react";
-import { stakeholders } from "../../constants/scenario";
+import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Database,
+  FileText,
+  Loader2,
+  Sparkles,
+  Target,
+  Users,
+  Waypoints,
+} from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { catalogService, type ScenarioContextDto } from "../../services/catalogService";
+import { simulationService } from "../../services/simulationService";
+import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 
 const systems = [
-  ["Hệ thống POS Cửa hàng", "20 cửa hàng", "Gửi giao dịch bán theo lô (batch), thường xuyên bị trễ từ 30–90 phút so với thực tế."],
-  ["Phần mềm WMS Kho vận", "Tổng kho DC + 3 kho vùng", "Quản lý đóng gói (picking), điều chuyển nội bộ, hàng trả về và điều chỉnh số lượng tồn."],
-  ["Hệ thống ERP Tài chính", "Khối Kế toán - Tài chính", "Ghi nhận giá trị tài sản kho, kỳ khóa sổ kế toán và kiểm soát phê duyệt bù trừ thất thoát."],
-  ["Kế hoạch qua Excel", "Chuyên viên Kế hoạch (Planner)", "Dự báo nhu cầu, định mức min-max và chương trình khuyến mãi hiện vẫn tính thủ công."],
+  [
+    "Hệ thống POS Cửa hàng",
+    "20 cửa hàng",
+    "Gửi giao dịch bán theo lô (batch), thường xuyên bị trễ từ 30–90 phút so với thực tế.",
+  ],
+  [
+    "Phần mềm WMS Kho vận",
+    "Tổng kho DC + 3 kho vùng",
+    "Quản lý đóng gói (picking), điều chuyển nội bộ, hàng trả về và điều chỉnh số lượng tồn.",
+  ],
+  [
+    "Hệ thống ERP Tài chính",
+    "Khối Kế toán - Tài chính",
+    "Ghi nhận giá trị tài sản kho, kỳ khóa sổ kế toán và kiểm soát phê duyệt bù trừ thất thoát.",
+  ],
+  [
+    "Kế hoạch qua Excel",
+    "Chuyên viên Kế hoạch (Planner)",
+    "Dự báo nhu cầu, định mức min-max và chương trình khuyến mãi hiện vẫn tính thủ công.",
+  ],
 ];
 
 const handoverFiles = [
-  ["Hồ sơ dự án (Project Brief v1.0)", "Mục tiêu tối ưu, ngân sách 4 tỷ VNĐ và phạm vi triển khai thử nghiệm 6 tháng."],
-  ["Báo cáo tồn kho thực tế 31/08", "Số liệu snapshot theo từng mã SKU, kho vật lý và trạng thái hàng khả dụng (ATP)."],
-  ["SOP Quy trình Nhập & Trả hàng v2.1", "Quy trình kiểm đếm, lưu kho cách ly (quarantine) và xử lý đổi trả."],
-  ["Đặc tả kỹ thuật API POS–WMS", "Luồng đồng bộ giao dịch hiện tại, mã lỗi kết nối và thời gian trễ dữ liệu."],
-  ["Báo cáo mức độ phục vụ Quý 3", "Tỷ lệ đứt hàng (stockout 12%), tỷ lệ đáp ứng đơn hàng (fill rate) và độ chính xác tồn kho."],
+  [
+    "Hồ sơ dự án (Project Brief v1.0)",
+    "Mục tiêu tối ưu, ngân sách 4 tỷ VNĐ và phạm vi triển khai thử nghiệm 6 tháng.",
+  ],
+  [
+    "Báo cáo tồn kho thực tế 31/08",
+    "Số liệu snapshot theo từng mã SKU, kho vật lý và trạng thái hàng khả dụng (ATP).",
+  ],
+  [
+    "SOP Quy trình Nhập & Trả hàng v2.1",
+    "Quy trình kiểm đếm, lưu kho cách ly (quarantine) và xử lý đổi trả.",
+  ],
+  [
+    "Đặc tả kỹ thuật API POS–WMS",
+    "Luồng đồng bộ giao dịch hiện tại, mã lỗi kết nối và thời gian trễ dữ liệu.",
+  ],
+  [
+    "Báo cáo mức độ phục vụ Quý 3",
+    "Tỷ lệ đứt hàng (stockout 12%), tỷ lệ đáp ứng đơn hàng (fill rate) và độ chính xác tồn kho.",
+  ],
 ];
 
-const assignmentTasks = [
+const defaultAssignmentTasks = [
   "Làm rõ bài toán nghiệp vụ, phạm vi dự án và bộ chỉ số KPI đo lường",
   "Lập kế hoạch phỏng vấn và tiếp cận 6 Stakeholder AI chủ chốt",
   "Khơi gợi sự thật (facts), quy tắc ngầm, ngoại lệ và các ràng buộc",
@@ -30,6 +76,50 @@ const assignmentTasks = [
 ];
 
 export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) => void }) {
+  const { currentScenarioVersionId, setCurrentSessionId, setActiveAgents } = useApp();
+
+  // FE-07: Load Scenario Context: GET /api/scenario-versions/{id}/context
+  const [context, setContext] = useState<ScenarioContextDto | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const versionId = currentScenarioVersionId || 1;
+
+  useEffect(() => {
+    async function loadContext() {
+      setLoading(true);
+      try {
+        const data = await catalogService.getScenarioContext(versionId);
+        setContext(data);
+      } catch (err) {
+        console.warn("Không tải được bối cảnh từ API, hiển thị bối cảnh mẫu mặc định:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadContext();
+  }, [versionId]);
+
+  // FE-08: Bắt đầu làm bài / Khởi tạo phiên luyện tập: POST /api/sessions
+  const handleStartSession = async () => {
+    setStarting(true);
+    setStartError(null);
+    try {
+      const session = await simulationService.startSession(versionId);
+      setCurrentSessionId(session.id);
+      if (session.agents && session.agents.length > 0) {
+        setActiveAgents(session.agents);
+      }
+      navigate("simulation");
+    } catch (err: any) {
+      console.warn("Không thể tạo phiên qua API, vào phòng thực hành với dữ liệu offline:", err);
+      navigate("simulation");
+    } finally {
+      setStarting(false);
+    }
+  };
+
   return (
     <>
       <button
@@ -56,49 +146,57 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
                   <Badge tone="green">Phiên thực hành chuẩn BABOK® v3</Badge>
                 </div>
                 <p className="mt-5 font-mono text-xs font-bold uppercase tracking-widest text-brass-light">
-                  BÀI TOÁN DOANH NGHIỆP THỰC TẾ · INV-2026-014
+                  {context ? `${context.scenarioCode} · Phiên bản v${context.versionNo}` : "BÀI TOÁN DOANH NGHIỆP THỰC TẾ · INV-2026-014"}
                 </p>
                 <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
-                  Quản lý tồn kho & Điều phối chuỗi cung ứng
+                  {context?.scenarioTitle || "Quản lý tồn kho & Điều phối chuỗi cung ứng"}
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-white/80 sm:text-base">
-                  Bạn được giao trọng trách Business Analyst (BA) cho VinaSupply Retail. Doanh nghiệp vận hành 1 trung tâm phân phối chính (DC), 3 kho khu vực và 20 siêu thị bán lẻ. Tỷ lệ đứt gãy hàng hóa (stockout) đang ở mức 12%, trong khi dữ liệu tồn kho giữa POS, WMS và ERP lệch pha khiến khách hàng thất vọng và chi phí lưu kho tăng vọt.
+                  {context?.businessContext ||
+                    "Bạn được giao trọng trách Business Analyst (BA) cho VinaSupply Retail. Doanh nghiệp vận hành 1 trung tâm phân phối chính (DC), 3 kho khu vực và 20 siêu thị bán lẻ. Tỷ lệ đứt gãy hàng hóa (stockout) đang ở mức 12%, trong khi dữ liệu tồn kho giữa POS, WMS và ERP lệch pha khiến khách hàng thất vọng và chi phí lưu kho tăng vọt."}
                 </p>
               </div>
             </div>
 
-            {/* Context & Authority Grid */}
+            {/* FE-07: Context & Authority Grid */}
             <div className="p-7 sm:p-9">
               <div className="grid gap-6 md:grid-cols-2">
+                {/* Vấn đề nghiệp vụ (businessProblem) */}
                 <div className="rounded-2xl border border-slate/10 bg-mist/20 p-5">
                   <div className="flex items-center gap-3">
                     <span className="grid h-9 w-9 place-items-center rounded-xl bg-navy/10 text-navy">
                       <Building2 size={20} />
                     </span>
-                    <h2 className="text-base font-bold text-navy">Bối cảnh vận hành</h2>
+                    <h2 className="text-base font-bold text-navy">Vấn đề cốt lõi (Business Problem)</h2>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate">
-                    Đội Kho cần tốc độ xử lý nhanh; Kế toán đòi hỏi kiểm soát chặt chẽ bút toán bù trừ; Chuyên viên Kế hoạch muốn ưu tiên điều chuyển nội bộ trước khi mua mới; Cửa hàng cần tồn khả dụng (ATP) chính xác để cam kết với khách.
+                    {context?.businessProblem ||
+                      "Hàng được giữ sai thời điểm, một số đơn bị xử lý trùng, quy trình hủy đơn và hoàn tiền chưa rõ ràng, và các phòng ban có kỳ vọng khác nhau về tốc độ cập nhật trạng thái tồn."}
                   </p>
                 </div>
 
+                {/* Mục tiêu nghiệp vụ (businessObjectives) */}
                 <div className="rounded-2xl border border-slate/10 bg-mist/20 p-5">
                   <div className="flex items-center gap-3">
-                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-navy/10 text-navy">
-                      <Waypoints size={20} />
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-brass/10 text-brass">
+                      <Target size={20} />
                     </span>
-                    <h2 className="text-base font-bold text-navy">Quyền hạn của BA</h2>
+                    <h2 className="text-base font-bold text-navy">Mục tiêu giải pháp (Objectives)</h2>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate">
-                    Bạn có toàn quyền phỏng vấn 6 Stakeholder, truy cập dữ liệu mẫu, đề xuất phạm vi MVP và điều phối phiên thẩm định. Sponsor giữ quyền duyệt phạm vi cuối cùng, Giám đốc Vận hành quyết định ưu tiên thực địa.
+                    {context?.businessObjectives ||
+                      "Giảm tỷ lệ đứt hàng xuống dưới 5%, tăng tỷ lệ đáp ứng đơn hàng lên tối thiểu 96%, kiểm soát chi phí lưu kho tăng không quá 8% và đồng bộ luồng phê duyệt kế toán."}
                   </p>
                 </div>
               </div>
 
               {/* Assignment Tasks Checklist */}
-              <h2 className="mt-8 text-lg font-bold text-navy">Nhiệm vụ trọng tâm của bạn</h2>
+              <h2 className="mt-8 text-lg font-bold text-navy">Nhiệm vụ trọng tâm của bạn ({context?.baRole || "Business Analyst"})</h2>
+              <p className="mt-1 text-xs text-slate">
+                {context?.assignment || "Lập kế hoạch BA, phỏng vấn các stakeholder, phân tích thông tin và tạo hồ sơ BRD chuẩn."}
+              </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {assignmentTasks.map((task) => (
+                {defaultAssignmentTasks.map((task) => (
                   <div key={task} className="flex items-start gap-3 rounded-xl border border-slate/10 p-3.5">
                     <CheckCircle2 className="mt-0.5 shrink-0 text-brass" size={18} />
                     <span className="text-sm font-medium text-navy/90">{task}</span>
@@ -139,18 +237,14 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
             <Card className="p-6 border-slate/15">
               <div className="flex items-center gap-3">
                 <FileText className="text-navy" size={20} />
-                <h2 className="text-base font-bold text-navy">Hồ sơ bàn giao ban đầu</h2>
+                <h2 className="font-display text-base font-bold text-navy">Tài liệu bàn giao ban đầu</h2>
               </div>
-              <div className="mt-5 space-y-3">
-                {handoverFiles.map(([name, detail], index) => (
-                  <div key={name} className="flex gap-3 rounded-xl border border-slate/10 p-3">
-                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-navy/10 text-xs font-bold text-navy">
-                      0{index + 1}
-                    </span>
-                    <div>
-                      <strong className="block text-sm font-semibold text-navy">{name}</strong>
-                      <span className="mt-0.5 block text-xs leading-5 text-slate">{detail}</span>
-                    </div>
+              <p className="mt-1 text-xs text-slate">BA cần đọc kỹ trước khi bắt đầu phỏng vấn</p>
+              <div className="mt-4 space-y-3">
+                {handoverFiles.map(([doc, summary]) => (
+                  <div key={doc} className="rounded-xl border border-slate/15 bg-offwhite/50 p-3.5">
+                    <p className="font-semibold text-xs text-navy">{doc}</p>
+                    <p className="mt-1 text-xs text-slate leading-relaxed">{summary}</p>
                   </div>
                 ))}
               </div>
@@ -158,88 +252,73 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
 
             <Card className="p-6 border-slate/15">
               <div className="flex items-center gap-3">
-                <LockKeyhole className="text-brass" size={20} />
-                <h2 className="text-base font-bold text-navy">Biên giới thông tin</h2>
+                <Users className="text-brass" size={20} />
+                <h2 className="font-display text-base font-bold text-navy">Ràng buộc & Phạm vi (Scope)</h2>
               </div>
-              <div className="mt-5 space-y-3">
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                  <strong className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                    Đã biết (Tài liệu sơ cấp)
-                  </strong>
-                  <p className="mt-1.5 text-xs leading-5 text-emerald-900/80">
-                    Chỉ số KPI hiện tại, quy mô mạng lưới 20 điểm bán, tên hệ thống và danh sách trưởng bộ phận.
+              <p className="mt-1 text-xs text-slate">Quy định từ Ban Lãnh đạo và Giảng viên</p>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
+                  <p className="font-bold text-xs text-emerald-800">Trong phạm vi (In-Scope)</p>
+                  <p className="mt-1 text-xs text-emerald-900 leading-relaxed">
+                    {context?.inScope || "Quy trình tiếp nhận đơn, giữ và trả tồn kho, hủy đơn, hoàn tiền, thông báo trạng thái cho khách."}
                   </p>
                 </div>
-                <div className="rounded-xl border border-brass/30 bg-brass/10 p-4">
-                  <strong className="text-xs font-bold uppercase tracking-wider text-brass">
-                    BA phải tự khám phá (Khơi gợi)
-                  </strong>
-                  <p className="mt-1.5 text-xs leading-5 text-navy/80">
-                    Nguyên nhân gốc của độ trễ, quy tắc ngầm chưa văn bản hóa, ngoại lệ kiểm kê, xung đột KPI giữa các bên và tiêu chí chấp nhận nghiệm thu.
+
+                <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5">
+                  <p className="font-bold text-xs text-rose-800">Ngoài phạm vi (Out-of-Scope)</p>
+                  <p className="mt-1 text-xs text-rose-900 leading-relaxed">
+                    {context?.outOfScope || "Lập trình hệ thống bán hàng, thay đổi nhà cung cấp thanh toán, chương trình khách hàng thân thiết."}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5">
+                  <p className="font-bold text-xs text-amber-800">Ràng buộc đã biết (Known Constraints)</p>
+                  <p className="mt-1 text-xs text-amber-900 leading-relaxed">
+                    {context?.knownConstraints || "Ngân sách không vượt quá 4 tỷ VNĐ. Không thay thế hệ thống POS trong đợt này."}
                   </p>
                 </div>
               </div>
-              <p className="mt-4 text-xs leading-5 text-slate">
-                * Lưu ý: Mỗi Stakeholder AI chỉ nắm góc nhìn trong phạm vi chức trách của họ. Hệ thống đánh giá năng lực đặt câu hỏi và truy vấn sự thật của bạn.
-              </p>
             </Card>
           </div>
-
-          {/* Available Stakeholders */}
-          <Card className="p-6 border-slate/15">
-            <h2 className="text-base font-bold text-navy">Danh sách Stakeholder AI tham gia phỏng vấn</h2>
-            <p className="mt-1 text-xs text-slate">
-              Mỗi nhân sự có mục tiêu, quyền hạn và định kiến nghiệp vụ riêng biệt.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {stakeholders.map((person) => (
-                <div key={person.id} className="flex items-center gap-3 rounded-xl border border-slate/15 p-3.5 transition-colors hover:bg-mist/20">
-                  <span
-                    className="grid h-10 w-10 place-items-center rounded-xl text-xs font-bold text-navy shadow-sm"
-                    style={{ backgroundColor: person.color }}
-                  >
-                    {person.initials}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <strong className="block truncate text-sm font-bold text-navy">{person.name}</strong>
-                    <span className="block truncate text-xs text-slate">{person.role}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
         </div>
 
-        {/* Action Sidebar */}
-        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+        {/* Right Sidebar: Execution Actions */}
+        <aside className="space-y-6">
           <Card className="p-6 border-slate/15">
-            <h2 className="text-base font-bold text-navy">Thông tin phiên thực hành</h2>
-            <div className="mt-5 space-y-4 text-xs">
-              {[
-                [Clock3, "Thời lượng ước tính: 90 phút"],
-                [Users, "6 Nhân vật AI độc lập"],
-                [FileText, "5 Tài liệu bàn giao bắt buộc"],
-                [Target, "Quan sát 6 Vùng tri thức BABOK®"],
-              ].map(([Icon, text]) => (
-                <div key={String(text)} className="flex items-center gap-3 font-medium text-slate">
-                  <Icon size={18} className="text-navy" />
-                  {String(text)}
-                </div>
-              ))}
-            </div>
+            <h2 className="font-display text-base font-bold text-navy">Sẵn sàng thực hành</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate">
+              Khởi tạo không gian làm việc mô phỏng, kết nối trực tiếp với 6 Stakeholder AI.
+            </p>
 
+            {startError && (
+              <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700">
+                {startError}
+              </div>
+            )}
+
+            {/* FE-07 / FE-08 CTA: "Bắt đầu làm bài" */}
             <Button
-              onClick={() => navigate("simulation")}
-              className="mt-7 w-full justify-center gap-2 bg-navy py-3 text-sm font-semibold hover:bg-navy-light"
+              disabled={starting}
+              onClick={handleStartSession}
+              className="mt-6 w-full justify-center gap-2 bg-navy py-3 text-sm font-bold hover:bg-navy-light shadow-md"
             >
-              Bắt đầu phỏng vấn Stakeholder <ArrowRight size={16} />
+              {starting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> Đang khởi tạo phiên...
+                </>
+              ) : (
+                <>
+                  Bắt đầu làm bài <ArrowRight size={16} />
+                </>
+              )}
             </Button>
+
             <Button
               variant="secondary"
               onClick={() => navigate("planning")}
-              className="mt-2.5 w-full justify-center border-slate/20 text-xs font-semibold text-slate"
+              className="mt-2.5 w-full justify-center border-slate/20 text-xs font-semibold text-slate hover:text-navy"
             >
-              Xem kế hoạch BA chi tiết
+              Lập kế hoạch BA trước
             </Button>
           </Card>
 

@@ -1,23 +1,26 @@
 import { ArrowRight, Check, Eye, EyeOff, GraduationCap, LockKeyhole, Mail, ShieldCheck, Zap } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useApp } from "../../contexts/AppContext";
+import { authService } from "../../services/authService";
 import type { AppRole, RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
 import { AuthLayout } from "./AuthLayout";
 
 export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { setRole, setSelectedDomainId } = useApp();
+  const { setRole, setSelectedDomainId, setUser } = useApp();
   const [role, setLoginRole] = useState<AppRole>("learner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [demoNotice, setDemoNotice] = useState<string | null>(null);
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    setApiError(null);
     const nextErrors: typeof errors = {};
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       nextErrors.email = "Vui lòng nhập địa chỉ email hợp lệ.";
@@ -29,24 +32,39 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
     if (Object.keys(nextErrors).length) return;
 
     setSubmitting(true);
-    window.setTimeout(() => {
-      setRole(role);
-      if (role === "learner") {
+    try {
+      const res = await authService.login({
+        email: email.trim(),
+        password,
+      });
+      setUser(res.user);
+      const isInstructor =
+        res.user.roles.includes("INSTRUCTOR") ||
+        res.user.roles.includes("ADMIN") ||
+        res.user.roles.includes("BAEXPERT") ||
+        role === "instructor";
+      setRole(isInstructor ? "instructor" : "learner");
+      if (!isInstructor) {
         setSelectedDomainId("all");
         navigate("dashboard");
       } else {
         navigate("instructor");
       }
-    }, 450);
+    } catch (err: any) {
+      setApiError(err.message || "Email hoặc mật khẩu không chính xác.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const fillDemoAccount = (demoRole: AppRole) => {
     setLoginRole(demoRole);
-    setEmail(demoRole === "learner" ? "user@gmail.com" : "user2@gmail.com");
-    setPassword("123456");
+    setEmail("learner@example.com");
+    setPassword("ReplaceWithPassword1");
     setErrors({});
-    setDemoNotice(demoRole === "learner" ? "Đã điền tài khoản Học viên" : "Đã điền tài khoản Giảng viên");
-    window.setTimeout(() => setDemoNotice(null), 2200);
+    setApiError(null);
+    setDemoNotice(demoRole === "learner" ? "Đã điền tài khoản mẫu" : "Đã điền tài khoản mẫu");
+    window.setTimeout(() => setDemoNotice(null), 2500);
   };
 
   return (
@@ -99,6 +117,12 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
           Giảng viên
         </button>
       </div>
+
+      {apiError && (
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          {apiError}
+        </div>
+      )}
 
       <form onSubmit={submit} className="mt-4 space-y-3.5" noValidate>
         {/* Email Field */}
