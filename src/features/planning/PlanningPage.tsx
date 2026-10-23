@@ -2,7 +2,6 @@ import { ArrowRight, Check, ClipboardList, Database, FileQuestion, Lightbulb, Ta
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
-import { stakeholders } from "../../constants/scenario";
 import { scenarioObjectives } from "../../constants/trainingScenario";
 import type { RouteKey } from "../../types/models";
 

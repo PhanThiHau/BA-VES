@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, BookOpenCheck, Boxes, BriefcaseBusiness, CheckCircle2, Factory, FileStack, FolderKanban, GraduationCap, Landmark, MessageSquareText, Play, Search, SearchCheck, Sparkles, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpenCheck, Boxes, BriefcaseBusiness, Factory, FileStack, FolderKanban, GraduationCap, Landmark, Play, Search, SearchCheck, Sparkles, Users } from "lucide-react";
 import { learningApplications, learningDomains } from "../../constants/learningCatalog";
 import { ProgressBar } from "../../components/ui/ProgressBar";
 import { useApp } from "../../contexts/AppContext";
 import type { LearningDomain, RouteKey } from "../../types/models";
-import { classNames } from "../../utils/format";
 
 const domainIcons = {
   boxes: Boxes,

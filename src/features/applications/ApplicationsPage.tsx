@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Boxes, BriefcaseBusiness, Building2, Check, Clock3, Factory, FolderKanban, Landmark, Search, SlidersHorizontal, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Boxes, BriefcaseBusiness, Building2, Check, Clock3, Factory, FolderKanban, Landmark, Search, SlidersHorizontal, Users } from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";

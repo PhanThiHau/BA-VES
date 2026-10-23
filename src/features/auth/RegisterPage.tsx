@@ -1,5 +1,7 @@
 import { ArrowRight, Check, CheckCircle2, Eye, EyeOff, GraduationCap, LockKeyhole, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
+import { useApp } from "../../contexts/AppContext";
+import { authService } from "../../services/authService";
 import type { AppRole, RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
 import { AuthLayout } from "./AuthLayout";
@@ -29,8 +31,13 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
   const validCount = passwordCriteria.filter((c) => c.valid).length;
   const strengthLabels = ["", "Yếu", "Trung bình", "Khá", "Rất mạnh"];
 
-  const submit = (event: FormEvent) => {
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const { setUser, setRole: setAppRole } = useApp();
+
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    setApiError(null);
     const next: RegisterErrors = {};
 
     if (name.trim().length < 2) {
@@ -59,7 +66,23 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
     }
 
     setErrors(next);
-    if (!Object.keys(next).length) setCreated(true);
+    if (Object.keys(next).length) return;
+
+    setSubmitting(true);
+    try {
+      const res = await authService.register({
+        fullName: name.trim(),
+        email: email.trim(),
+        password,
+      });
+      setUser(res.user);
+      setAppRole(role);
+      setCreated(true);
+    } catch (err: any) {
+      setApiError(err.message || "Đăng ký không thành công. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (created) {
@@ -148,6 +171,12 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
           Giảng viên
         </button>
       </div>
+
+      {apiError && (
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          {apiError}
+        </div>
+      )}
 
       <form onSubmit={submit} className="mt-4 space-y-3" noValidate>
         {/* Full Name */}
@@ -345,10 +374,11 @@ export function RegisterPage({ navigate }: { navigate: (route: RouteKey) => void
         {/* Submit Button */}
         <button
           type="submit"
-          className="group relative mt-2 flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-navy px-4 text-sm font-bold text-white shadow-md transition-all duration-300 hover:bg-navy-deep hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+          disabled={submitting}
+          className="group relative mt-2 flex min-h-11 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-navy px-4 text-sm font-bold text-white shadow-md transition-all duration-300 hover:bg-navy-deep hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-75"
         >
           <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
-          Đăng ký tài khoản {role === "learner" ? "Học viên" : "Giảng viên"}
+          {submitting ? "Đang tạo tài khoản..." : `Đăng ký tài khoản ${role === "learner" ? "Học viên" : "Giảng viên"}`}
           <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
         </button>
       </form>

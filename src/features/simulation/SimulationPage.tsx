@@ -61,6 +61,8 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     eventOpen,
     setEventOpen,
     isReplying,
+    activeAgents,
+    currentSessionId,
   } = useApp();
 
   const [draft, setDraft] = useState("");
@@ -94,7 +96,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="green">Đang phỏng vấn</Badge>
               <span className="font-mono text-xs text-mist">
-                INV-2026-014 · Phỏng vấn 4/6 nhân sự
+                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014 · Phỏng vấn 4/6 nhân sự"}
               </span>
             </div>
             <h1 className="mt-1 truncate text-base font-bold text-white sm:text-lg">
