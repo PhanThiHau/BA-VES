@@ -1,4 +1,4 @@
-import { AlertTriangle, Bookmark, Check, ChevronRight, Clock3, FileText, Lightbulb, MessageSquareQuote, MoreHorizontal, Send, Sparkles, StickyNote, Users } from "lucide-react";
+import { AlertTriangle, Bookmark, Check, ChevronRight, Clock3, FileText, Lightbulb, Lock, MessageSquareQuote, MoreHorizontal, Send, Sparkles, StickyNote, Users, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -7,6 +7,7 @@ import { ProgressBar } from "../../components/ui/ProgressBar";
 import { stakeholders } from "../../constants/scenario";
 import { coachPrompts, evidenceRegister } from "../../constants/trainingScenario";
 import { useApp } from "../../contexts/AppContext";
+import { UpgradeModal } from "../../components/common/UpgradeModal";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
 
@@ -64,13 +65,19 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     activeAgents,
     currentSessionId,
     loadAgentMessages,
+    subscriptionTier,
+    remainingFreeQuestions,
+    setRemainingFreeQuestions,
+    upgradeModalOpen,
+    setUpgradeModalOpen,
   } = useApp();
 
   const [draft, setDraft] = useState("");
   const [rightTab, setRightTab] = useState<"notes" | "evidence">("notes");
+  const [upgradeReason, setUpgradeReason] = useState("");
   const messageListRef = useRef<HTMLDivElement>(null);
 
-  const active = stakeholders.find((person) => person.id === activeStakeholderId) ?? stakeholders[2];
+  const active = stakeholders.find((person) => person.id === activeStakeholderId) ?? stakeholders[0];
   const activeEvidence = evidenceRegister.filter((item) => item.stakeholderId === active.id);
   const prompts = coachPrompts[active.id] ?? [];
   const quickPrompts = suggestedQuickPrompts[active.id] ?? [];
@@ -88,9 +95,28 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     }
   }, [activeStakeholderId, currentSessionId, activeAgents]);
 
+  const handleSelectStakeholder = (person: (typeof stakeholders)[0]) => {
+    if (subscriptionTier === "free" && person.isProOnly) {
+      setUpgradeReason(`Stakeholder "${person.name} (${person.role})" là nhân vật thuộc gói Chuyên nghiệp. Nhân vật này sở hữu các bí mật nghiệp vụ quan trọng và có xung đột lợi ích với các phòng ban.`);
+      setUpgradeModalOpen(true);
+      return;
+    }
+    setActiveStakeholderId(person.id);
+  };
+
   const submit = async () => {
     const text = draft.trim();
     if (!text) return;
+
+    if (subscriptionTier === "free") {
+      if (remainingFreeQuestions <= 0) {
+        setUpgradeReason("Bạn đã sử dụng hết 10 câu hỏi miễn phí của phiên trải nghiệm. Hãy nâng cấp gói Pro để tiếp tục phỏng vấn không giới hạn và nhận bản đánh giá năng lực chuẩn BABOK!");
+        setUpgradeModalOpen(true);
+        return;
+      }
+      setRemainingFreeQuestions((prev) => prev - 1);
+    }
+
     setDraft("");
     await sendMessage(text);
   };
@@ -109,8 +135,24 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="green">Đang phỏng vấn</Badge>
+              {subscriptionTier === "free" ? (
+                <button
+                  onClick={() => {
+                    setUpgradeReason("Nâng cấp gói Pro để phỏng vấn không giới hạn số câu và mở khóa tất cả kịch bản!");
+                    setUpgradeModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-full border border-brass/40 bg-brass/10 px-2.5 py-0.5 text-[11px] font-bold text-brass hover:bg-brass/20 transition"
+                >
+                  <Zap size={12} className="text-brass" />
+                  Gói Free: Còn {remainingFreeQuestions}/10 câu hỏi
+                </button>
+              ) : (
+                <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400">
+                  <Check size={12} /> Gói Pro: Không giới hạn
+                </span>
+              )}
               <span className="font-mono text-xs text-mist">
-                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014 · Phỏng vấn 4/6 nhân sự"}
+                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014"}
               </span>
             </div>
             <h1 className="mt-1 truncate text-base font-bold text-white sm:text-lg">
@@ -155,40 +197,50 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1 xl:flex-col xl:overflow-visible">
-              {stakeholders.map((person) => (
-                <button
-                  key={person.id}
-                  onClick={() => setActiveStakeholderId(person.id)}
-                  className={classNames(
-                    "flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
-                    person.id === active.id
-                      ? "border-navy bg-white shadow-sm ring-1 ring-navy/10"
-                      : "border-transparent hover:bg-white/80"
-                  )}
-                >
-                  <span
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-navy shadow-xs"
-                    style={{ backgroundColor: person.color }}
+              {stakeholders.map((person) => {
+                const isLocked = subscriptionTier === "free" && person.isProOnly;
+                return (
+                  <button
+                    key={person.id}
+                    onClick={() => handleSelectStakeholder(person)}
+                    className={classNames(
+                      "group relative flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
+                      isLocked
+                        ? "border-slate/10 bg-offwhite/60 opacity-60 hover:opacity-100 hover:border-brass/40"
+                        : person.id === active.id
+                        ? "border-navy bg-white shadow-sm ring-1 ring-navy/10"
+                        : "border-transparent hover:bg-white/80"
+                    )}
                   >
-                    {person.initials}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-xs font-bold text-navy">
-                      {person.name}
-                    </strong>
-                    <small className="block truncate text-[11px] text-slate">
-                      {person.role}
-                    </small>
-                  </span>
-                  {person.status === "interviewed" ? (
-                    <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                      <Check size={11} />
+                    <span
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-navy shadow-xs"
+                      style={{ backgroundColor: person.color }}
+                    >
+                      {person.initials}
                     </span>
-                  ) : (
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  )}
-                </button>
-              ))}
+                    <span className="min-w-0 flex-1">
+                      <strong className="flex items-center gap-1.5 truncate text-xs font-bold text-navy">
+                        {person.name}
+                        {isLocked && <Lock size={12} className="text-brass" />}
+                      </strong>
+                      <small className="block truncate text-[11px] text-slate">
+                        {isLocked ? "Gói Pro (Bị khóa)" : person.role}
+                      </small>
+                    </span>
+                    {isLocked ? (
+                      <span className="rounded-md bg-brass/15 px-1.5 py-0.5 text-[9px] font-bold text-brass">
+                        PRO
+                      </span>
+                    ) : person.status === "interviewed" ? (
+                      <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+                        <Check size={11} />
+                      </span>
+                    ) : (
+                      <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Mission Progress Checklist */}
@@ -549,6 +601,13 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
           </Card>
         </div>
       )}
+
+      {/* Upgrade & Tier Modal */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        reason={upgradeReason}
+      />
     </div>
   );
 }

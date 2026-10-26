@@ -2,6 +2,8 @@ export type AppRole = "learner" | "instructor" | "admin";
 export type RouteKey = "landing" | "login" | "register" | "role-selection" | "dashboard" | "applications" | "scenarios" | "scenario-detail" | "planning" | "simulation" | "analysis" | "artifacts" | "assessment" | "progress" | "instructor" | "admin";
 
 
+export type SubscriptionTier = "free" | "pro";
+
 export interface Stakeholder {
   id: string;
   name: string;
@@ -10,6 +12,7 @@ export interface Stakeholder {
   color: string;
   status: "available" | "interviewed" | "locked";
   focus: string;
+  isProOnly?: boolean;
 }
 
 export interface ChatMessage {
