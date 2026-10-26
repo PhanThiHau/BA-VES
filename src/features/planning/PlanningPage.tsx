@@ -149,6 +149,24 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
         eyebrow="Step 1 of 5 · BA Planning & Monitoring"
         title="Kế hoạch Phân tích Nghiệp vụ (BA Plan)"
         description="Xác định mục tiêu đo lường, kế hoạch phỏng vấn các bên liên quan và ngân hàng câu hỏi định hướng trước khi bắt đầu mô phỏng."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={handleSavePlan}
+              disabled={isSaving}
+              className="text-xs font-semibold gap-1.5 border-slate/20"
+            >
+              <Save size={14} /> {isSaving ? "Đang lưu..." : "Lưu kế hoạch"}
+            </Button>
+            <Button
+              onClick={() => navigate("simulation")}
+              className="bg-navy text-xs font-semibold hover:bg-navy-light text-white gap-1.5 shadow-sm"
+            >
+              Vào phỏng vấn Stakeholder <ArrowRight size={14} />
+            </Button>
+          </div>
+        }
       />
 
       {saveStatus && (

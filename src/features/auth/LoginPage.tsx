@@ -8,7 +8,7 @@ import { AuthLayout } from "./AuthLayout";
 
 export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { setRole, setSelectedDomainId, setUser } = useApp();
-  const [role, setLoginRole] = useState<AppRole>("learner");
+  const [role, setLoginRole] = useState<"learner" | "instructor">("learner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -38,17 +38,27 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
         password,
       });
       setUser(res.user);
-      const isInstructor =
-        res.user.roles.includes("INSTRUCTOR") ||
-        res.user.roles.includes("ADMIN") ||
-        res.user.roles.includes("BAEXPERT") ||
-        role === "instructor";
-      setRole(isInstructor ? "instructor" : "learner");
-      if (!isInstructor) {
+
+      // Theo kiến trúc mới: Quản trị được xác thực ngầm tự động từ máy chủ -> vào thẳng Dashboard
+      if (res.user.roles.includes("ADMIN")) {
+        setRole("admin");
         setSelectedDomainId("all");
         navigate("dashboard");
-      } else {
+        return;
+      }
+
+      const isInstructor =
+        res.user.roles.includes("INSTRUCTOR") ||
+        res.user.roles.includes("BAEXPERT") ||
+        role === "instructor";
+
+      if (isInstructor) {
+        setRole("instructor");
         navigate("instructor");
+      } else {
+        setRole("learner");
+        setSelectedDomainId("all");
+        navigate("dashboard");
       }
     } catch (err: any) {
       setApiError(err.message || "Email hoặc mật khẩu không chính xác.");
@@ -57,13 +67,13 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
     }
   };
 
-  const fillDemoAccount = (demoRole: AppRole) => {
+  const fillDemoAccount = (demoRole: "learner" | "instructor") => {
     setLoginRole(demoRole);
     setEmail("learner@example.com");
     setPassword("ReplaceWithPassword1");
     setErrors({});
     setApiError(null);
-    setDemoNotice(demoRole === "learner" ? "Đã điền tài khoản mẫu" : "Đã điền tài khoản mẫu");
+    setDemoNotice(demoRole === "learner" ? "Đã điền tài khoản Học viên" : "Đã điền tài khoản Giảng viên");
     window.setTimeout(() => setDemoNotice(null), 2500);
   };
 

@@ -33,7 +33,11 @@ export function Header({ onMenu }: { onMenu: () => void }) {
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate">
                 <Sparkles size={11} className="text-brass" />
-                {role === "learner" ? "Doanh nghiệp: VinaSupply Retail" : "Hệ thống quản trị BA-VES"}
+                {role === "learner"
+                  ? "Doanh nghiệp: VinaSupply Retail"
+                  : role === "admin"
+                  ? "Cấu hình & Giám sát Hệ thống"
+                  : "Hệ thống quản trị Đào tạo BA-VES"}
               </span>
               <span className="hidden sm:inline-block rounded-full bg-brass/15 px-2 py-0.2 text-[9px] font-bold uppercase tracking-wider text-brass">
                 BABOK® v3
@@ -42,6 +46,8 @@ export function Header({ onMenu }: { onMenu: () => void }) {
             <p className="font-display text-sm font-extrabold tracking-tight text-navy">
               {role === "learner"
                 ? "Kịch bản Quản lý kho & Đứt hàng (INV-2026-014)"
+                : role === "admin"
+                ? "Trung tâm Quản trị Hệ thống (Admin Portal)"
                 : "Trung tâm điều hành Giảng viên"}
             </p>
           </div>

@@ -42,12 +42,6 @@ interface AppContextValue {
   setInstructorTab: (tab: string) => void;
   adminTab: string;
   setAdminTab: (tab: string) => void;
-  subscriptionTier: "free" | "pro";
-  setSubscriptionTier: (tier: "free" | "pro") => void;
-  remainingFreeQuestions: number;
-  setRemainingFreeQuestions: React.Dispatch<React.SetStateAction<number>>;
-  upgradeModalOpen: boolean;
-  setUpgradeModalOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -68,9 +62,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isReplying, setIsReplying] = useState(false);
   const [instructorTab, setInstructorTab] = useState("overview");
   const [adminTab, setAdminTab] = useState("overview");
-  const [subscriptionTier, setSubscriptionTier] = useState<"free" | "pro">("free");
-  const [remainingFreeQuestions, setRemainingFreeQuestions] = useState(10);
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [allMessages, setAllMessages] = useState<ChatMessage[]>(initialInterviewMessages);
 
   // Load current user profile if token is present
@@ -103,7 +94,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await authService.logout();
     setUser(null);
-    window.location.hash = "#login";
+    window.location.hash = "#/login";
   };
 
   const messages = allMessages.filter((message) => message.stakeholderId === activeStakeholderId);
@@ -224,12 +215,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setInstructorTab,
       adminTab,
       setAdminTab,
-      subscriptionTier,
-      setSubscriptionTier,
-      remainingFreeQuestions,
-      setRemainingFreeQuestions,
-      upgradeModalOpen,
-      setUpgradeModalOpen,
     }),
     [
       role,
@@ -247,9 +232,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isReplying,
       instructorTab,
       adminTab,
-      subscriptionTier,
-      remainingFreeQuestions,
-      upgradeModalOpen,
     ]
   );
 

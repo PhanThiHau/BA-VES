@@ -1,12 +1,12 @@
 import type { Requirement, Stakeholder } from "../types/models";
 
 export const stakeholders: Stakeholder[] = [
-  { id: "warehouse", name: "Le Thanh Lan", role: "Warehouse Manager", initials: "LL", color: "#DDF4EE", status: "available", focus: "Picking, barcode, and returns", isProOnly: false },
-  { id: "sponsor", name: "Tran Quoc Minh", role: "Project Sponsor", initials: "TM", color: "#DBEAFE", status: "locked", focus: "ROI and MVP scope", isProOnly: true },
-  { id: "supply", name: "Nguyen Ha Anh", role: "Supply Chain Director", initials: "HA", color: "#E0E7FF", status: "locked", focus: "Stockouts and inventory balancing", isProOnly: true },
-  { id: "planner", name: "Pham Duc Long", role: "Inventory Planner", initials: "DL", color: "#FEF3C7", status: "locked", focus: "Forecasting and replenishment", isProOnly: true },
-  { id: "operator", name: "Vu Minh Khoa", role: "Warehouse Operator", initials: "MK", color: "#FCE7F3", status: "locked", focus: "Scanning and offline operations", isProOnly: true },
-  { id: "finance", name: "Hoang Thu Trang", role: "Finance Manager", initials: "TT", color: "#F3E8FF", status: "locked", focus: "Valuation and audit trail", isProOnly: true },
+  { id: "warehouse", name: "Le Thanh Lan", role: "Warehouse Manager", initials: "LL", color: "#DDF4EE", status: "available", focus: "Picking, barcode, and returns" },
+  { id: "sponsor", name: "Tran Quoc Minh", role: "Project Sponsor", initials: "TM", color: "#DBEAFE", status: "available", focus: "ROI and MVP scope" },
+  { id: "supply", name: "Nguyen Ha Anh", role: "Supply Chain Director", initials: "HA", color: "#E0E7FF", status: "available", focus: "Stockouts and inventory balancing" },
+  { id: "planner", name: "Pham Duc Long", role: "Inventory Planner", initials: "DL", color: "#FEF3C7", status: "available", focus: "Forecasting and replenishment" },
+  { id: "operator", name: "Vu Minh Khoa", role: "Warehouse Operator", initials: "MK", color: "#FCE7F3", status: "available", focus: "Scanning and offline operations" },
+  { id: "finance", name: "Hoang Thu Trang", role: "Finance Manager", initials: "TT", color: "#F3E8FF", status: "available", focus: "Valuation and audit trail" },
 ];
 
 export const requirements: Requirement[] = [

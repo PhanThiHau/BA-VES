@@ -1,9 +1,11 @@
-import { Award, CalendarDays, CheckCircle2, MessageSquareText, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Award, CalendarDays, CheckCircle2, MessageSquareText, Sparkles, TrendingUp } from "lucide-react";
 import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ProgressBar } from "../../components/ui/ProgressBar";
+import type { RouteKey } from "../../types/models";
 
 const observedBehaviors = [
   ["Tư duy phân tích (Analytical Thinking)", 78, "+9", "Phân biệt Fact vs Assumption · Phân tích xung đột"],
@@ -20,7 +22,7 @@ const history = [
   ["INV-2026-003", "Bổ sung hàng khuyến mãi chuỗi bán lẻ", "Đã hoàn thành", "61", "Phân tích dữ liệu · Quy tắc nghiệp vụ"],
 ];
 
-export function ProgressPage() {
+export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   return (
     <>
       <PageHeader
@@ -28,10 +30,16 @@ export function ProgressPage() {
         title="Hồ sơ phát triển Năng lực Thực hành"
         description="Theo dõi sự tiến bộ và tích lũy bằng chứng năng lực qua các kịch bản mô phỏng doanh nghiệp ảo đa dạng."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brass/30 bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">
               <Sparkles size={14} /> Tích lũy 3 phiên thực hành
             </span>
+            <Button
+              onClick={() => navigate("scenarios")}
+              className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light text-white shadow-sm"
+            >
+              Thực hành kịch bản mới <ArrowRight size={14} />
+            </Button>
           </div>
         }
       />
@@ -119,6 +127,7 @@ export function ProgressPage() {
                 <th className="px-5 py-3.5">Kỹ thuật BABOK đã áp dụng</th>
                 <th className="px-5 py-3.5">Trạng thái</th>
                 <th className="px-5 py-3.5">Điểm năng lực</th>
+                <th className="px-5 py-3.5 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate/10">
@@ -135,6 +144,15 @@ export function ProgressPage() {
                       <CheckCircle2 size={14} className="text-emerald-700" />
                       {score}/100
                     </span>
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    <Button
+                      variant="secondary"
+                      onClick={() => navigate(status === "Đang hoàn tất Debrief" ? "assessment" : "simulation")}
+                      className="border-slate/20 text-[11px] py-1 px-2.5 font-semibold text-navy hover:bg-white"
+                    >
+                      {status === "Đang hoàn tất Debrief" ? "Xem báo cáo" : "Thực hành lại"}
+                    </Button>
                   </td>
                 </tr>
               ))}
