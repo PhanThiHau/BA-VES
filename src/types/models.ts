@@ -1,5 +1,6 @@
-export type AppRole = "learner" | "instructor";
-export type RouteKey = "landing" | "login" | "register" | "role-selection" | "dashboard" | "applications" | "scenarios" | "scenario-detail" | "planning" | "simulation" | "analysis" | "artifacts" | "assessment" | "progress" | "instructor";
+export type AppRole = "learner" | "instructor" | "admin";
+export type RouteKey = "landing" | "login" | "register" | "role-selection" | "dashboard" | "applications" | "scenarios" | "scenario-detail" | "planning" | "simulation" | "analysis" | "artifacts" | "assessment" | "progress" | "instructor" | "admin";
+
 
 export interface Stakeholder {
   id: string;

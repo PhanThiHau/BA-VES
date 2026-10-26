@@ -16,6 +16,7 @@ export const ROUTES: Record<RouteKey, string> = {
   assessment: "#/assessment",
   progress: "#/progress",
   instructor: "#/instructor",
+  admin: "#/admin",
 };
 
 export function routeFromHash(hash: string): RouteKey {

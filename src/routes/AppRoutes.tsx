@@ -7,6 +7,7 @@ import { ArtifactsPage } from "../features/artifacts/ArtifactsPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { ApplicationsPage } from "../features/applications/ApplicationsPage";
 import { InstructorPage } from "../features/instructor/InstructorPage";
+import { AdminPage } from "../features/admin/AdminPage";
 import { PlanningPage } from "../features/planning/PlanningPage";
 import { ScenarioDetailPage } from "../features/scenarios/ScenarioDetailPage";
 import { ScenarioLibraryPage } from "../features/scenarios/ScenarioLibraryPage";
@@ -24,6 +25,7 @@ export function AppRoutes() {
   const { setRole } = useApp();
   useEffect(() => {
     if (route === "instructor") setRole("instructor");
+    if (route === "admin") setRole("admin");
     if (["dashboard", "applications", "scenarios", "scenario-detail", "planning", "simulation", "analysis", "artifacts", "assessment", "progress"].includes(route)) setRole("learner");
   }, [route, setRole]);
   if (route === "landing") return <PageTransition route={route}><LandingPage navigate={navigate} /></PageTransition>;
@@ -46,6 +48,7 @@ export function AppRoutes() {
     assessment: <AssessmentPage />,
     progress: <ProgressPage />,
     instructor: <InstructorPage />,
+    admin: <AdminPage />,
   };
   return (
     <PageTransition route={route}>

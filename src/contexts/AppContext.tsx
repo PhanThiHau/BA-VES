@@ -40,6 +40,8 @@ interface AppContextValue {
   isReplying: boolean;
   instructorTab: string;
   setInstructorTab: (tab: string) => void;
+  adminTab: string;
+  setAdminTab: (tab: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -59,6 +61,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [eventOpen, setEventOpen] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [instructorTab, setInstructorTab] = useState("overview");
+  const [adminTab, setAdminTab] = useState("overview");
   const [allMessages, setAllMessages] = useState<ChatMessage[]>(initialInterviewMessages);
 
   // Load current user profile if token is present
@@ -210,6 +213,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isReplying,
       instructorTab,
       setInstructorTab,
+      adminTab,
+      setAdminTab,
     }),
     [
       role,
@@ -226,6 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       eventOpen,
       isReplying,
       instructorTab,
+      adminTab,
     ]
   );
 
