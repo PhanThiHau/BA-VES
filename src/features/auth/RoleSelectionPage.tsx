@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, BookOpenCheck, Bot, CheckCircle2, GraduationCap, Layers3, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpenCheck, Bot, CheckCircle2, GraduationCap, Layers3, ShieldAlert, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 
@@ -12,6 +12,10 @@ export function RoleSelectionPage({ navigate }: { navigate: (route: RouteKey) =>
   const enterInstructor = () => {
     setRole("instructor");
     navigate("instructor");
+  };
+  const enterAdmin = () => {
+    setRole("admin");
+    navigate("admin");
   };
 
   return (
@@ -159,7 +163,7 @@ export function RoleSelectionPage({ navigate }: { navigate: (route: RouteKey) =>
                       Không gian Giảng viên (Instructor)
                     </strong>
                     <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-mist">
-                      Quản trị
+                      Đào tạo
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-mist/80">
@@ -180,6 +184,48 @@ export function RoleSelectionPage({ navigate }: { navigate: (route: RouteKey) =>
                 </div>
 
                 <div className="hidden sm:grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 group-hover:bg-white group-hover:text-navy group-hover:border-transparent">
+                  <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+                </div>
+              </div>
+            </button>
+
+            {/* Admin Card */}
+            <button
+              onClick={enterAdmin}
+              className="group relative w-full overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] p-1 text-left transition-all duration-300 hover:-translate-y-1 hover:border-purple-400/40 hover:bg-white/[0.07] hover:shadow-[0_20px_60px_rgba(168,85,247,0.15)] focus:outline-none focus:ring-2 focus:ring-purple-400/50 backdrop-blur-xl"
+            >
+              <div className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-purple-400/30 bg-purple-500/15 text-purple-300 shadow-md transition-transform duration-300 group-hover:scale-105">
+                  <ShieldAlert size={30} strokeWidth={1.75} />
+                </div>
+
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <strong className="font-display text-2xl font-bold tracking-tight text-white transition-colors group-hover:text-purple-300">
+                      Không gian Quản trị viên (Admin Portal)
+                    </strong>
+                    <span className="rounded-full border border-purple-400/30 bg-purple-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-purple-300">
+                      Vận hành
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-mist/80">
+                    Phân quyền người dùng, quản trị lĩnh vực doanh nghiệp ảo, thiết lập khung chuẩn BABOK v3 và giám sát Token AI.
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-mist/60">
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <Users size={14} className="text-purple-300" /> Tài khoản & RBAC
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <Bot size={14} className="text-purple-300" /> Cấu hình Model AI
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <CheckCircle2 size={14} className="text-purple-300" /> Kiểm toán bảo mật
+                    </span>
+                  </div>
+                </div>
+
+                <div className="hidden sm:grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 group-hover:bg-purple-400 group-hover:text-navy group-hover:border-transparent">
                   <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
                 </div>
               </div>

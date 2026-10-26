@@ -12,6 +12,7 @@ import {
   Repeat2,
   SearchCheck,
   Settings2,
+  ShieldAlert,
   ShieldCheck,
   Users,
   X,
@@ -46,6 +47,21 @@ const instructorMenuItems: Array<{
   { tab: "analytics", label: "Bảng điểm & Năng lực", icon: BarChart3 },
 ];
 
+const adminMenuItems: Array<{
+  tab: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  badge?: string;
+  badgeTone?: "green" | "amber";
+}> = [
+  { tab: "overview", label: "Tổng quan hệ thống", icon: LayoutDashboard },
+  { tab: "users", label: "Tài khoản & Phân quyền", icon: Users },
+  { tab: "domains", label: "Lĩnh vực & Ứng dụng", icon: AppWindow },
+  { tab: "babok", label: "Khung chuẩn BABOK", icon: BookOpenCheck },
+  { tab: "ai", label: "Cấu hình AI & Token", icon: Settings2 },
+  { tab: "audit", label: "Nhật ký kiểm toán", icon: ShieldCheck },
+];
+
 export function Sidebar({
   active,
   navigate,
@@ -57,8 +73,8 @@ export function Sidebar({
   open: boolean;
   onClose: () => void;
 }) {
-  const { role, instructorTab, setInstructorTab } = useApp();
-  const homeRoute: RouteKey = role === "learner" ? "dashboard" : "instructor";
+  const { role, instructorTab, setInstructorTab, adminTab, setAdminTab } = useApp();
+  const homeRoute: RouteKey = role === "learner" ? "dashboard" : role === "admin" ? "admin" : "instructor";
 
   return (
     <>
@@ -110,12 +126,12 @@ export function Sidebar({
           <div className="relative overflow-hidden rounded-2xl border border-slate/15 bg-gradient-to-br from-offwhite to-white p-3 shadow-sm">
             <div className="relative flex items-center gap-2.5">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy text-white shadow-sm">
-                {role === "learner" ? <GraduationCap size={18} /> : <ShieldCheck size={18} />}
+                {role === "learner" ? <GraduationCap size={18} /> : role === "admin" ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
               </span>
               <div className="overflow-hidden">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate">Không gian làm việc</p>
                 <strong className="block truncate text-xs font-bold text-navy">
-                  {role === "learner" ? "Học viên (Learner)" : "Giảng viên (Instructor)"}
+                  {role === "learner" ? "Học viên (Learner)" : role === "admin" ? "Quản trị viên (Admin)" : "Giảng viên (Instructor)"}
                 </strong>
               </div>
             </div>
@@ -157,6 +173,54 @@ export function Sidebar({
                     <Icon size={15} />
                   </span>
                   <span className="truncate whitespace-nowrap">{label}</span>
+                </button>
+              );
+            })
+          ) : role === "admin" ? (
+            adminMenuItems.map(({ tab, label, icon: Icon, badge, badgeTone }) => {
+              const isActive = active === "admin" && adminTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    navigate("admin");
+                    setAdminTab(tab);
+                    onClose();
+                  }}
+                  className={classNames(
+                    "group relative flex min-h-10 w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-all duration-200",
+                    isActive
+                      ? "bg-navy text-white shadow-sm"
+                      : "text-slate hover:bg-offwhite hover:text-navy"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {isActive && (
+                      <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brass" />
+                    )}
+                    <span
+                      className={classNames(
+                        "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
+                        isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                      )}
+                    >
+                      <Icon size={15} />
+                    </span>
+                    <span className="truncate whitespace-nowrap">{label}</span>
+                  </div>
+
+                  {badge && (
+                    <span
+                      className={classNames(
+                        "rounded-full px-1.5 py-0.2 text-[9px] font-bold uppercase",
+                        badgeTone === "green"
+                          ? "bg-emerald-500/20 text-emerald-600"
+                          : "bg-brass/20 text-brass"
+                      )}
+                    >
+                      {badge}
+                    </span>
+                  )}
                 </button>
               );
             })
