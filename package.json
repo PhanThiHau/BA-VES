@@ -1,14 +1,54 @@
 {
-  "name": "ba-ves-frontend",
+  "name": "ba-ves-desktop",
   "version": "1.0.0",
   "private": true,
+  "main": "electron/main.js",
+  "author": "BA-VES Team",
+  "description": "BA-VES Desktop Application",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k \"cross-env NODE_ENV=development vite\" \"wait-on tcp:5173 && electron .\"",
+    "build:electron": "npm run build && electron-builder --win --x64",
+    "build:electron:mac": "npm run build && electron-builder --mac",
+    "build:electron:all": "npm run build && electron-builder -mw"
+  },
+  "build": {
+    "appId": "com.baves.desktop",
+    "productName": "BA-VES Desktop",
+    "copyright": "Copyright © 2026 BA-VES",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BA-VES Desktop"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.education"
+    }
   },
   "dependencies": {
     "@types/aos": "^3.0.8",
@@ -22,9 +62,13 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
-    "vite": "8.0.13"
-  },
-  "type": "module"
+    "vite": "8.0.13",
+    "wait-on": "^9.5.1"
+  }
 }

@@ -20,7 +20,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate/15 bg-white/95 px-4 shadow-[0_1px_3px_rgba(16,42,67,0.04)] backdrop-blur-md sm:px-6 font-sans">
+      <header className="app-header-drag sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate/15 bg-white/95 px-4 shadow-[0_1px_3px_rgba(16,42,67,0.04)] backdrop-blur-md sm:px-6 font-sans">
         <div className="flex items-center gap-3">
           <button
             onClick={onMenu}

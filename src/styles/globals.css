@@ -25,6 +25,38 @@
   box-sizing: border-box;
 }
 
+/* =========================================================
+   DESKTOP APP UI/UX OPTIMIZATIONS
+   ========================================================= */
+
+/* Tắt bôi đen toàn bộ app, chỉ cho phép bôi đen trong thẻ input/textarea/editable */
+*, *::before, *::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Vùng kéo cửa sổ Desktop (Window Dragging) */
+.app-header-drag {
+  -webkit-app-region: drag;
+}
+
+/* Các thành phần tương tác bên trong Header không bị khóa drag */
+.app-header-drag button,
+.app-header-drag a,
+.app-header-drag input,
+.app-header-drag select,
+.app-header-drag [role="button"],
+.app-header-drag .no-drag {
+  -webkit-app-region: no-drag;
+}
+
+
 html {
   min-width: 320px;
   background: var(--background);

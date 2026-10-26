@@ -31,3 +31,6 @@ yarn-error.log*
 # Local AI logs & documentation (do not track in git)
 AI_USAGE_LOG.md
 *_LOG.md
+
+# Electron build artifacts
+/release/
