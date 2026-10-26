@@ -18,8 +18,37 @@ import {
   X,
 } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
-import type { RouteKey } from "../../types/models";
+import type { AppRole, RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
+
+const roleConfig: Record<
+  AppRole,
+  {
+    badge: string;
+    subtitle: string;
+    badgeClass: string;
+    icon: typeof GraduationCap;
+  }
+> = {
+  learner: {
+    badge: "Học viên",
+    subtitle: "Không gian Học viên",
+    badgeClass: "bg-navy/10 text-navy border border-navy/15",
+    icon: GraduationCap,
+  },
+  instructor: {
+    badge: "Giảng viên",
+    subtitle: "Không gian Giảng viên",
+    badgeClass: "bg-brass/20 text-navy font-bold border border-brass/30",
+    icon: ShieldCheck,
+  },
+  admin: {
+    badge: "Quản trị",
+    subtitle: "Không gian Quản trị",
+    badgeClass: "bg-purple-500/15 text-purple-700 font-bold border border-purple-400/30",
+    icon: ShieldAlert,
+  },
+};
 
 const learnerItems: Array<{ route: RouteKey; label: string; icon: typeof LayoutDashboard }> = [
   { route: "dashboard", label: "Tổng quan", icon: LayoutDashboard },
@@ -75,6 +104,8 @@ export function Sidebar({
 }) {
   const { role, instructorTab, setInstructorTab, adminTab, setAdminTab } = useApp();
   const homeRoute: RouteKey = role === "learner" ? "dashboard" : role === "admin" ? "admin" : "instructor";
+  const currentRole = roleConfig[role] ?? roleConfig.learner;
+  const RoleIcon = currentRole.icon;
 
   return (
     <>
@@ -88,58 +119,46 @@ export function Sidebar({
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Brand Header */}
+        {/* Unified Brand & Workspace Header */}
         <div className="flex h-16 items-center justify-between border-b border-slate/10 px-4">
           <button
             onClick={() => navigate(homeRoute)}
-            className="group flex items-center gap-3 text-left transition-opacity hover:opacity-90"
+            className="group flex min-w-0 items-center gap-3 text-left transition-opacity hover:opacity-90"
             aria-label="Về trang tổng quan"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-navy font-display text-lg font-extrabold text-white shadow-md transition-transform group-hover:scale-105">
-              B
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy font-display text-white shadow-md transition-transform duration-200 group-hover:scale-105">
+              <RoleIcon size={20} className="text-brass" />
             </span>
-            <span>
-              <span className="flex items-center gap-1.5">
-                <span className="block font-display text-base font-extrabold tracking-tight text-navy">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-display text-base font-extrabold tracking-tight text-navy">
                   BA-VES
                 </span>
-                <span className="rounded-full bg-brass/20 px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider text-brass">
-                  FA26SE185
+                <span
+                  className={classNames(
+                    "rounded-full px-1.5 py-0.2 text-[8.5px] font-bold uppercase tracking-wider",
+                    currentRole.badgeClass
+                  )}
+                >
+                  {currentRole.badge}
                 </span>
+              </div>
+              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-slate">
+                {currentRole.subtitle}
               </span>
-              <span className="block text-[9px] font-semibold uppercase tracking-[0.14em] text-slate">
-                Mô phỏng Doanh nghiệp Ảo
-              </span>
-            </span>
+            </div>
           </button>
           <button
             onClick={onClose}
             aria-label="Đóng menu"
-            className="grid h-9 w-9 place-items-center rounded-xl text-slate hover:bg-offwhite lg:hidden"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate hover:bg-offwhite lg:hidden"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* User Workspace Role Chip */}
-        <div className="p-3">
-          <div className="relative overflow-hidden rounded-2xl border border-slate/15 bg-gradient-to-br from-offwhite to-white p-3 shadow-sm">
-            <div className="relative flex items-center gap-2.5">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy text-white shadow-sm">
-                {role === "learner" ? <GraduationCap size={18} /> : role === "admin" ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
-              </span>
-              <div className="overflow-hidden">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate">Không gian làm việc</p>
-                <strong className="block truncate text-xs font-bold text-navy">
-                  {role === "learner" ? "Học viên (Learner)" : role === "admin" ? "Quản trị viên (Admin)" : "Giảng viên (Instructor)"}
-                </strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Navigation Links */}
-        <div className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate/70">
+        <div className="px-4 pb-1 pt-3 text-[10px] font-bold uppercase tracking-wider text-slate/70">
           Danh mục chức năng
         </div>
 
