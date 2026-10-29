@@ -45,7 +45,7 @@ export function CohortAssignmentTab({
     code: "",
     name: "",
     instructorName: "TS. Nguyễn Hoàng Long",
-    domain: "Chuỗi cung ứng & Kho vận",
+    domain: "Chuỗi cung ứng",
     studentsCount: 30,
   });
 
@@ -109,7 +109,7 @@ export function CohortAssignmentTab({
       code: "",
       name: "",
       instructorName: "TS. Nguyễn Hoàng Long",
-      domain: "Chuỗi cung ứng & Kho vận",
+      domain: "Chuỗi cung ứng",
       studentsCount: 30,
     });
   };
@@ -442,7 +442,7 @@ export function CohortAssignmentTab({
                 <label className="block text-xs font-bold text-[#132d49] mb-1">Tên lớp học</label>
                 <input
                   required
-                  placeholder="VD: Lớp Phân tích Nghiệp vụ Y tế & Bệnh viện"
+                  placeholder="VD: Lớp Phân tích Nghiệp vụ Bán lẻ Đa kênh"
                   value={cohortForm.name}
                   onChange={(e) => setCohortForm({ ...cohortForm, name: e.target.value })}
                   className="w-full rounded-xl border border-[#d9e4ec] p-2 text-xs text-[#132d49] outline-none"

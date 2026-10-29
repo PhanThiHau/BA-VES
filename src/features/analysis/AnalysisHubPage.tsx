@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, ClipboardList, FileQuestion, FileSearch, GitMerge, Link2, MessageSquareQuote, RefreshCcw, SearchCheck, ShieldAlert, Truck, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, ClipboardList, FileQuestion, FileSearch, GitMerge, Link2, MessageSquareQuote, RefreshCcw, SearchCheck, ShieldAlert, Sparkles, Truck, Users } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Badge } from "../../components/ui/Badge";
@@ -55,7 +55,7 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       <Card className="mb-5 flex divide-x divide-slate/15 overflow-x-auto border-slate/15">
         {[
           ["6/6", "Stakeholder đã phỏng vấn", "bg-navy/10 text-navy"],
-          ["9", "Bằng chứng đã lưu", "bg-emerald-500/10 text-emerald-800"],
+          ["9/12", "Bằng chứng đã đối soát", "bg-emerald-500/10 text-emerald-800"],
           ["4", "Phát hiện nghiệp vụ", "bg-purple-500/10 text-purple-800"],
           ["4", "Giả định cần kiểm chứng", "bg-amber-500/10 text-amber-800"],
           ["5", "Yêu cầu đã đặc tả", "bg-sky-500/10 text-sky-800"],
@@ -111,19 +111,19 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                   <div>
                     <p className="text-xs font-semibold text-navy/90">
                       {[
-                        "Thời gian, ngân sách & các mục nằm ngoài phạm vi",
-                        "Chỉ số KPI, phạm vi thử nghiệm & quyền ghi đè",
-                        "Quy trình kho, hàng trả về & độ chính xác tồn kho",
-                        "Dự báo nhu cầu, định mức min-max & ưu tiên chuyển kho",
-                        "Máy quét offline, rớt mạng & sai sót thao tác",
-                        "Điều chỉnh số liệu, kiểm toán & phân quyền duyệt",
+                        "Quy trình kho, hàng trả về & đối soát số lượng tồn thực tế",
+                        "Phạm vi thời gian, ngân sách dự án & mục tiêu MVP cơ bản",
+                        "Chỉ số KPI đáp ứng đơn hàng & quy định kiểm tra tồn kho",
+                        "Dự báo nhu cầu 8 tuần & định mức tồn kho tối thiểu (Min-Max)",
+                        "Thao tác quét mã vạch và xử lý ghi sổ tạm thời",
+                        "Quy định phân quyền ký duyệt và kiểm soát sai lệch số liệu",
                       ][index]}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {([
+                        ["Quy trình", "Điểm đau", "Dữ liệu"],
                         ["Ràng buộc", "Phạm vi", "Quản trị"],
                         ["KPI", "Phạm vi", "Quyết định"],
-                        ["Quy trình", "Điểm đau", "Dữ liệu"],
                         ["Quy tắc", "Dữ liệu", "Ngoại lệ"],
                         ["Quan sát", "Điểm đau", "Phi chức năng"],
                         ["Quy tắc", "Kiểm soát", "Kiểm toán"],
@@ -135,19 +135,8 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                     </div>
                   </div>
                   <div className="text-right">
-                    <Badge tone={index < 4 ? "green" : "amber"}>
-                      {index < 4 ? "Đủ dữ liệu" : "Cần làm rõ thêm"}
-                    </Badge>
-                    <p className="mt-1.5 text-[11px] text-slate">
-                      {[
-                        "Khơi gợi ràng buộc",
-                        "Khơi gợi KPI",
-                        "Phỏng vấn + Đối soát",
-                        "Phân tích quyết định",
-                        "Quan sát thực địa",
-                        "Quy tắc nghiệp vụ",
-                      ][index]}
-                    </p>
+                    <Badge tone="green">Đã phỏng vấn</Badge>
+                    <p className="mt-1.5 text-[11px] text-slate">Phỏng vấn + Đối soát</p>
                   </div>
                 </div>
               ))}
@@ -442,6 +431,7 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
 
       {/* Tab: Requirements */}
       {tab === "Đặc tả yêu cầu" && <RequirementAnalysisSection />}
+
     </>
   );
 }

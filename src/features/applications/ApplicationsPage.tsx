@@ -17,12 +17,9 @@ const domainIcons = {
 };
 
 const domainNamesVi: Record<string, string> = {
-  "supply-chain": "Chuỗi cung ứng & Kho vận",
-  "sales-customer": "Kinh doanh & Khách hàng",
-  finance: "Tài chính & Kế toán",
-  manufacturing: "Sản xuất & Vận hành",
-  "human-resources": "Quản trị Nhân sự",
-  "project-operations": "Dự án & Dịch vụ",
+  retail: "Bán lẻ",
+  "supply-chain": "Chuỗi cung ứng",
+  finance: "Tài chính",
 };
 
 const statusLabel = {
@@ -85,7 +82,7 @@ export function ApplicationsPage({ navigate }: { navigate: (route: RouteKey) => 
           </button>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brass">
             <SlidersHorizontal size={14} />
-            Danh mục ứng dụng nghiệp vụ · 24 Phân hệ
+            Danh mục ứng dụng nghiệp vụ · 12 Phân hệ · 3 Ngành trọng điểm
           </div>
           <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
             {selectedDomain

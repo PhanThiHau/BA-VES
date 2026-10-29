@@ -70,13 +70,13 @@ export const contextThemes: ContextTheme[] = [
     tabLabel: "02 · Tác tử & Xung đột",
     tagline: "Mô phỏng áp lực quyền lợi và thông tin bất đối xứng",
     badge: "Tác tử AI Đa vai trò",
-    body: "Mô phỏng các tác tử AI đa vai trò với tính cách, thông tin ẩn và mục tiêu mâu thuẫn trên 4 lĩnh vực trọng yếu: Ngân hàng số, Chuỗi cung ứng, Y tế và Công nghệ Giáo dục.",
+    body: "Mô phỏng các tác tử AI đa vai trò với tính cách, thông tin ẩn và mục tiêu mâu thuẫn trên 3 lĩnh vực trọng yếu: Bán lẻ, Chuỗi cung ứng và Tài chính.",
     image: "/images/landing/theme-evidence.webp",
     imageAlt: "Phân tích bằng chứng và mâu thuẫn yêu cầu",
     imageRatio: "aspect-[4/3]",
-    tags: ["Xung đột lợi ích", "Thông tin phân mảnh", "4 Miền nghiệp vụ"],
+    tags: ["Xung đột lợi ích", "Thông tin phân mảnh", "3 Miền nghiệp vụ"],
     stats: [
-      { label: "Miền nghiệp vụ", value: "4 Ngành" },
+      { label: "Miền nghiệp vụ", value: "3 Ngành" },
       { label: "Tác tử mô phỏng", value: "Multi-Agent" },
     ],
     personas: [

@@ -102,7 +102,7 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
   }, [versionId]);
 
   // FE-08: Bắt đầu làm bài / Khởi tạo phiên luyện tập: POST /api/sessions
-  const handleStartSession = async () => {
+  const handleStartSession = async (targetRoute: RouteKey = "planning") => {
     setStarting(true);
     setStartError(null);
     try {
@@ -111,10 +111,10 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
       if (session.agents && session.agents.length > 0) {
         setActiveAgents(session.agents);
       }
-      navigate("simulation");
+      navigate(targetRoute);
     } catch (err: any) {
       console.warn("Không thể tạo phiên qua API, vào phòng thực hành với dữ liệu offline:", err);
-      navigate("simulation");
+      navigate(targetRoute);
     } finally {
       setStarting(false);
     }
@@ -141,7 +141,7 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
               />
               <div className="relative z-10">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="navy">Chuỗi cung ứng & Bán lẻ</Badge>
+                  <Badge tone="navy">Chuỗi cung ứng</Badge>
                   <Badge tone="amber">Cấp độ: Trung cấp</Badge>
                   <Badge tone="green">Phiên thực hành chuẩn BABOK® v3</Badge>
                 </div>
@@ -296,10 +296,10 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
               </div>
             )}
 
-            {/* FE-07 / FE-08 CTA: "Bắt đầu làm bài" */}
+            {/* FE-07 / FE-08 CTA: "Bắt đầu từ Kế hoạch BA (Khuyến nghị)" & "Vào thẳng phỏng vấn" */}
             <Button
               disabled={starting}
-              onClick={handleStartSession}
+              onClick={() => handleStartSession("planning")}
               className="mt-6 w-full justify-center gap-2 bg-navy py-3 text-sm font-bold hover:bg-navy-light shadow-md"
             >
               {starting ? (
@@ -308,17 +308,18 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
                 </>
               ) : (
                 <>
-                  Bắt đầu làm bài <ArrowRight size={16} />
+                  Bắt đầu từ Kế hoạch BA (Khuyến nghị) <ArrowRight size={16} />
                 </>
               )}
             </Button>
 
             <Button
               variant="secondary"
-              onClick={() => navigate("planning")}
-              className="mt-2.5 w-full justify-center border-slate/20 text-xs font-semibold text-slate hover:text-navy"
+              disabled={starting}
+              onClick={() => handleStartSession("simulation")}
+              className="mt-2.5 w-full justify-center border-slate/20 text-xs font-semibold text-slate hover:text-navy hover:bg-offwhite"
             >
-              Lập kế hoạch BA trước
+              Vào thẳng phỏng vấn Stakeholder →
             </Button>
           </Card>
 

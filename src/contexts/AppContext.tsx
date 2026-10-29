@@ -94,7 +94,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await authService.logout();
     setUser(null);
-    window.location.hash = "#login";
+    window.location.hash = "#/login";
   };
 
   const messages = allMessages.filter((message) => message.stakeholderId === activeStakeholderId);

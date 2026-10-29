@@ -58,7 +58,7 @@ export function AuthoringTab({
   const [newScenForm, setNewScenForm] = useState({
     title: "",
     code: "",
-    domain: "Chuỗi cung ứng & Kho vận" as any,
+    domain: "Chuỗi cung ứng" as any,
     version: "v1.0",
     baseline: "",
     groundTruth: "",
@@ -137,7 +137,7 @@ export function AuthoringTab({
     onAddScenario(newSc);
     setSelectedScenarioId(newSc.scenarioId);
     setShowNewScenarioModal(false);
-    setNewScenForm({ title: "", code: "", domain: "Chuỗi cung ứng & Kho vận", version: "v1.0", baseline: "", groundTruth: "" });
+    setNewScenForm({ title: "", code: "", domain: "Chuỗi cung ứng", version: "v1.0", baseline: "", groundTruth: "" });
   };
 
   // FE-10: Nút Tạo Version mới cho Scenario: POST /api/scenarios/{id}/versions
@@ -264,10 +264,9 @@ export function AuthoringTab({
           <span className="text-xs font-bold text-[#667d93] mr-1">Lĩnh vực:</span>
           {[
             { id: "all", label: "Tất cả ngành nghề" },
-            { id: "Chuỗi cung ứng & Kho vận", label: "Kho vận & Chuỗi cung ứng" },
-            { id: "Ngân hàng & Tài chính", label: "Ngân hàng & Tài chính" },
-            { id: "Y tế & Bệnh viện", label: "Y tế & Bệnh viện" },
-            { id: "Giáo dục & Đào tạo", label: "Giáo dục & LMS" },
+            { id: "Bán lẻ", label: "Bán lẻ" },
+            { id: "Chuỗi cung ứng", label: "Chuỗi cung ứng" },
+            { id: "Tài chính", label: "Tài chính" },
           ].map((d) => (
             <button
               key={d.id}
@@ -640,10 +639,9 @@ export function AuthoringTab({
                     onChange={(e) => setNewScenForm({ ...newScenForm, domain: e.target.value as any })}
                     className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
                   >
-                    <option value="Chuỗi cung ứng & Kho vận">Kho vận & Chuỗi cung ứng</option>
-                    <option value="Ngân hàng & Tài chính">Ngân hàng & Tài chính</option>
-                    <option value="Y tế & Bệnh viện">Y tế & Bệnh viện</option>
-                    <option value="Giáo dục & Đào tạo">Giáo dục & LMS</option>
+                    <option value="Bán lẻ">Bán lẻ</option>
+                    <option value="Chuỗi cung ứng">Chuỗi cung ứng</option>
+                    <option value="Tài chính">Tài chính</option>
                   </select>
                 </div>
               </div>

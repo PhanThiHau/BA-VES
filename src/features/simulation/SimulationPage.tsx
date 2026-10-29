@@ -70,7 +70,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const [rightTab, setRightTab] = useState<"notes" | "evidence">("notes");
   const messageListRef = useRef<HTMLDivElement>(null);
 
-  const active = stakeholders.find((person) => person.id === activeStakeholderId) ?? stakeholders[2];
+  const active = stakeholders.find((person) => person.id === activeStakeholderId) ?? stakeholders[0];
   const activeEvidence = evidenceRegister.filter((item) => item.stakeholderId === active.id);
   const prompts = coachPrompts[active.id] ?? [];
   const quickPrompts = suggestedQuickPrompts[active.id] ?? [];
@@ -88,9 +88,14 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     }
   }, [activeStakeholderId, currentSessionId, activeAgents]);
 
+  const handleSelectStakeholder = (person: (typeof stakeholders)[0]) => {
+    setActiveStakeholderId(person.id);
+  };
+
   const submit = async () => {
     const text = draft.trim();
     if (!text) return;
+
     setDraft("");
     await sendMessage(text);
   };
@@ -110,7 +115,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="green">Đang phỏng vấn</Badge>
               <span className="font-mono text-xs text-mist">
-                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014 · Phỏng vấn 4/6 nhân sự"}
+                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014"}
               </span>
             </div>
             <h1 className="mt-1 truncate text-base font-bold text-white sm:text-lg">
@@ -158,9 +163,9 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               {stakeholders.map((person) => (
                 <button
                   key={person.id}
-                  onClick={() => setActiveStakeholderId(person.id)}
+                  onClick={() => handleSelectStakeholder(person)}
                   className={classNames(
-                    "flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
+                    "group relative flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
                     person.id === active.id
                       ? "border-navy bg-white shadow-sm ring-1 ring-navy/10"
                       : "border-transparent hover:bg-white/80"
@@ -549,6 +554,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
           </Card>
         </div>
       )}
+
     </div>
   );
 }

@@ -34,7 +34,7 @@ const defaultLocalScenarios: LocalScenarioItem[] = [
     id: "INV-2026-014",
     scenarioVersionId: 1,
     title: "Quản lý tồn kho & Điều phối chuỗi cung ứng",
-    domain: "Chuỗi cung ứng & Bán lẻ",
+    domain: "Chuỗi cung ứng",
     description:
       "Phân tích tình trạng đứt gãy tồn kho, đối soát chênh lệch dữ liệu giữa hệ thống POS, WMS và ERP trên mạng lưới 1 tổng kho và 20 cửa hàng.",
     level: "Trung cấp",
@@ -46,12 +46,26 @@ const defaultLocalScenarios: LocalScenarioItem[] = [
     progress: 42,
   },
   {
-    id: "REC-2026-008",
+    id: "RET-2026-003",
     scenarioVersionId: 2,
-    title: "Kiểm soát số lô & Thu hồi sản phẩm lỗi",
-    domain: "Sản xuất & Truy xuất nguồn gốc",
+    title: "Cải tiến xử lý đơn hàng & Điểm bán lẻ POS đa kênh (OmniMart)",
+    domain: "Bán lẻ",
     description:
-      "Thiết kế quy trình truy vết 2 chiều (end-to-end) từ nhà cung cấp nguyên liệu đến khách hàng cuối khi lô hàng không đạt tiêu chuẩn kiểm nghiệm vi sinh.",
+      "Phân tích nguyên nhân chênh lệch tồn kho giữa website và cửa hàng, tối ưu hóa quy trình bán hàng tại quầy POS và chính sách đổi trả hàng đa kênh.",
+    level: "Cơ bản",
+    duration: "60 phút",
+    people: "5 Stakeholder AI",
+    techniques: ["Quan sát hiện trường", "Biểu đồ xương cá", "Đặc tả quy tắc nghiệp vụ", "User Story Mapping"],
+    image: "/images/landing/theme-evidence.webp",
+    active: false,
+  },
+  {
+    id: "FIN-2026-008",
+    scenarioVersionId: 3,
+    title: "Tự động hóa đối soát hóa đơn & Phê duyệt hạn mức thanh toán",
+    domain: "Tài chính",
+    description:
+      "Thiết kế quy trình đối soát 3 chiều tự động giữa đơn mua, biên bản nghiệm thu và hóa đơn tài chính, rút ngắn chu kỳ thanh toán công nợ nhà cung cấp.",
     level: "Nâng cao",
     duration: "75 phút",
     people: "5 Stakeholder AI",
@@ -59,27 +73,19 @@ const defaultLocalScenarios: LocalScenarioItem[] = [
     image: "/images/landing/workspace-learner.webp",
     active: false,
   },
-  {
-    id: "VAR-2026-003",
-    scenarioVersionId: 3,
-    title: "Giảm thiểu sai lệch kiểm kê tại chuỗi cửa hàng",
-    domain: "Bán lẻ đa kênh",
-    description:
-      "Phân tích nguyên nhân chênh lệch giữa số tồn vật lý và số sổ sách qua quy trình Cycle-Count, đề xuất quy tắc kiểm soát và cải tiến phần mềm POS.",
-    level: "Cơ bản",
-    duration: "60 phút",
-    people: "4 Stakeholder AI",
-    techniques: ["Quan sát hiện trường", "Biểu đồ xương cá", "Đặc tả quy tắc nghiệp vụ"],
-    image: "/images/landing/theme-evidence.webp",
-    active: false,
-  },
+];
+
+const fallbackIndustries: IndustryItem[] = [
+  { id: 1, code: "RETAIL", name: "Bán lẻ", description: "Bán lẻ đa kênh OmniMart, POS, thương mại điện tử", status: "Active", displayOrder: 1 },
+  { id: 2, code: "SUPPLY_CHAIN", name: "Chuỗi cung ứng", description: "Logistics, kho vận WMS, thu mua và điều phối", status: "Active", displayOrder: 2 },
+  { id: 3, code: "FINANCE", name: "Tài chính", description: "Kế toán, kiểm toán, ngân hàng và đối soát hóa đơn", status: "Active", displayOrder: 3 },
 ];
 
 export function ScenarioLibraryPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { setCurrentScenarioVersionId } = useApp();
 
   // FE-06: 3-Tier Filter State
-  const [industries, setIndustries] = useState<IndustryItem[]>([]);
+  const [industries, setIndustries] = useState<IndustryItem[]>(fallbackIndustries);
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [apiScenarios, setApiScenarios] = useState<ApiScenarioItem[]>([]);
 

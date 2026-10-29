@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Clock3, Eye, FileCheck2, FileText, History, Link2, MessageSquareText, Sparkles, UploadCloud } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, Clock3, Eye, FileCheck2, FileText, History, Link2, MessageSquareText, Sparkles, UploadCloud, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Badge } from "../../components/ui/Badge";
@@ -128,7 +128,26 @@ const statusBadge = (status: DeliverableStatus) => {
 export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const [tab, setTab] = useState<Tab>("Gói tài liệu bàn giao");
   const [selectedId, setSelectedId] = useState("DEL-02");
-  const selected = deliverables.find((item) => item.id === selectedId) ?? deliverables[1];
+  const [deliverablesList, setDeliverablesList] = useState<Deliverable[]>(deliverables);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const selected = deliverablesList.find((item) => item.id === selectedId) ?? deliverablesList[1];
+
+  const handleGenerateSampleDraft = () => {
+    setIsGenerating(true);
+    setTimeout(() => {
+      setIsGenerating(false);
+      setDeliverablesList((prev) =>
+        prev.map((d) => ({
+          ...d,
+          status: "ai-reviewed",
+          files: d.files === "Chưa tải lên" ? `${d.id}_Sample_Generated.docx` : d.files,
+          evidence: "Đã tổng hợp từ phiên phỏng vấn",
+        }))
+      );
+      alert("✨ AI đã tự động tổng hợp bộ tài liệu mẫu (BRD, RTM, Use Case) từ phiên phỏng vấn của bạn! Bạn có thể chuyển sang tab 'AI & Chuyên gia phản biện' để xem chấm điểm ngay.");
+    }, 1500);
+  };
 
   return (
     <>
@@ -138,11 +157,22 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
         description="Nộp, quản lý phiên bản và nhận phản biện đa chiều từ AI và chuyên gia dựa trên bằng chứng thu thập thực tế."
         actions={
           <>
+            <button
+              onClick={handleGenerateSampleDraft}
+              disabled={isGenerating}
+              className="flex items-center gap-1.5 rounded-xl border border-brass/40 bg-brass/10 px-3 py-2 text-xs font-bold text-navy hover:bg-brass/25 transition shadow-xs disabled:opacity-50"
+            >
+              <Wand2 size={15} className="text-brass" />
+              {isGenerating ? "AI đang tạo bản nháp mẫu..." : "⚡ Nạp nhanh tài liệu mẫu (1-Click)"}
+            </button>
             <Button variant="secondary" onClick={() => navigate("analysis")} className="border-slate/20 text-xs">
               <Eye size={16} /> Trung tâm Phân tích
             </Button>
             <Button onClick={() => setTab("Tải lên & Quản lý phiên bản")} className="bg-navy text-xs font-semibold hover:bg-navy-light">
               <UploadCloud size={16} /> Tải lên bản mới
+            </Button>
+            <Button onClick={() => navigate("assessment")} className="bg-brass text-navy-deep text-xs font-bold hover:bg-brass-light gap-1.5 shadow-sm">
+              <ClipboardCheck size={16} /> Đánh giá năng lực →
             </Button>
           </>
         }
@@ -167,7 +197,14 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
       </div>
 
       {tab === "Gói tài liệu bàn giao" && (
-        <DeliverableList selectedId={selectedId} onSelect={setSelectedId} onUpload={() => setTab("Tải lên & Quản lý phiên bản")} />
+        <DeliverableList
+          items={deliverablesList}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onUpload={() => setTab("Tải lên & Quản lý phiên bản")}
+          onGenerateSampleDraft={handleGenerateSampleDraft}
+          isGenerating={isGenerating}
+        />
       )}
       {tab === "Tải lên & Quản lý phiên bản" && (
         <UploadWorkspace selected={selected} onSelect={setSelectedId} />
@@ -183,13 +220,19 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
 }
 
 function DeliverableList({
+  items,
   selectedId,
   onSelect,
   onUpload,
+  onGenerateSampleDraft,
+  isGenerating,
 }: {
+  items: Deliverable[];
   selectedId: string;
   onSelect: (id: string) => void;
   onUpload: () => void;
+  onGenerateSampleDraft: () => void;
+  isGenerating: boolean;
 }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -203,7 +246,7 @@ function DeliverableList({
         </div>
 
         <div className="divide-y divide-slate/10">
-          {deliverables.map((item) => (
+          {items.map((item) => (
             <button
               key={item.id}
               onClick={() => onSelect(item.id)}
@@ -590,8 +633,11 @@ function CompletionGate({ navigate }: { navigate: (route: RouteKey) => void }) {
             </div>
           </div>
 
-          <Button disabled className="mt-6 w-full justify-center bg-navy text-xs font-semibold disabled:opacity-40">
-            Nghiệm thu & Xem bảng đánh giá năng lực
+          <Button
+            onClick={() => navigate("assessment")}
+            className="mt-6 w-full justify-center gap-2 bg-navy py-3 text-xs font-bold text-white shadow-md hover:bg-navy-light transition-all"
+          >
+            Nghiệm thu & Xem bảng đánh giá năng lực <ArrowRight size={15} />
           </Button>
         </Card>
 

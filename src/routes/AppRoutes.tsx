@@ -45,8 +45,8 @@ export function AppRoutes() {
     simulation: <SimulationPage navigate={navigate} />,
     analysis: <AnalysisHubPage navigate={navigate} />,
     artifacts: <ArtifactsPage navigate={navigate} />,
-    assessment: <AssessmentPage />,
-    progress: <ProgressPage />,
+    assessment: <AssessmentPage navigate={navigate} />,
+    progress: <ProgressPage navigate={navigate} />,
     instructor: <InstructorPage />,
     admin: <AdminPage />,
   };

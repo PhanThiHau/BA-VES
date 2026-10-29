@@ -127,13 +127,13 @@ async function request<T>(
           } else {
             clearStoredAuth();
             isRefreshing = false;
-            window.location.hash = "#login";
+            window.location.hash = "#/login";
             throw new ApiError(401, "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
           }
         } catch (err) {
           clearStoredAuth();
           isRefreshing = false;
-          window.location.hash = "#login";
+          window.location.hash = "#/login";
           throw err;
         }
       } else {

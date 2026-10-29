@@ -1,10 +1,11 @@
-import { ArrowUpRight, Award, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target } from "lucide-react";
 import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ProgressBar } from "../../components/ui/ProgressBar";
+import type { RouteKey } from "../../types/models";
 
 const underlyingCompetencies = [
   ["Tư duy phân tích & Giải quyết vấn đề", 78, "Phân biệt rõ ràng giữa sự thật và giả định, nhận diện mâu thuẫn chỉ số KPI giữa Kho và Kế toán"],
@@ -15,7 +16,7 @@ const underlyingCompetencies = [
   ["Công cụ & Công nghệ phân tích", 68, "Áp dụng tốt ma trận RTM; cần làm rõ cơ chế lưu trữ offline và tính toàn vẹn dữ liệu máy quét"],
 ];
 
-export function AssessmentPage() {
+export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   return (
     <>
       <PageHeader
@@ -23,9 +24,17 @@ export function AssessmentPage() {
         title="Báo cáo Đánh giá Năng lực Thực chiến"
         description="Đo lường năng lực hành vi thực tế qua biên bản phỏng vấn, quyết định xử lý tình huống và chất lượng hồ sơ bàn giao theo chuẩn BABOK® v3."
         actions={
-          <Button variant="secondary" className="gap-2 border-slate/20 text-xs font-semibold text-navy">
-            <Download size={15} /> Xuất báo cáo PDF
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" className="gap-2 border-slate/20 text-xs font-semibold text-navy">
+              <Download size={15} /> Xuất báo cáo PDF
+            </Button>
+            <Button
+              onClick={() => navigate("progress")}
+              className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light text-white shadow-sm"
+            >
+              <BarChart3 size={15} /> Hồ sơ năng lực BABOK <ArrowRight size={14} />
+            </Button>
+          </div>
         }
       />
 
@@ -232,9 +241,21 @@ export function AssessmentPage() {
             </p>
           </div>
         </div>
-        <Button variant="secondary" className="gap-2 border-slate/20 text-xs font-semibold text-navy shrink-0">
-          <RefreshCcw size={15} /> Thực hành lại từ điểm lưu
-        </Button>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <Button
+            variant="secondary"
+            onClick={() => navigate("simulation")}
+            className="gap-2 border-slate/20 text-xs font-semibold text-navy hover:bg-offwhite"
+          >
+            <RefreshCcw size={15} /> Thực hành lại phiên này
+          </Button>
+          <Button
+            onClick={() => navigate("scenarios")}
+            className="gap-2 bg-brass text-navy-deep text-xs font-bold hover:bg-brass-light shadow-sm"
+          >
+            Kịch bản tiếp theo <ArrowRight size={14} />
+          </Button>
+        </div>
       </Card>
     </>
   );

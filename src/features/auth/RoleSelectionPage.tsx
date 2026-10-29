@@ -239,7 +239,7 @@ export function RoleSelectionPage({ navigate }: { navigate: (route: RouteKey) =>
             >
               ← Quay lại trang chủ
             </button>
-            <span>Dữ liệu kịch bản: Chuỗi cung ứng & Quản lý kho</span>
+            <span>Dữ liệu kịch bản: 3 Ngành mô phỏng (Bán lẻ · Chuỗi cung ứng · Tài chính)</span>
           </div>
         </section>
       </div>

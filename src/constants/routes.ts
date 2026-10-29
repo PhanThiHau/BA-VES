@@ -20,6 +20,13 @@ export const ROUTES: Record<RouteKey, string> = {
 };
 
 export function routeFromHash(hash: string): RouteKey {
-  const match = (Object.entries(ROUTES) as [RouteKey, string][]).find(([, value]) => value === hash);
+  if (!hash || hash === "#" || hash === "#/") return "landing";
+  const normalized = hash.replace(/^#\/?/, "").split("?")[0].split("/")[0].toLowerCase();
+  if (!normalized) return "landing";
+
+  const match = (Object.entries(ROUTES) as [RouteKey, string][]).find(([key, value]) => {
+    const valClean = value.replace(/^#\/?/, "").toLowerCase();
+    return valClean === normalized || key.toLowerCase() === normalized;
+  });
   return match?.[0] ?? "landing";
 }
