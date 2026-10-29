@@ -18,40 +18,22 @@ const domainTranslations: Record<
   string,
   { title: string; subtitle: string; desc: string; tag: string }
 > = {
+  retail: {
+    title: "Bán lẻ",
+    subtitle: "Retail & E-commerce",
+    desc: "Điểm bán lẻ POS đa kênh, sàn thương mại điện tử, chăm sóc khách hàng CRM và quản lý giá bán.",
+    tag: "4 Ứng dụng",
+  },
   "supply-chain": {
-    title: "Chuỗi cung ứng & Kho vận",
+    title: "Chuỗi cung ứng",
     subtitle: "Supply Chain & Logistics",
-    desc: "Mua hàng, quản lý hàng tồn kho, điều phối vận chuyển và cân đối nhu cầu cung ứng đa kho.",
+    desc: "Mua hàng, quản lý kho hàng WMS, điều phối vận tải logistics và cân đối dự báo cung ứng.",
     tag: "Đang học · INV-2026",
   },
-  "sales-customer": {
-    title: "Kinh doanh & Khách hàng",
-    subtitle: "Sales & Customer CRM",
-    desc: "Quản lý khách hàng tiềm năng, cơ hội bán hàng, đơn đặt hàng và điểm bán lẻ POS đa kênh.",
-    tag: "4 Ứng dụng",
-  },
   finance: {
-    title: "Tài chính & Kế toán",
+    title: "Tài chính",
     subtitle: "Finance & Accounting",
-    desc: "Hóa đơn, công nợ, phân tích chi phí vận hành, dòng tiền và kiểm soát ngân sách định kỳ.",
-    tag: "4 Ứng dụng",
-  },
-  manufacturing: {
-    title: "Sản xuất & Vận hành",
-    subtitle: "Manufacturing & MRP",
-    desc: "Kế hoạch sản xuất, định mức vật tư BOM, bảo trì máy móc và kiểm soát chất lượng quy trình.",
-    tag: "4 Ứng dụng",
-  },
-  "human-resources": {
-    title: "Quản trị Nhân sự",
-    subtitle: "Human Resources",
-    desc: "Quy trình tuyển dụng, hồ sơ nhân sự, chấm công nghỉ phép và đánh giá hiệu suất nhân viên.",
-    tag: "4 Ứng dụng",
-  },
-  "project-operations": {
-    title: "Dự án & Dịch vụ",
-    subtitle: "Project Operations",
-    desc: "Quản lý tiến độ dự án, bảng chấm công timesheet, dịch vụ hiện trường và hỗ trợ Helpdesk.",
+    desc: "Kế toán tổng hợp, đối soát hóa đơn công nợ, kiểm soát chi phí vận hành và lập ngân sách định kỳ.",
     tag: "4 Ứng dụng",
   },
 };
@@ -246,7 +228,7 @@ export function DashboardPage({ navigate }: { navigate: (route: RouteKey) => voi
               onClick={openAllApplications}
               className="group hidden sm:inline-flex shrink-0 items-center gap-1.5 text-xs font-bold text-navy hover:text-brass transition-colors"
             >
-              Xem tất cả 24 ứng dụng
+              Xem tất cả {learningApplications.length} ứng dụng (3 ngành)
               <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
             </button>
           </div>
@@ -272,7 +254,7 @@ export function DashboardPage({ navigate }: { navigate: (route: RouteKey) => voi
               <h3 className="mt-4 font-bold text-navy text-base">
                 Không tìm thấy lĩnh vực phù hợp
               </h3>
-              <p className="mt-1 text-xs text-slate">Thử tìm kiếm với từ khóa khác như "kho", "tài chính", "bán hàng"...</p>
+              <p className="mt-1 text-xs text-slate">Thử tìm kiếm với từ khóa như "bán lẻ", "kho vận", "tài chính", "pos"...</p>
               <button
                 className="mt-4 rounded-xl border border-slate/20 bg-white px-4 py-2 text-xs font-bold text-navy hover:bg-offwhite"
                 onClick={() => setQuery("")}

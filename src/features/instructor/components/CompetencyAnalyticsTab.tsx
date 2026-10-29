@@ -147,7 +147,8 @@ export function CompetencyAnalyticsTab() {
             >
               <option value="all">Tất cả các lớp</option>
               <option value="Lớp BA-01">Lớp BA-01 (Chuỗi cung ứng)</option>
-              <option value="Lớp BA-02">Lớp BA-02 (Ngân hàng)</option>
+              <option value="Lớp BA-02">Lớp BA-02 (Bán lẻ)</option>
+              <option value="Lớp BA-03">Lớp BA-03 (Tài chính)</option>
             </select>
           </div>
         </div>

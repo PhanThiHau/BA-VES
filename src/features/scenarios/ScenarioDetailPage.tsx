@@ -141,7 +141,7 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
               />
               <div className="relative z-10">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="navy">Chuỗi cung ứng & Bán lẻ</Badge>
+                  <Badge tone="navy">Chuỗi cung ứng</Badge>
                   <Badge tone="amber">Cấp độ: Trung cấp</Badge>
                   <Badge tone="green">Phiên thực hành chuẩn BABOK® v3</Badge>
                 </div>
