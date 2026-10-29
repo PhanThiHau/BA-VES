@@ -8,16 +8,21 @@ import { stakeholders } from "../../constants/scenario";
 import { requirements } from "../../constants/scenario";
 import { confirmations, conflicts, decisions, evidenceRegister, findings, openQuestions, risks, traceabilityRows } from "../../constants/trainingScenario";
 import { useApp } from "../../contexts/AppContext";
+import { getStoredByokConfig } from "../../services/apiClient";
 import {
   analysisService,
   AnalysisItemType,
   AnalysisItemStatus,
   PriorityLevel,
+  EvidenceRelationshipType,
   type AnalysisItemDto,
   type CreateAnalysisItemPayload,
   type UpdateAnalysisItemPayload,
+  type EvidenceLinkDetailDto,
+  type AnalysisConfirmationResultDto,
   analysisItemStatusLabels,
   analysisItemTypeLabels,
+  evidenceRelationshipLabels,
 } from "../../services/analysisService";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
@@ -43,7 +48,7 @@ const statusBadge = (status: string) => {
 };
 
 export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId } = useApp();
+  const { currentSessionId, activeAgents, messages } = useApp();
   const [tab, setTab] = useState<Tab>("Tổng quan phiên");
   const [apiAnalysisItems, setApiAnalysisItems] = useState<AnalysisItemDto[]>([]);
   const [loadingItems, setLoadingItems] = useState<boolean>(false);
@@ -165,6 +170,122 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       alert(err.message || "Không thể xoá mục phân tích.");
     } finally {
       setDeletingItemId(null);
+    }
+  };
+
+  // State & Handlers cho API #5 (GET evidence), #6 (POST evidence), #7 (DELETE evidence)
+  const [evidenceModalItem, setEvidenceModalItem] = useState<AnalysisItemDto | null>(null);
+  const [evidenceLinks, setEvidenceLinks] = useState<EvidenceLinkDetailDto[]>([]);
+  const [loadingEvidence, setLoadingEvidence] = useState<boolean>(false);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
+  const [newEvidenceMessageId, setNewEvidenceMessageId] = useState<number | string>("");
+  const [newEvidenceRelation, setNewEvidenceRelation] = useState<EvidenceRelationshipType>(
+    EvidenceRelationshipType.Supports
+  );
+  const [isAddingEvidence, setIsAddingEvidence] = useState<boolean>(false);
+  const [deletingEvidenceId, setDeletingEvidenceId] = useState<number | null>(null);
+
+  const handleOpenEvidence = async (item: AnalysisItemDto) => {
+    setEvidenceModalItem(item);
+    setEvidenceError(null);
+    setNewEvidenceMessageId("");
+    setLoadingEvidence(true);
+    try {
+      const data = await analysisService.getEvidenceLinks(item.id);
+      setEvidenceLinks(data || []);
+    } catch (err: any) {
+      console.error("Lỗi tải bằng chứng:", err);
+      setEvidenceError(err.message || "Không thể tải bằng chứng từ máy chủ");
+    } finally {
+      setLoadingEvidence(false);
+    }
+  };
+
+  const handleAddEvidence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!evidenceModalItem || !newEvidenceMessageId) return;
+    setIsAddingEvidence(true);
+    setEvidenceError(null);
+    try {
+      await analysisService.addEvidenceLink(evidenceModalItem.id, {
+        messageId: Number(newEvidenceMessageId),
+        relationshipType: Number(newEvidenceRelation),
+      });
+      // Tải lại danh sách bằng chứng
+      const data = await analysisService.getEvidenceLinks(evidenceModalItem.id);
+      setEvidenceLinks(data || []);
+      setNewEvidenceMessageId("");
+    } catch (err: any) {
+      console.error("Lỗi gắn bằng chứng:", err);
+      setEvidenceError(err.message || "Không thể gắn bằng chứng. Kiểm tra lại ID tin nhắn.");
+    } finally {
+      setIsAddingEvidence(false);
+    }
+  };
+
+  const handleRemoveEvidence = async (linkId: number) => {
+    if (!evidenceModalItem) return;
+    setDeletingEvidenceId(linkId);
+    try {
+      await analysisService.removeEvidenceLink(evidenceModalItem.id, linkId);
+      setEvidenceLinks((prev) => prev.filter((l) => l.id !== linkId));
+    } catch (err: any) {
+      console.error("Lỗi gỡ bằng chứng:", err);
+      alert(err.message || "Không thể gỡ bằng chứng.");
+    } finally {
+      setDeletingEvidenceId(null);
+    }
+  };
+
+  // State & Handlers cho API #8: POST /api/analysis-items/{itemId}/confirmation (Thẩm định AI Stakeholder)
+  const [confirmModalItem, setConfirmModalItem] = useState<AnalysisItemDto | null>(null);
+  const [confirmAgentId, setConfirmAgentId] = useState<number | string>("");
+  const [confirmNote, setConfirmNote] = useState<string>("");
+  const [isConfirming, setIsConfirming] = useState<boolean>(false);
+  const [confirmResult, setConfirmResult] = useState<AnalysisConfirmationResultDto | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  const handleOpenConfirm = (item: AnalysisItemDto) => {
+    setConfirmModalItem(item);
+    setConfirmResult(null);
+    setConfirmError(null);
+    setConfirmNote("");
+    if (activeAgents.length > 0) {
+      setConfirmAgentId(activeAgents[0].id);
+    } else {
+      setConfirmAgentId("");
+    }
+  };
+
+  const handleRunConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmModalItem) return;
+    setIsConfirming(true);
+    setConfirmError(null);
+    try {
+      const byok = getStoredByokConfig();
+      const res = await analysisService.confirmAnalysisItem(
+        confirmModalItem.id,
+        {
+          agentId: confirmAgentId ? Number(confirmAgentId) : undefined,
+          evidenceNote: confirmNote.trim() || undefined,
+        },
+        byok ? { provider: byok.provider, model: byok.model, apiKey: byok.apiKey } : undefined
+      );
+      setConfirmResult(res);
+      // Nếu AI xác nhận là Confirmed, tự động cập nhật trạng thái trong state
+      if (res.outcome === "Confirmed") {
+        setApiAnalysisItems((prev) =>
+          prev.map((it) =>
+            it.id === confirmModalItem.id ? { ...it, status: AnalysisItemStatus.Confirmed } : it
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error("Lỗi thẩm định AI:", err);
+      setConfirmError(err.message || "Không thể thẩm định với AI Stakeholder.");
+    } finally {
+      setIsConfirming(false);
     }
   };
 
@@ -435,6 +556,24 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                           )}
                         </div>
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEvidence(item)}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate hover:bg-sky-50 hover:text-sky-700 transition-colors"
+                            title="Quản lý bằng chứng hội thoại"
+                          >
+                            <Link2 size={12} />
+                            <span>Bằng chứng</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenConfirm(item)}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                            title="Thẩm định với AI Stakeholder"
+                          >
+                            <Sparkles size={12} />
+                            <span>Thẩm định AI</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleStartEdit(item)}
@@ -969,6 +1108,325 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal API #5, #6, #7: Quản lý Bằng chứng (Evidence Links) */}
+      {evidenceModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
+            <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#132d49]">
+                  Quản lý Bằng chứng: {evidenceModalItem.code || `#${evidenceModalItem.id}`}
+                </h3>
+                <p className="text-[11px] text-slate mt-0.5">
+                  /api/analysis-items/{evidenceModalItem.id}/evidence
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEvidenceModalItem(null)}
+                className="text-[#667d93] hover:text-[#132d49] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {evidenceError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>{evidenceError}</span>
+              </div>
+            )}
+
+            {/* Form gắn bằng chứng mới (POST) */}
+            <form onSubmit={handleAddEvidence} className="mt-4 rounded-xl border border-slate/15 bg-mist/20 p-3.5">
+              <h4 className="text-xs font-bold text-navy flex items-center gap-1.5 mb-2.5">
+                <Plus size={14} /> Gắn tin nhắn phỏng vấn làm bằng chứng
+              </h4>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-navy mb-1">
+                    Tin nhắn trong hội thoại
+                  </label>
+                  {messages && messages.length > 0 ? (
+                    <select
+                      value={newEvidenceMessageId}
+                      onChange={(e) => setNewEvidenceMessageId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] bg-white p-2 text-xs text-[#132d49] outline-none"
+                    >
+                      <option value="">-- Chọn tin nhắn --</option>
+                      {messages.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          #{m.id} [{m.sender === "learner" ? "Học viên" : "Stakeholder"}]: {m.text.slice(0, 45)}...
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      required
+                      type="number"
+                      placeholder="Nhập ID tin nhắn..."
+                      value={newEvidenceMessageId}
+                      onChange={(e) => setNewEvidenceMessageId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] bg-white p-2 text-xs text-[#132d49] outline-none"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-navy mb-1">
+                    Quan hệ bằng chứng
+                  </label>
+                  <select
+                    value={newEvidenceRelation}
+                    onChange={(e) => setNewEvidenceRelation(Number(e.target.value))}
+                    className="w-full rounded-xl border border-[#d9e4ec] bg-white p-2 text-xs text-[#132d49] outline-none"
+                  >
+                    <option value={EvidenceRelationshipType.Supports}>Hỗ trợ (Supports)</option>
+                    <option value={EvidenceRelationshipType.Contradicts}>Mâu thuẫn (Contradicts)</option>
+                    <option value={EvidenceRelationshipType.Clarifies}>Làm rõ (Clarifies)</option>
+                    <option value={EvidenceRelationshipType.Confirms}>Xác nhận (Confirms)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isAddingEvidence || !newEvidenceMessageId}
+                  className="bg-navy text-white text-xs gap-1 hover:bg-navy-light"
+                >
+                  {isAddingEvidence && <Loader2 size={12} className="animate-spin" />}
+                  <span>Gắn bằng chứng</span>
+                </Button>
+              </div>
+            </form>
+
+            {/* Danh sách bằng chứng hiện tại (GET) */}
+            <div className="mt-4">
+              <h4 className="text-xs font-bold text-navy mb-2">
+                Bằng chứng đã liên kết ({evidenceLinks.length})
+              </h4>
+              {loadingEvidence ? (
+                <div className="flex items-center justify-center py-6 text-xs text-slate">
+                  <Loader2 size={16} className="animate-spin mr-2" /> Đang tải danh sách bằng chứng...
+                </div>
+              ) : evidenceLinks.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate/20 p-5 text-center text-xs text-slate">
+                  Chưa có liên kết bằng chứng nào. Hãy gắn tin nhắn từ cuộc phỏng vấn ở trên để củng cố luận cứ!
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                  {evidenceLinks.map((link) => {
+                    const rel = evidenceRelationshipLabels[link.relationshipType as number] || {
+                      text: "Bằng chứng",
+                      tone: "navy" as const,
+                    };
+                    return (
+                      <div
+                        key={link.id}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-slate/15 p-3 text-xs bg-white"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Badge tone={rel.tone}>{rel.text}</Badge>
+                            <span className="font-mono text-[10px] text-slate">
+                              Tin nhắn #{link.messageId}
+                            </span>
+                            {link.senderType && (
+                              <span className="text-[10px] text-slate">({link.senderType})</span>
+                            )}
+                          </div>
+                          <p className="mt-1.5 text-xs text-navy italic">
+                            “{link.messageContent || "(Nội dung tin nhắn trong transcript phỏng vấn)"}”
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEvidence(link.id)}
+                          disabled={deletingEvidenceId === link.id}
+                          className="shrink-0 p-1 text-slate hover:text-rose-600 transition-colors"
+                          title="Gỡ bằng chứng này"
+                        >
+                          {deletingEvidenceId === link.id ? (
+                            <Loader2 size={13} className="animate-spin text-rose-500" />
+                          ) : (
+                            <Trash2 size={13} />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal API #8: Thẩm định Mục phân tích với AI Stakeholder */}
+      {confirmModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
+            <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#132d49]">
+                  Thẩm định với AI Stakeholder: {confirmModalItem.code || `#${confirmModalItem.id}`}
+                </h3>
+                <p className="text-[11px] text-slate mt-0.5">
+                  POST /api/analysis-items/{confirmModalItem.id}/confirmation
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmModalItem(null)}
+                className="text-[#667d93] hover:text-[#132d49] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {confirmError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>{confirmError}</span>
+              </div>
+            )}
+
+            <div className="mt-3 rounded-xl bg-mist/20 p-3 text-xs">
+              <strong className="block text-navy font-bold">{confirmModalItem.title}</strong>
+              <p className="mt-1 text-slate">{confirmModalItem.description}</p>
+            </div>
+
+            {!confirmResult ? (
+              <form onSubmit={handleRunConfirm} className="mt-4 space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">
+                    Chọn Stakeholder AI thẩm định
+                  </label>
+                  {activeAgents && activeAgents.length > 0 ? (
+                    <select
+                      value={confirmAgentId}
+                      onChange={(e) => setConfirmAgentId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
+                    >
+                      {activeAgents.map((ag) => (
+                        <option key={ag.id} value={ag.id}>
+                          {ag.name} ({ag.stakeholderRole})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      value={confirmAgentId}
+                      onChange={(e) => setConfirmAgentId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
+                    >
+                      <option value="1">Nguyễn Văn An (Trưởng kho vận)</option>
+                      <option value="2">Trần Thị Bình (Chuyên viên Kế hoạch)</option>
+                      <option value="3">Lê Hoàng Nam (Kế toán trưởng)</option>
+                      <option value="4">Phạm Minh Đức (Giám đốc Chuỗi cung ứng)</option>
+                    </select>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">
+                    Ghi chú / Tóm tắt gửi Stakeholder (Tùy chọn)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="VD: Nhờ anh/chị xác nhận lại số liệu tồn kho an toàn và tần suất kiểm kê..."
+                    value={confirmNote}
+                    onChange={(e) => setConfirmNote(e.target.value)}
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setConfirmModalItem(null)}
+                    disabled={isConfirming}
+                    className="text-xs"
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={isConfirming}
+                    className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light"
+                  >
+                    {isConfirming ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>AI đang thẩm định...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={13} />
+                        <span>Gửi thẩm định AI</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div
+                  className={classNames(
+                    "rounded-xl border p-4 text-xs",
+                    confirmResult.outcome === "Confirmed"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : confirmResult.outcome === "Disputed"
+                      ? "border-rose-200 bg-rose-50 text-rose-900"
+                      : "border-amber-200 bg-amber-50 text-amber-900"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-[11px]">
+                      Kết quả từ {confirmResult.personaName} ({confirmResult.stakeholderRole})
+                    </span>
+                    <Badge
+                      tone={
+                        confirmResult.outcome === "Confirmed"
+                          ? "green"
+                          : confirmResult.outcome === "Disputed"
+                          ? "red"
+                          : "amber"
+                      }
+                    >
+                      {confirmResult.outcome === "Confirmed"
+                        ? "Đã xác nhận (Confirmed)"
+                        : confirmResult.outcome === "Disputed"
+                        ? "Bác bỏ (Disputed)"
+                        : "Chưa đủ thông tin"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 font-medium">{confirmResult.reasoning}</p>
+                  {confirmResult.suggestedClarification && (
+                    <div className="mt-2.5 rounded-lg bg-white/70 p-2.5 text-[11px] text-slate">
+                      <strong>Gợi ý làm rõ thêm:</strong> {confirmResult.suggestedClarification}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    size="sm"
+                    onClick={() => setConfirmModalItem(null)}
+                    className="bg-navy text-white text-xs"
+                  >
+                    Đóng
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

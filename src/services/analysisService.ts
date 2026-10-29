@@ -77,6 +77,65 @@ export const analysisItemStatusLabels: Record<number, { text: string; tone: "amb
   [AnalysisItemStatus.Archived]: { text: "Lưu trữ", tone: "gray" },
 };
 
+export enum EvidenceRelationshipType {
+  Supports = 0,
+  Contradicts = 1,
+  Clarifies = 2,
+  Confirms = 3,
+}
+
+export const evidenceRelationshipLabels: Record<number, { text: string; tone: "green" | "red" | "amber" | "navy" }> = {
+  [EvidenceRelationshipType.Supports]: { text: "Hỗ trợ (Supports)", tone: "green" },
+  [EvidenceRelationshipType.Contradicts]: { text: "Mâu thuẫn (Contradicts)", tone: "red" },
+  [EvidenceRelationshipType.Clarifies]: { text: "Làm rõ (Clarifies)", tone: "amber" },
+  [EvidenceRelationshipType.Confirms]: { text: "Xác nhận (Confirms)", tone: "navy" },
+};
+
+export interface EvidenceLinkDto {
+  id: number;
+  analysisItemId: number;
+  messageId: number;
+  relationshipType: EvidenceRelationshipType | number;
+  createdAt: string;
+}
+
+export interface EvidenceLinkDetailDto {
+  id: number;
+  analysisItemId: number;
+  messageId: number;
+  relationshipType: EvidenceRelationshipType | number;
+  senderType?: string | null;
+  messageContent?: string | null;
+  createdAt: string;
+}
+
+export interface CreateEvidenceLinkPayload {
+  messageId: number;
+  relationshipType: EvidenceRelationshipType | number;
+}
+
+export interface ConfirmAnalysisItemPayload {
+  agentId?: number | null;
+  personaId?: number | null;
+  evidenceNote?: string | null;
+}
+
+export interface AnalysisConfirmationResultDto {
+  analysisItemId: number;
+  code: string;
+  title: string;
+  itemStatus: AnalysisItemStatus | number;
+  agentId: number;
+  personaId: number;
+  personaName: string;
+  stakeholderRole: string;
+  outcome: string; // "Confirmed" | "Disputed" | "InsufficientInformation"
+  reasoning: string;
+  suggestedClarification?: string | null;
+  evidenceMessageIds: number[];
+  confirmedAt: string;
+}
+
 export const analysisService = {
   // API #1: GET /api/sessions/{sessionId}/analysis-items
   async getAnalysisItems(
@@ -117,5 +176,48 @@ export const analysisService = {
   // API #4: DELETE /api/sessions/{sessionId}/analysis-items/{itemId}
   async deleteAnalysisItem(sessionId: number, itemId: number): Promise<void> {
     return apiClient.delete<void>(`/api/sessions/${sessionId}/analysis-items/${itemId}`);
+  },
+
+  // API #5: GET /api/analysis-items/{itemId}/evidence
+  async getEvidenceLinks(itemId: number): Promise<EvidenceLinkDetailDto[]> {
+    return apiClient.get<EvidenceLinkDetailDto[]>(`/api/analysis-items/${itemId}/evidence`);
+  },
+
+  // API #6: POST /api/analysis-items/{itemId}/evidence
+  async addEvidenceLink(
+    itemId: number,
+    payload: CreateEvidenceLinkPayload
+  ): Promise<EvidenceLinkDto> {
+    return apiClient.post<EvidenceLinkDto>(
+      `/api/analysis-items/${itemId}/evidence`,
+      payload
+    );
+  },
+
+  // API #7: DELETE /api/analysis-items/{itemId}/evidence/{linkId}
+  async removeEvidenceLink(
+    itemId: number,
+    linkId: number
+  ): Promise<EvidenceLinkDto> {
+    return apiClient.delete<EvidenceLinkDto>(
+      `/api/analysis-items/${itemId}/evidence/${linkId}`
+    );
+  },
+
+  // API #8: POST /api/analysis-items/{itemId}/confirmation
+  async confirmAnalysisItem(
+    itemId: number,
+    payload: ConfirmAnalysisItemPayload,
+    byokHeaders?: { provider?: string; model?: string; apiKey?: string }
+  ): Promise<AnalysisConfirmationResultDto> {
+    const headers: Record<string, string> = {};
+    if (byokHeaders?.provider) headers["X-AI-Provider"] = byokHeaders.provider;
+    if (byokHeaders?.model) headers["X-AI-Model"] = byokHeaders.model;
+    if (byokHeaders?.apiKey) headers["X-AI-Key"] = byokHeaders.apiKey;
+    return apiClient.post<AnalysisConfirmationResultDto>(
+      `/api/analysis-items/${itemId}/confirmation`,
+      payload,
+      Object.keys(headers).length > 0 ? headers : undefined
+    );
   },
 };
