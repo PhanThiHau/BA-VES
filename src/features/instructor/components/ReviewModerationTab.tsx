@@ -7,12 +7,15 @@ import {
   Search,
   Quote,
   X,
+  Eye,
 } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { classNames } from "../../../utils/format";
 import type { ReviewItem, CriterionReview } from "../instructorData";
+import { assessmentService } from "../../../services/assessmentService";
+import { ReviewCaseDossierModal } from "./ReviewCaseDossierModal";
 
 interface ReviewModerationTabProps {
   reviewItems: ReviewItem[];
@@ -43,6 +46,7 @@ export function ReviewModerationTab({
     selectedItem?.criteria || []
   );
   const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [showDossierModal, setShowDossierModal] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
 
   const handleSelectItem = (item: ReviewItem) => {
@@ -61,9 +65,22 @@ export function ReviewModerationTab({
     );
   };
 
-  const handleSaveCalibration = () => {
+  const handleSaveCalibration = async () => {
     if (!selectedItem) return;
     onCalibrateScore(selectedItem.id, calculatedHumanScore, moderatorNote, criteriaScores);
+    try {
+      const numericId = parseInt(selectedItem.id.replace(/\D/g, ""), 10) || 1;
+      await assessmentService.completeReview(numericId, {
+        overallFeedback: moderatorNote || "Chuyên gia đã chốt điểm và hoàn tất thẩm định",
+        criterionScores: criteriaScores.map((c, idx) => ({
+          rubricCriterionId: idx + 1,
+          score: c.humanScore,
+          comment: c.aiEvidenceQuote,
+        })),
+      });
+    } catch (e) {
+      console.warn("Could not sync review completion to backend:", e);
+    }
     setToastMessage(`Đã chốt điểm ${calculatedHumanScore}/100 cho học viên ${selectedItem.learner}!`);
     setTimeout(() => setToastMessage(null), 4000);
   };
@@ -88,6 +105,13 @@ export function ReviewModerationTab({
 
   return (
     <div className="space-y-6">
+      {/* Cửa sổ Hồ sơ kiểm thử nghiệp vụ (Case Dossier) */}
+      <ReviewCaseDossierModal
+        isOpen={showDossierModal}
+        onClose={() => setShowDossierModal(false)}
+        reviewItem={selectedItem}
+      />
+
       {/* Toast thông báo */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl bg-[#132d49] px-4 py-3 text-xs font-bold text-white shadow-xl animate-fade-in border border-[#2f638c]">
@@ -218,6 +242,14 @@ export function ReviewModerationTab({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowDossierModal(true)}
+                      className="gap-1.5 text-xs text-[#2f638c] border-[#2f638c]/30 hover:bg-[#eaf1f7]"
+                    >
+                      <Eye size={14} /> Hồ sơ chứng cứ (Case Dossier)
+                    </Button>
                     <Button
                       variant="secondary"
                       size="sm"

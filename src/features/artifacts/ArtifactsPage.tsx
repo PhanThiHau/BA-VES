@@ -1,5 +1,5 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, Clock3, Eye, FileCheck2, FileText, History, Link2, MessageSquareText, Sparkles, UploadCloud, Wand2 } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, Clock3, Eye, FileCheck2, FileText, History, Link2, MessageSquareText, Sparkles, UploadCloud, Wand2, Loader2, Send, Save } from "lucide-react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -7,6 +7,14 @@ import { Card } from "../../components/ui/Card";
 import { ProgressBar } from "../../components/ui/ProgressBar";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
+import { useApp } from "../../contexts/AppContext";
+import {
+  artifactService,
+  type ArtifactDto,
+  type ArtifactTemplateDto,
+  type ArtifactVersionDto,
+  type SubmissionDto,
+} from "../../services/artifactService";
 
 const tabs = [
   "Gói tài liệu bàn giao",
@@ -126,17 +134,87 @@ const statusBadge = (status: DeliverableStatus) => {
 };
 
 export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => void }) {
+  const { currentSessionId } = useApp();
   const [tab, setTab] = useState<Tab>("Gói tài liệu bàn giao");
   const [selectedId, setSelectedId] = useState("DEL-02");
   const [deliverablesList, setDeliverablesList] = useState<Deliverable[]>(deliverables);
+  const [backendArtifacts, setBackendArtifacts] = useState<ArtifactDto[]>([]);
+  const [templates, setTemplates] = useState<ArtifactTemplateDto[]>([]);
+  const [submissions, setSubmissions] = useState<SubmissionDto[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Tải danh sách templates và artifacts thực tế từ backend
+  const loadArtifactsData = async () => {
+    try {
+      const tmpls = await artifactService.getTemplates();
+      setTemplates(tmpls);
+    } catch (e) {
+      console.warn("Could not load templates:", e);
+    }
+
+    if (currentSessionId) {
+      try {
+        setIsLoading(true);
+        const [arts, subs] = await Promise.allSettled([
+          artifactService.getSessionArtifacts(currentSessionId),
+          artifactService.getSessionSubmissions(currentSessionId),
+        ]);
+        if (arts.status === "fulfilled" && arts.value.length > 0) {
+          setBackendArtifacts(arts.value);
+          setDeliverablesList((prev) =>
+            prev.map((item) => {
+              const found = arts.value.find(
+                (a) => a.templateCode === item.id || a.title.includes(item.id)
+              );
+              if (found) {
+                return {
+                  ...item,
+                  version: `v${found.currentVersionNo}.0`,
+                  status: found.status === "Submitted" ? "ai-reviewed" : "needs-revision",
+                  files: `${found.templateCode}_v${found.currentVersionNo}.0.json`,
+                };
+              }
+              return item;
+            })
+          );
+        }
+        if (subs.status === "fulfilled") {
+          setSubmissions(subs.value);
+        }
+      } catch (e) {
+        console.warn("Could not load session artifacts:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadArtifactsData();
+  }, [currentSessionId]);
 
   const selected = deliverablesList.find((item) => item.id === selectedId) ?? deliverablesList[1];
+  const selectedBackendArtifact = backendArtifacts.find(
+    (a) => a.templateCode === selectedId || a.title.includes(selectedId)
+  );
 
-  const handleGenerateSampleDraft = () => {
+  const handleGenerateSampleDraft = async () => {
     setIsGenerating(true);
-    setTimeout(() => {
-      setIsGenerating(false);
+    try {
+      if (currentSessionId && templates.length > 0) {
+        for (const tmpl of templates) {
+          try {
+            await artifactService.createSessionArtifact(currentSessionId, {
+              artifactTemplateId: tmpl.id,
+              title: tmpl.name,
+            });
+          } catch {
+            // Already created or ignore
+          }
+        }
+        await loadArtifactsData();
+      }
       setDeliverablesList((prev) =>
         prev.map((d) => ({
           ...d,
@@ -145,8 +223,12 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
           evidence: "Đã tổng hợp từ phiên phỏng vấn",
         }))
       );
-      alert("✨ AI đã tự động tổng hợp bộ tài liệu mẫu (BRD, RTM, Use Case) từ phiên phỏng vấn của bạn! Bạn có thể chuyển sang tab 'AI & Chuyên gia phản biện' để xem chấm điểm ngay.");
-    }, 1500);
+      alert("✨ Đã khởi tạo hồ sơ bàn giao mẫu thành công trên Backend!");
+    } catch (err: any) {
+      alert(`Thông báo: ${err.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -207,7 +289,13 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
         />
       )}
       {tab === "Tải lên & Quản lý phiên bản" && (
-        <UploadWorkspace selected={selected} onSelect={setSelectedId} />
+        <UploadWorkspace
+          selected={selected}
+          onSelect={setSelectedId}
+          backendArtifact={selectedBackendArtifact}
+          currentSessionId={currentSessionId}
+          onRefresh={loadArtifactsData}
+        />
       )}
       {tab === "AI & Chuyên gia phản biện" && (
         <ReviewWorkspace navigate={navigate} />
@@ -340,10 +428,96 @@ function DeliverableList({
 function UploadWorkspace({
   selected,
   onSelect,
+  backendArtifact,
+  currentSessionId,
+  onRefresh,
 }: {
   selected: Deliverable;
   onSelect: (id: string) => void;
+  backendArtifact?: ArtifactDto;
+  currentSessionId: number | null;
+  onRefresh: () => void;
 }) {
+  const [changeNote, setChangeNote] = useState("");
+  const [draftContent, setDraftContent] = useState(backendArtifact?.draftPlainTextContent || "");
+  const [versions, setVersions] = useState<ArtifactVersionDto[]>([]);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isFreezing, setIsFreezing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setDraftContent(backendArtifact?.draftPlainTextContent || "");
+    if (backendArtifact?.id) {
+      artifactService
+        .getArtifactVersions(backendArtifact.id)
+        .then((vList) => setVersions(vList))
+        .catch(() => { });
+    }
+  }, [backendArtifact?.id]);
+
+  const handleSaveDraft = async () => {
+    if (!backendArtifact?.id) {
+      alert("Chưa có hồ sơ trên máy chủ để lưu bản nháp.");
+      return;
+    }
+    setIsSavingDraft(true);
+    try {
+      await artifactService.updateDraft(backendArtifact.id, {
+        draftPlainTextContent: draftContent,
+        draftStructuredContentJson: JSON.stringify({ note: changeNote, content: draftContent }),
+      });
+      alert(`✅ Đã lưu bản nháp cho ${selected.title}!`);
+      onRefresh();
+    } catch (e: any) {
+      alert(`Lỗi lưu nháp: ${e.message}`);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handleFreezeVersion = async () => {
+    if (!backendArtifact?.id) {
+      alert("Vui lòng khởi tạo tài liệu mẫu trước khi đóng băng phiên bản.");
+      return;
+    }
+    setIsFreezing(true);
+    try {
+      const v = await artifactService.freezeVersion(backendArtifact.id, {
+        plainTextContent: draftContent || `Tài liệu ${selected.title} - ${selected.id}`,
+        structuredContentJson: JSON.stringify({
+          changeNote: changeNote || "Cập nhật tài liệu bàn giao mới",
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      alert(`✅ Đã đóng băng phiên bản v${v.versionNo}.0 thành công!`);
+      const vList = await artifactService.getArtifactVersions(backendArtifact.id);
+      setVersions(vList);
+      onRefresh();
+    } catch (e: any) {
+      alert(`Lỗi đóng băng: ${e.message}`);
+    } finally {
+      setIsFreezing(false);
+    }
+  };
+
+  const handleSubmitArtifact = async () => {
+    if (!currentSessionId || versions.length === 0) {
+      alert("Bạn cần đóng băng ít nhất 1 phiên bản trước khi nộp bài.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const latestVersionId = versions[versions.length - 1].id;
+      await artifactService.submitArtifactVersion(currentSessionId, latestVersionId);
+      alert(`🎉 Đã nộp gói tài liệu ${selected.title} thành công!`);
+      onRefresh();
+    } catch (e: any) {
+      alert(`Lỗi nộp bài: ${e.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
       <Card className="h-fit overflow-hidden border-slate/15">
@@ -400,32 +574,57 @@ function UploadWorkspace({
             </div>
           </div>
 
-          {/* Drag & Drop Zone */}
-          <div className="mt-6 grid min-h-48 place-items-center rounded-2xl border-2 border-dashed border-slate/30 bg-mist/10 p-8 text-center transition-colors hover:border-navy">
-            <div>
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-navy/10 text-navy">
-                <UploadCloud size={24} />
-              </span>
-              <h3 className="mt-4 text-sm font-bold text-navy">Kéo và thả tệp tài liệu vào đây hoặc bấm để chọn tệp</h3>
-              <p className="mt-1.5 text-xs text-slate">Hỗ trợ các định dạng: {selected.formats} · Dung lượng tối đa 50 MB</p>
-              <Button className="mt-4 bg-navy text-xs font-semibold hover:bg-navy-light">Chọn tệp từ máy tính</Button>
+          {/* Draft editor */}
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-navy">Nội dung bản thảo (Draft Content):</label>
+              {backendArtifact && (
+                <span className="text-[11px] font-mono text-slate">ID: #{backendArtifact.id} · {backendArtifact.templateCode}</span>
+              )}
             </div>
+            <textarea
+              value={draftContent}
+              onChange={(e) => setDraftContent(e.target.value)}
+              className="min-h-32 w-full rounded-xl border border-slate/20 bg-white p-3 text-xs text-navy outline-none focus:border-navy font-sans leading-5"
+              placeholder="Nhập nội dung đặc tả yêu cầu, tóm tắt giải pháp, quy tắc nghiệp vụ..."
+            />
           </div>
 
-          <label className="mt-5 block">
+          <label className="mt-4 block">
             <span className="text-xs font-bold text-navy">Mô tả những điểm thay đổi trong phiên bản này:</span>
             <textarea
-              className="mt-2 min-h-24 w-full rounded-xl border border-slate/20 bg-white p-3 text-xs text-navy outline-none focus:border-navy"
+              value={changeNote}
+              onChange={(e) => setChangeNote(e.target.value)}
+              className="mt-2 min-h-20 w-full rounded-xl border border-slate/20 bg-white p-3 text-xs text-navy outline-none focus:border-navy"
               placeholder="Ví dụ: Đã bổ sung ngoại lệ khi khóa sổ kế toán và cập nhật tiêu chí nghiệm thu định lượng cho FR-08..."
             />
           </label>
 
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light">
-              <UploadCloud size={15} /> Tải lên & Tạo phiên bản mới
+            <Button
+              onClick={handleSaveDraft}
+              disabled={isSavingDraft}
+              variant="secondary"
+              className="gap-2 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30"
+            >
+              {isSavingDraft ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {isSavingDraft ? "Đang lưu nháp..." : "Lưu bản nháp"}
             </Button>
-            <Button variant="secondary" className="gap-2 border-slate/20 text-xs font-semibold text-slate">
-              <Link2 size={15} /> Liên kết mã bằng chứng
+            <Button
+              onClick={handleFreezeVersion}
+              disabled={isFreezing}
+              className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light text-white"
+            >
+              {isFreezing ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
+              {isFreezing ? "Đang xử lý..." : "Đóng băng phiên bản mới"}
+            </Button>
+            <Button
+              onClick={handleSubmitArtifact}
+              disabled={isSubmitting}
+              className="gap-2 bg-emerald-700 text-xs font-semibold hover:bg-emerald-800 text-white shadow-xs"
+            >
+              {isSubmitting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {isSubmitting ? "Đang nộp..." : "Nộp bài chính thức"}
             </Button>
           </div>
         </Card>
@@ -434,23 +633,38 @@ function UploadWorkspace({
         <Card className="overflow-hidden border-slate/15">
           <div className="flex items-center gap-3 border-b border-slate/10 p-5">
             <History className="text-navy" size={20} />
-            <h2 className="text-base font-bold text-navy">Lịch sử các phiên bản nộp</h2>
+            <h2 className="text-base font-bold text-navy">Lịch sử các phiên bản đã đóng băng</h2>
           </div>
           <div className="divide-y divide-slate/10">
-            {[
-              ["v1.2", "18/09 · 16:42", "Bổ sung quy tắc nghiệp vụ và các chỉ số KPI", "Cần sửa đổi"],
-              ["v1.1", "17/09 · 10:15", "Điều chỉnh phạm vi theo góp ý từ Sponsor", "AI đã phản biện"],
-              ["v1.0", "16/09 · 17:05", "Bản nộp sơ thảo ban đầu", "Đã thay thế"],
-            ].map(([version, time, change, status]) => (
-              <div key={version} className="grid gap-3 p-5 sm:grid-cols-[90px_1fr_150px] sm:items-center">
-                <strong className="font-mono text-sm font-bold text-navy">{version}</strong>
-                <div>
-                  <p className="text-xs font-semibold text-navy">{change}</p>
-                  <span className="text-[11px] text-slate">{time} · Minh Nguyen (BA)</span>
+            {versions.length > 0 ? (
+              versions.map((ver) => (
+                <div key={ver.id} className="grid gap-3 p-5 sm:grid-cols-[90px_1fr_150px] sm:items-center">
+                  <strong className="font-mono text-sm font-bold text-navy">v{ver.versionNo}.0</strong>
+                  <div>
+                    <p className="text-xs font-semibold text-navy">{ver.plainTextContent.slice(0, 70)}...</p>
+                    <span className="text-[11px] text-slate">
+                      {new Date(ver.createdAt).toLocaleString("vi-VN")} · Đã đóng băng
+                    </span>
+                  </div>
+                  <span className="text-xs font-medium text-emerald-700 sm:text-right">Sẵn sàng nộp</span>
                 </div>
-                <span className="text-xs font-medium text-slate sm:text-right">{status}</span>
-              </div>
-            ))}
+              ))
+            ) : (
+              [
+                ["v1.2", "18/09 · 16:42", "Bổ sung quy tắc nghiệp vụ và các chỉ số KPI", "Cần sửa đổi"],
+                ["v1.1", "17/09 · 10:15", "Điều chỉnh phạm vi theo góp ý từ Sponsor", "AI đã phản biện"],
+                ["v1.0", "16/09 · 17:05", "Bản nộp sơ thảo ban đầu", "Đã thay thế"],
+              ].map(([version, time, change, status]) => (
+                <div key={version} className="grid gap-3 p-5 sm:grid-cols-[90px_1fr_150px] sm:items-center">
+                  <strong className="font-mono text-sm font-bold text-navy">{version}</strong>
+                  <div>
+                    <p className="text-xs font-semibold text-navy">{change}</p>
+                    <span className="text-[11px] text-slate">{time} · Minh Nguyen (BA)</span>
+                  </div>
+                  <span className="text-xs font-medium text-slate sm:text-right">{status}</span>
+                </div>
+              ))
+            )}
           </div>
         </Card>
       </div>

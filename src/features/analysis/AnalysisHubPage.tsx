@@ -1,5 +1,5 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, ClipboardList, FileQuestion, FileSearch, GitMerge, Link2, MessageSquareQuote, RefreshCcw, SearchCheck, ShieldAlert, Sparkles, Truck, Users } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, ClipboardList, Database, FileQuestion, FileSearch, GitMerge, Link2, Loader2, MessageSquareQuote, Pencil, Plus, RefreshCcw, SearchCheck, ShieldAlert, Sparkles, Trash2, Truck, Users, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -7,6 +7,23 @@ import { Card } from "../../components/ui/Card";
 import { stakeholders } from "../../constants/scenario";
 import { requirements } from "../../constants/scenario";
 import { confirmations, conflicts, decisions, evidenceRegister, findings, openQuestions, risks, traceabilityRows } from "../../constants/trainingScenario";
+import { useApp } from "../../contexts/AppContext";
+import { getStoredByokConfig } from "../../services/apiClient";
+import {
+  analysisService,
+  AnalysisItemType,
+  AnalysisItemStatus,
+  PriorityLevel,
+  EvidenceRelationshipType,
+  type AnalysisItemDto,
+  type CreateAnalysisItemPayload,
+  type UpdateAnalysisItemPayload,
+  type EvidenceLinkDetailDto,
+  type AnalysisConfirmationResultDto,
+  analysisItemStatusLabels,
+  analysisItemTypeLabels,
+  evidenceRelationshipLabels,
+} from "../../services/analysisService";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
 
@@ -31,7 +48,265 @@ const statusBadge = (status: string) => {
 };
 
 export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => void }) {
+  const { currentSessionId, activeAgents, messages } = useApp();
   const [tab, setTab] = useState<Tab>("Tổng quan phiên");
+  const [apiAnalysisItems, setApiAnalysisItems] = useState<AnalysisItemDto[]>([]);
+  const [loadingItems, setLoadingItems] = useState<boolean>(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // State cho API #2: POST /api/sessions/{sessionId}/analysis-items
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSuccessMsg, setCreateSuccessMsg] = useState<string | null>(null);
+  const [createForm, setCreateForm] = useState<CreateAnalysisItemPayload>({
+    itemType: AnalysisItemType.Finding,
+    title: "",
+    description: "",
+    priority: PriorityLevel.Medium,
+  });
+
+  const handleCreateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentSessionId) {
+      setCreateError("Vui lòng bắt đầu một phiên mô phỏng (Simulation Session) để lưu trữ mục phân tích vào máy chủ.");
+      return;
+    }
+    if (!createForm.title.trim() || !createForm.description.trim()) {
+      setCreateError("Vui lòng điền đầy đủ Tiêu đề và Mô tả chi tiết.");
+      return;
+    }
+    setIsSubmitting(true);
+    setCreateError(null);
+    try {
+      const created = await analysisService.createAnalysisItem(currentSessionId, {
+        itemType: Number(createForm.itemType),
+        title: createForm.title.trim(),
+        description: createForm.description.trim(),
+        priority: createForm.priority !== undefined ? Number(createForm.priority) : undefined,
+      });
+      // Đưa item vừa tạo vào đầu danh sách
+      setApiAnalysisItems((prev) => [created, ...prev]);
+      setShowCreateModal(false);
+      setCreateSuccessMsg(`Đã tạo thành công mục ${created.code || `#${created.id}`} vào phiên #${currentSessionId}!`);
+      setTimeout(() => setCreateSuccessMsg(null), 4000);
+      // Reset form
+      setCreateForm({
+        itemType: AnalysisItemType.Finding,
+        title: "",
+        description: "",
+        priority: PriorityLevel.Medium,
+      });
+    } catch (err: any) {
+      console.error("Lỗi tạo Analysis Item:", err);
+      setCreateError(err.message || "Không thể tạo mục phân tích. Vui lòng thử lại.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // State cho API #3 (PATCH) & API #4 (DELETE)
+  const [editingItem, setEditingItem] = useState<AnalysisItemDto | null>(null);
+  const [editForm, setEditForm] = useState<UpdateAnalysisItemPayload>({
+    title: "",
+    description: "",
+    priority: PriorityLevel.Medium,
+    status: AnalysisItemStatus.Draft,
+  });
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
+
+  const handleStartEdit = (item: AnalysisItemDto) => {
+    setEditingItem(item);
+    setEditForm({
+      title: item.title,
+      description: item.description,
+      priority: item.priority ?? PriorityLevel.Medium,
+      status: item.status,
+    });
+    setUpdateError(null);
+  };
+
+  const handleUpdateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentSessionId || !editingItem) return;
+    if (!editForm.title?.trim() || !editForm.description?.trim()) {
+      setUpdateError("Vui lòng điền đầy đủ Tiêu đề và Mô tả.");
+      return;
+    }
+    setIsUpdating(true);
+    setUpdateError(null);
+    try {
+      const updated = await analysisService.updateAnalysisItem(currentSessionId, editingItem.id, {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        priority: editForm.priority !== undefined ? Number(editForm.priority) : undefined,
+        status: editForm.status !== undefined ? Number(editForm.status) : undefined,
+      });
+      setApiAnalysisItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+      setEditingItem(null);
+      setCreateSuccessMsg(`Đã cập nhật thành công mục ${updated.code || `#${updated.id}`}!`);
+      setTimeout(() => setCreateSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error("Lỗi cập nhật Analysis Item:", err);
+      setUpdateError(err.message || "Không thể cập nhật mục phân tích.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteItem = async (item: AnalysisItemDto) => {
+    if (!currentSessionId) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn lưu trữ/xoá mục ${item.code || `#${item.id}`} không?`)) return;
+    setDeletingItemId(item.id);
+    try {
+      await analysisService.deleteAnalysisItem(currentSessionId, item.id);
+      setApiAnalysisItems((prev) => prev.filter((it) => it.id !== item.id));
+      setCreateSuccessMsg(`Đã lưu trữ mục ${item.code || `#${item.id}`}.`);
+      setTimeout(() => setCreateSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error("Lỗi xoá Analysis Item:", err);
+      alert(err.message || "Không thể xoá mục phân tích.");
+    } finally {
+      setDeletingItemId(null);
+    }
+  };
+
+  // State & Handlers cho API #5 (GET evidence), #6 (POST evidence), #7 (DELETE evidence)
+  const [evidenceModalItem, setEvidenceModalItem] = useState<AnalysisItemDto | null>(null);
+  const [evidenceLinks, setEvidenceLinks] = useState<EvidenceLinkDetailDto[]>([]);
+  const [loadingEvidence, setLoadingEvidence] = useState<boolean>(false);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
+  const [newEvidenceMessageId, setNewEvidenceMessageId] = useState<number | string>("");
+  const [newEvidenceRelation, setNewEvidenceRelation] = useState<EvidenceRelationshipType>(
+    EvidenceRelationshipType.Supports
+  );
+  const [isAddingEvidence, setIsAddingEvidence] = useState<boolean>(false);
+  const [deletingEvidenceId, setDeletingEvidenceId] = useState<number | null>(null);
+
+  const handleOpenEvidence = async (item: AnalysisItemDto) => {
+    setEvidenceModalItem(item);
+    setEvidenceError(null);
+    setNewEvidenceMessageId("");
+    setLoadingEvidence(true);
+    try {
+      const data = await analysisService.getEvidenceLinks(item.id);
+      setEvidenceLinks(data || []);
+    } catch (err: any) {
+      console.error("Lỗi tải bằng chứng:", err);
+      setEvidenceError(err.message || "Không thể tải bằng chứng từ máy chủ");
+    } finally {
+      setLoadingEvidence(false);
+    }
+  };
+
+  const handleAddEvidence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!evidenceModalItem || !newEvidenceMessageId) return;
+    setIsAddingEvidence(true);
+    setEvidenceError(null);
+    try {
+      await analysisService.addEvidenceLink(evidenceModalItem.id, {
+        messageId: Number(newEvidenceMessageId),
+        relationshipType: Number(newEvidenceRelation),
+      });
+      // Tải lại danh sách bằng chứng
+      const data = await analysisService.getEvidenceLinks(evidenceModalItem.id);
+      setEvidenceLinks(data || []);
+      setNewEvidenceMessageId("");
+    } catch (err: any) {
+      console.error("Lỗi gắn bằng chứng:", err);
+      setEvidenceError(err.message || "Không thể gắn bằng chứng. Kiểm tra lại ID tin nhắn.");
+    } finally {
+      setIsAddingEvidence(false);
+    }
+  };
+
+  const handleRemoveEvidence = async (linkId: number) => {
+    if (!evidenceModalItem) return;
+    setDeletingEvidenceId(linkId);
+    try {
+      await analysisService.removeEvidenceLink(evidenceModalItem.id, linkId);
+      setEvidenceLinks((prev) => prev.filter((l) => l.id !== linkId));
+    } catch (err: any) {
+      console.error("Lỗi gỡ bằng chứng:", err);
+      alert(err.message || "Không thể gỡ bằng chứng.");
+    } finally {
+      setDeletingEvidenceId(null);
+    }
+  };
+
+  // State & Handlers cho API #8: POST /api/analysis-items/{itemId}/confirmation (Thẩm định AI Stakeholder)
+  const [confirmModalItem, setConfirmModalItem] = useState<AnalysisItemDto | null>(null);
+  const [confirmAgentId, setConfirmAgentId] = useState<number | string>("");
+  const [confirmNote, setConfirmNote] = useState<string>("");
+  const [isConfirming, setIsConfirming] = useState<boolean>(false);
+  const [confirmResult, setConfirmResult] = useState<AnalysisConfirmationResultDto | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  const handleOpenConfirm = (item: AnalysisItemDto) => {
+    setConfirmModalItem(item);
+    setConfirmResult(null);
+    setConfirmError(null);
+    setConfirmNote("");
+    if (activeAgents.length > 0) {
+      setConfirmAgentId(activeAgents[0].id);
+    } else {
+      setConfirmAgentId("");
+    }
+  };
+
+  const handleRunConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmModalItem) return;
+    setIsConfirming(true);
+    setConfirmError(null);
+    try {
+      const byok = getStoredByokConfig();
+      const res = await analysisService.confirmAnalysisItem(
+        confirmModalItem.id,
+        {
+          agentId: confirmAgentId ? Number(confirmAgentId) : undefined,
+          evidenceNote: confirmNote.trim() || undefined,
+        },
+        byok ? { provider: byok.provider, model: byok.model, apiKey: byok.apiKey } : undefined
+      );
+      setConfirmResult(res);
+      // Nếu AI xác nhận là Confirmed, tự động cập nhật trạng thái trong state
+      if (res.outcome === "Confirmed") {
+        setApiAnalysisItems((prev) =>
+          prev.map((it) =>
+            it.id === confirmModalItem.id ? { ...it, status: AnalysisItemStatus.Confirmed } : it
+          )
+        );
+      }
+    } catch (err: any) {
+      console.error("Lỗi thẩm định AI:", err);
+      setConfirmError(err.message || "Không thể thẩm định với AI Stakeholder.");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const loadItems = useCallback(async () => {
+    if (!currentSessionId) return;
+    setLoadingItems(true);
+    setFetchError(null);
+    try {
+      const data = await analysisService.getAnalysisItems(currentSessionId);
+      setApiAnalysisItems(data || []);
+    } catch (err: any) {
+      console.warn("Lỗi tải analysis items từ API:", err);
+      setFetchError(err.message || "Không thể tải danh sách từ máy chủ");
+    } finally {
+      setLoadingItems(false);
+    }
+  }, [currentSessionId]);
+
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
 
   return (
     <>
@@ -188,27 +463,178 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       {/* Tab: Findings & Evidence */}
       {tab === "Phát hiện & Bằng chứng" && (
         <div className="space-y-6">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {findings.map((finding) => (
-              <Card key={finding.id} className="p-5 border-slate/15">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy/10 font-mono text-xs font-bold text-navy">
-                      {finding.id.replace("FND-", "")}
-                    </span>
-                    <div>
-                      <p className="text-xs font-bold text-slate">{finding.id} · Phụ trách: {finding.owner}</p>
-                      <h3 className="mt-1 text-sm font-bold text-navy">{finding.title}</h3>
+          {/* API Sync Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate/15 bg-white p-4 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 place-items-center rounded-xl bg-navy/10 text-navy">
+                <Database size={16} />
+              </span>
+              <div>
+                <p className="text-xs font-bold text-navy flex items-center gap-2">
+                  <span>API: GET /api/sessions/{currentSessionId ?? "{sessionId}"}/analysis-items</span>
+                  <Badge tone={currentSessionId ? "green" : "amber"}>
+                    {currentSessionId ? `Phiên #${currentSessionId}` : "Chưa chọn phiên"}
+                  </Badge>
+                </p>
+                <p className="text-[11px] text-slate">
+                  {loadingItems
+                    ? "Đang đồng bộ dữ liệu từ máy chủ..."
+                    : apiAnalysisItems.length > 0
+                    ? `Đã tải ${apiAnalysisItems.length} mục phân tích trực tiếp từ Backend`
+                    : "Chưa có mục phân tích trong DB phiên này (Đang hiển thị bản mẫu kịch bản)"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={loadItems}
+                disabled={loadingItems || !currentSessionId}
+                className="text-xs gap-1.5 border-slate/20"
+              >
+                <RefreshCcw size={12} className={loadingItems ? "animate-spin" : ""} />
+                Làm mới
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setCreateError(null);
+                  setShowCreateModal(true);
+                }}
+                className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light shadow-xs"
+              >
+                <Plus size={14} />
+                Thêm mục phân tích
+              </Button>
+            </div>
+          </div>
+
+          {/* Toast thông báo tạo thành công */}
+          {createSuccessMsg && (
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 animate-fade-in">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span className="font-semibold">{createSuccessMsg}</span>
+            </div>
+          )}
+
+          {/* Hiển thị dữ liệu thật từ Backend nếu có */}
+          {apiAnalysisItems.length > 0 && (
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-navy mb-3">
+                Mục phân tích từ Database ({apiAnalysisItems.length} mục)
+              </h3>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {apiAnalysisItems.map((item) => {
+                  const statusInfo = analysisItemStatusLabels[item.status as number] || {
+                    text: String(item.status),
+                    tone: "amber" as const,
+                  };
+                  const typeLabel = analysisItemTypeLabels[item.itemType as number] || String(item.itemType);
+                  return (
+                    <Card key={item.id} className="p-5 border-slate/15 shadow-xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy/10 font-mono text-xs font-bold text-navy">
+                            {item.code || `#${item.id}`}
+                          </span>
+                          <div>
+                            <p className="text-[11px] font-bold text-slate">
+                              {typeLabel} · ID #{item.id}
+                            </p>
+                            <h4 className="mt-0.5 text-sm font-bold text-navy">{item.title}</h4>
+                          </div>
+                        </div>
+                        <Badge tone={statusInfo.tone}>{statusInfo.text}</Badge>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-slate">{item.description}</p>
+                      <div className="mt-4 flex items-center justify-between border-t border-slate/10 pt-3 text-[11px] text-slate">
+                        <div className="flex items-center gap-3">
+                          <span>Khởi tạo: {new Date(item.createdAt).toLocaleDateString("vi-VN")}</span>
+                          {item.priority !== undefined && item.priority !== null && (
+                            <span className="font-semibold text-navy">Ưu tiên: {item.priority}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEvidence(item)}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate hover:bg-sky-50 hover:text-sky-700 transition-colors"
+                            title="Quản lý bằng chứng hội thoại"
+                          >
+                            <Link2 size={12} />
+                            <span>Bằng chứng</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenConfirm(item)}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                            title="Thẩm định với AI Stakeholder"
+                          >
+                            <Sparkles size={12} />
+                            <span>Thẩm định AI</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(item)}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate hover:bg-mist/60 hover:text-navy transition-colors"
+                            title="Chỉnh sửa nội dung & trạng thái"
+                          >
+                            <Pencil size={12} />
+                            <span>Sửa</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteItem(item)}
+                            disabled={deletingItemId === item.id}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-slate hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                            title="Lưu trữ / Xoá mục phân tích"
+                          >
+                            {deletingItemId === item.id ? (
+                              <Loader2 size={12} className="animate-spin text-rose-500" />
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                            <span>Xóa</span>
+                          </button>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Dữ liệu mẫu tham chiếu */}
+          <div>
+            {apiAnalysisItems.length > 0 && (
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate/80 mb-3 mt-6">
+                Phát hiện mẫu tham chiếu chuẩn kịch bản
+              </h3>
+            )}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {findings.map((finding) => (
+                <Card key={finding.id} className="p-5 border-slate/15">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy/10 font-mono text-xs font-bold text-navy">
+                        {finding.id.replace("FND-", "")}
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-slate">{finding.id} · Phụ trách: {finding.owner}</p>
+                        <h3 className="mt-1 text-sm font-bold text-navy">{finding.title}</h3>
+                      </div>
                     </div>
+                    {statusBadge(finding.status)}
                   </div>
-                  {statusBadge(finding.status)}
-                </div>
-                <p className="mt-3 text-xs leading-5 text-slate">{finding.interpretation}</p>
-                <div className="mt-4 flex items-center gap-2 border-t border-slate/10 pt-3 text-xs font-semibold text-navy">
-                  <Link2 size={13} className="text-brass" /> Bằng chứng liên kết: {finding.evidenceIds.join(" · ")}
-                </div>
-              </Card>
-            ))}
+                  <p className="mt-3 text-xs leading-5 text-slate">{finding.interpretation}</p>
+                  <div className="mt-4 flex items-center gap-2 border-t border-slate/10 pt-3 text-xs font-semibold text-navy">
+                    <Link2 size={13} className="text-brass" /> Bằng chứng liên kết: {finding.evidenceIds.join(" · ")}
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
 
           <Card className="overflow-hidden border-slate/15">
@@ -432,6 +858,578 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       {/* Tab: Requirements */}
       {tab === "Đặc tả yêu cầu" && <RequirementAnalysisSection />}
 
+      {/* Modal API #2: POST /api/sessions/{sessionId}/analysis-items */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
+            <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#132d49]">Thêm mục phân tích mới</h3>
+                <p className="text-[11px] text-slate mt-0.5">
+                  POST /api/sessions/{currentSessionId ?? "{sessionId}"}/analysis-items
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="text-[#667d93] hover:text-[#132d49] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {createError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>{createError}</span>
+              </div>
+            )}
+
+            {!currentSessionId && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5 text-amber-600" />
+                <span>
+                  Hiện tại bạn chưa chọn phiên mô phỏng nào. Vui lòng mở trang <strong>Mô phỏng</strong> để bắt đầu phiên trước khi tạo.
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateItem} className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">Loại mục phân tích</label>
+                  <select
+                    value={createForm.itemType}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, itemType: Number(e.target.value) })
+                    }
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                  >
+                    <option value={AnalysisItemType.Finding}>Phát hiện (Finding)</option>
+                    <option value={AnalysisItemType.Requirement}>Yêu cầu (Requirement)</option>
+                    <option value={AnalysisItemType.BusinessRule}>Quy tắc (Business Rule)</option>
+                    <option value={AnalysisItemType.Constraint}>Ràng buộc (Constraint)</option>
+                    <option value={AnalysisItemType.Risk}>Rủi ro (Risk)</option>
+                    <option value={AnalysisItemType.OpenQuestion}>Câu hỏi mở (Open Question)</option>
+                    <option value={AnalysisItemType.Conflict}>Xung đột (Conflict)</option>
+                    <option value={AnalysisItemType.Assumption}>Giả định (Assumption)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">Mức ưu tiên</label>
+                  <select
+                    value={createForm.priority ?? PriorityLevel.Medium}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, priority: Number(e.target.value) })
+                    }
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                  >
+                    <option value={PriorityLevel.Low}>Thấp (Low)</option>
+                    <option value={PriorityLevel.Medium}>Trung bình (Medium)</option>
+                    <option value={PriorityLevel.High}>Cao (High)</option>
+                    <option value={PriorityLevel.Critical}>Khẩn cấp (Critical)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#132d49] mb-1">
+                  Tiêu đề <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  required
+                  maxLength={200}
+                  placeholder="VD: Không hiển thị hàng đợi đồng bộ trên máy quét..."
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#132d49] mb-1">
+                  Mô tả chi tiết <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="Mô tả bối cảnh ghi nhận qua phỏng vấn hoặc tài liệu, tác động nghiệp vụ..."
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 border-t border-[#e2e9ef] pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={isSubmitting}
+                  className="text-xs"
+                >
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmitting || !createForm.title.trim() || !createForm.description.trim()}
+                  className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <span>Lưu vào máy chủ</span>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal API #3: PATCH /api/sessions/{sessionId}/analysis-items/{itemId} */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
+            <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#132d49]">
+                  Chỉnh sửa mục phân tích: {editingItem.code || `#${editingItem.id}`}
+                </h3>
+                <p className="text-[11px] text-slate mt-0.5">
+                  PATCH /api/sessions/{currentSessionId}/analysis-items/{editingItem.id}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="text-[#667d93] hover:text-[#132d49] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {updateError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>{updateError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateItem} className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">Trạng thái (Status)</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, status: Number(e.target.value) })
+                    }
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                  >
+                    <option value={AnalysisItemStatus.Draft}>Bản nháp (Draft)</option>
+                    <option value={AnalysisItemStatus.Confirmed}>Đã xác nhận (Confirmed)</option>
+                    <option value={AnalysisItemStatus.Resolved}>Đã giải quyết (Resolved)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">Mức ưu tiên</label>
+                  <select
+                    value={editForm.priority ?? PriorityLevel.Medium}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, priority: Number(e.target.value) })
+                    }
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                  >
+                    <option value={PriorityLevel.Low}>Thấp (Low)</option>
+                    <option value={PriorityLevel.Medium}>Trung bình (Medium)</option>
+                    <option value={PriorityLevel.High}>Cao (High)</option>
+                    <option value={PriorityLevel.Critical}>Khẩn cấp (Critical)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#132d49] mb-1">
+                  Tiêu đề <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  required
+                  maxLength={200}
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#132d49] mb-1">
+                  Mô tả chi tiết <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 border-t border-[#e2e9ef] pt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setEditingItem(null)}
+                  disabled={isUpdating}
+                  className="text-xs"
+                >
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isUpdating || !editForm.title?.trim() || !editForm.description?.trim()}
+                  className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light"
+                >
+                  {isUpdating ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <span>Cập nhật</span>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal API #5, #6, #7: Quản lý Bằng chứng (Evidence Links) */}
+      {evidenceModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
+            <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#132d49]">
+                  Quản lý Bằng chứng: {evidenceModalItem.code || `#${evidenceModalItem.id}`}
+                </h3>
+                <p className="text-[11px] text-slate mt-0.5">
+                  /api/analysis-items/{evidenceModalItem.id}/evidence
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEvidenceModalItem(null)}
+                className="text-[#667d93] hover:text-[#132d49] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {evidenceError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>{evidenceError}</span>
+              </div>
+            )}
+
+            {/* Form gắn bằng chứng mới (POST) */}
+            <form onSubmit={handleAddEvidence} className="mt-4 rounded-xl border border-slate/15 bg-mist/20 p-3.5">
+              <h4 className="text-xs font-bold text-navy flex items-center gap-1.5 mb-2.5">
+                <Plus size={14} /> Gắn tin nhắn phỏng vấn làm bằng chứng
+              </h4>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-navy mb-1">
+                    Tin nhắn trong hội thoại
+                  </label>
+                  {messages && messages.length > 0 ? (
+                    <select
+                      value={newEvidenceMessageId}
+                      onChange={(e) => setNewEvidenceMessageId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] bg-white p-2 text-xs text-[#132d49] outline-none"
+                    >
+                      <option value="">-- Chọn tin nhắn --</option>
+                      {messages.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          #{m.id} [{m.sender === "learner" ? "Học viên" : "Stakeholder"}]: {m.text.slice(0, 45)}...
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      required
+                      type="number"
+                      placeholder="Nhập ID tin nhắn..."
+                      value={newEvidenceMessageId}
+                      onChange={(e) => setNewEvidenceMessageId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] bg-white p-2 text-xs text-[#132d49] outline-none"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-navy mb-1">
+                    Quan hệ bằng chứng
+                  </label>
+                  <select
+                    value={newEvidenceRelation}
+                    onChange={(e) => setNewEvidenceRelation(Number(e.target.value))}
+                    className="w-full rounded-xl border border-[#d9e4ec] bg-white p-2 text-xs text-[#132d49] outline-none"
+                  >
+                    <option value={EvidenceRelationshipType.Supports}>Hỗ trợ (Supports)</option>
+                    <option value={EvidenceRelationshipType.Contradicts}>Mâu thuẫn (Contradicts)</option>
+                    <option value={EvidenceRelationshipType.Clarifies}>Làm rõ (Clarifies)</option>
+                    <option value={EvidenceRelationshipType.Confirms}>Xác nhận (Confirms)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isAddingEvidence || !newEvidenceMessageId}
+                  className="bg-navy text-white text-xs gap-1 hover:bg-navy-light"
+                >
+                  {isAddingEvidence && <Loader2 size={12} className="animate-spin" />}
+                  <span>Gắn bằng chứng</span>
+                </Button>
+              </div>
+            </form>
+
+            {/* Danh sách bằng chứng hiện tại (GET) */}
+            <div className="mt-4">
+              <h4 className="text-xs font-bold text-navy mb-2">
+                Bằng chứng đã liên kết ({evidenceLinks.length})
+              </h4>
+              {loadingEvidence ? (
+                <div className="flex items-center justify-center py-6 text-xs text-slate">
+                  <Loader2 size={16} className="animate-spin mr-2" /> Đang tải danh sách bằng chứng...
+                </div>
+              ) : evidenceLinks.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate/20 p-5 text-center text-xs text-slate">
+                  Chưa có liên kết bằng chứng nào. Hãy gắn tin nhắn từ cuộc phỏng vấn ở trên để củng cố luận cứ!
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                  {evidenceLinks.map((link) => {
+                    const rel = evidenceRelationshipLabels[link.relationshipType as number] || {
+                      text: "Bằng chứng",
+                      tone: "navy" as const,
+                    };
+                    return (
+                      <div
+                        key={link.id}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-slate/15 p-3 text-xs bg-white"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Badge tone={rel.tone}>{rel.text}</Badge>
+                            <span className="font-mono text-[10px] text-slate">
+                              Tin nhắn #{link.messageId}
+                            </span>
+                            {link.senderType && (
+                              <span className="text-[10px] text-slate">({link.senderType})</span>
+                            )}
+                          </div>
+                          <p className="mt-1.5 text-xs text-navy italic">
+                            “{link.messageContent || "(Nội dung tin nhắn trong transcript phỏng vấn)"}”
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEvidence(link.id)}
+                          disabled={deletingEvidenceId === link.id}
+                          className="shrink-0 p-1 text-slate hover:text-rose-600 transition-colors"
+                          title="Gỡ bằng chứng này"
+                        >
+                          {deletingEvidenceId === link.id ? (
+                            <Loader2 size={13} className="animate-spin text-rose-500" />
+                          ) : (
+                            <Trash2 size={13} />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal API #8: Thẩm định Mục phân tích với AI Stakeholder */}
+      {confirmModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
+            <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-[#132d49]">
+                  Thẩm định với AI Stakeholder: {confirmModalItem.code || `#${confirmModalItem.id}`}
+                </h3>
+                <p className="text-[11px] text-slate mt-0.5">
+                  POST /api/analysis-items/{confirmModalItem.id}/confirmation
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmModalItem(null)}
+                className="text-[#667d93] hover:text-[#132d49] transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {confirmError && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <span>{confirmError}</span>
+              </div>
+            )}
+
+            <div className="mt-3 rounded-xl bg-mist/20 p-3 text-xs">
+              <strong className="block text-navy font-bold">{confirmModalItem.title}</strong>
+              <p className="mt-1 text-slate">{confirmModalItem.description}</p>
+            </div>
+
+            {!confirmResult ? (
+              <form onSubmit={handleRunConfirm} className="mt-4 space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">
+                    Chọn Stakeholder AI thẩm định
+                  </label>
+                  {activeAgents && activeAgents.length > 0 ? (
+                    <select
+                      value={confirmAgentId}
+                      onChange={(e) => setConfirmAgentId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
+                    >
+                      {activeAgents.map((ag) => (
+                        <option key={ag.id} value={ag.id}>
+                          {ag.name} ({ag.stakeholderRole})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      value={confirmAgentId}
+                      onChange={(e) => setConfirmAgentId(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
+                    >
+                      <option value="1">Nguyễn Văn An (Trưởng kho vận)</option>
+                      <option value="2">Trần Thị Bình (Chuyên viên Kế hoạch)</option>
+                      <option value="3">Lê Hoàng Nam (Kế toán trưởng)</option>
+                      <option value="4">Phạm Minh Đức (Giám đốc Chuỗi cung ứng)</option>
+                    </select>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">
+                    Ghi chú / Tóm tắt gửi Stakeholder (Tùy chọn)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="VD: Nhờ anh/chị xác nhận lại số liệu tồn kho an toàn và tần suất kiểm kê..."
+                    value={confirmNote}
+                    onChange={(e) => setConfirmNote(e.target.value)}
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setConfirmModalItem(null)}
+                    disabled={isConfirming}
+                    className="text-xs"
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={isConfirming}
+                    className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light"
+                  >
+                    {isConfirming ? (
+                      <>
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>AI đang thẩm định...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={13} />
+                        <span>Gửi thẩm định AI</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div
+                  className={classNames(
+                    "rounded-xl border p-4 text-xs",
+                    confirmResult.outcome === "Confirmed"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : confirmResult.outcome === "Disputed"
+                      ? "border-rose-200 bg-rose-50 text-rose-900"
+                      : "border-amber-200 bg-amber-50 text-amber-900"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase tracking-wider text-[11px]">
+                      Kết quả từ {confirmResult.personaName} ({confirmResult.stakeholderRole})
+                    </span>
+                    <Badge
+                      tone={
+                        confirmResult.outcome === "Confirmed"
+                          ? "green"
+                          : confirmResult.outcome === "Disputed"
+                          ? "red"
+                          : "amber"
+                      }
+                    >
+                      {confirmResult.outcome === "Confirmed"
+                        ? "Đã xác nhận (Confirmed)"
+                        : confirmResult.outcome === "Disputed"
+                        ? "Bác bỏ (Disputed)"
+                        : "Chưa đủ thông tin"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 font-medium">{confirmResult.reasoning}</p>
+                  {confirmResult.suggestedClarification && (
+                    <div className="mt-2.5 rounded-lg bg-white/70 p-2.5 text-[11px] text-slate">
+                      <strong>Gợi ý làm rõ thêm:</strong> {confirmResult.suggestedClarification}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button
+                    size="sm"
+                    onClick={() => setConfirmModalItem(null)}
+                    className="bg-navy text-white text-xs"
+                  >
+                    Đóng
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

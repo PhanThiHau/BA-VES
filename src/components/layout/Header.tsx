@@ -1,9 +1,12 @@
-import { Bell, KeyRound, LogOut, Menu, Sparkles, User } from "lucide-react";
+import { useState } from "react";
+import { Bell, KeyRound, LogOut, Menu, Sparkles, User, Settings } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import { ByokModal } from "../common/ByokModal";
+import { ProfileModal } from "../common/ProfileModal";
 
 export function Header({ onMenu }: { onMenu: () => void }) {
   const { role, user, logout, byokModalOpen, setByokModalOpen } = useApp();
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(" ");
@@ -74,34 +77,40 @@ export function Header({ onMenu }: { onMenu: () => void }) {
           </button>
 
           {/* FE-04: Topbar User Profile */}
-          <div className="flex items-center gap-2.5 pl-2 border-l border-slate/15">
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user.fullName}
-                className="h-9 w-9 rounded-xl object-cover shadow-sm border border-slate/20"
-              />
-            ) : (
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-navy font-display text-xs font-bold text-white shadow-sm">
-                {user ? getInitials(user.fullName) : (role === "learner" ? "HV" : "GV")}
-              </span>
-            )}
-
-            <div className="hidden sm:block text-left">
-              <strong className="block text-xs font-bold text-navy leading-none">
-                {user?.fullName || (role === "learner" ? "Học viên Minh" : "Giảng viên Phương")}
-              </strong>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="inline-block rounded bg-offwhite px-1.5 py-0.2 text-[10px] font-semibold text-brass">
-                  {getRoleBadge()}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate/15">
+            <button
+              onClick={() => setProfileModalOpen(true)}
+              title="Quản lý hồ sơ & Đổi mật khẩu"
+              className="flex items-center gap-2.5 rounded-xl p-1 text-left transition hover:bg-slate/10"
+            >
+              {user?.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.fullName}
+                  className="h-9 w-9 rounded-xl object-cover shadow-sm border border-slate/20"
+                />
+              ) : (
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-navy font-display text-xs font-bold text-white shadow-sm">
+                  {user ? getInitials(user.fullName) : (role === "learner" ? "HV" : "GV")}
                 </span>
-                {user?.email && (
-                  <span className="text-[10px] text-slate/75 max-w-[120px] truncate" title={user.email}>
-                    {user.email}
+              )}
+
+              <div className="hidden sm:block text-left">
+                <strong className="block text-xs font-bold text-navy leading-none">
+                  {user?.fullName || (role === "learner" ? "Học viên Minh" : "Giảng viên Phương")}
+                </strong>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="inline-block rounded bg-offwhite px-1.5 py-0.2 text-[10px] font-semibold text-brass">
+                    {getRoleBadge()}
                   </span>
-                )}
+                  {user?.email && (
+                    <span className="text-[10px] text-slate/75 max-w-[120px] truncate" title={user.email}>
+                      {user.email}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            </button>
 
             {/* Logout button */}
             <button
@@ -117,6 +126,9 @@ export function Header({ onMenu }: { onMenu: () => void }) {
 
       {/* BYOK Modal */}
       <ByokModal isOpen={byokModalOpen} onClose={() => setByokModalOpen(false)} />
+
+      {/* Profile & Password Modal */}
+      <ProfileModal isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
     </>
   );
 }
