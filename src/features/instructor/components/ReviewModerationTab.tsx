@@ -13,6 +13,7 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { classNames } from "../../../utils/format";
 import type { ReviewItem, CriterionReview } from "../instructorData";
+import { assessmentService } from "../../../services/assessmentService";
 
 interface ReviewModerationTabProps {
   reviewItems: ReviewItem[];
@@ -61,9 +62,22 @@ export function ReviewModerationTab({
     );
   };
 
-  const handleSaveCalibration = () => {
+  const handleSaveCalibration = async () => {
     if (!selectedItem) return;
     onCalibrateScore(selectedItem.id, calculatedHumanScore, moderatorNote, criteriaScores);
+    try {
+      const numericId = parseInt(selectedItem.id.replace(/\D/g, ""), 10) || 1;
+      await assessmentService.completeReview(numericId, {
+        overallFeedback: moderatorNote || "Chuyên gia đã chốt điểm và hoàn tất thẩm định",
+        criterionScores: criteriaScores.map((c, idx) => ({
+          rubricCriterionId: idx + 1,
+          score: c.humanScore,
+          comment: c.aiEvidenceQuote,
+        })),
+      });
+    } catch (e) {
+      console.warn("Could not sync review completion to backend:", e);
+    }
     setToastMessage(`Đã chốt điểm ${calculatedHumanScore}/100 cho học viên ${selectedItem.learner}!`);
     setTimeout(() => setToastMessage(null), 4000);
   };

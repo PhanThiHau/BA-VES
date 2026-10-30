@@ -1,4 +1,5 @@
-import { ArrowRight, Award, CalendarDays, CheckCircle2, MessageSquareText, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Award, CalendarDays, CheckCircle2, MessageSquareText, Sparkles, TrendingUp, BookOpen, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -6,6 +7,12 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ProgressBar } from "../../components/ui/ProgressBar";
 import type { RouteKey } from "../../types/models";
+import { useApp } from "../../contexts/AppContext";
+import {
+  assessmentService,
+  type BabokTaskDto,
+  type FinalSubmissionReportDto,
+} from "../../services/assessmentService";
 
 const observedBehaviors = [
   ["Tư duy phân tích (Analytical Thinking)", 78, "+9", "Phân biệt Fact vs Assumption · Phân tích xung đột"],
@@ -23,6 +30,35 @@ const history = [
 ];
 
 export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void }) {
+  const { currentSessionId } = useApp();
+  const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
+  const [babokTasks, setBabokTasks] = useState<BabokTaskDto[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadAssessmentProgress() {
+      setLoading(true);
+      try {
+        const [rep, tasks] = await Promise.allSettled([
+          assessmentService.getFinalReport(1),
+          assessmentService.getBabokTasks(),
+        ]);
+        if (rep.status === "fulfilled") setReport(rep.value);
+        if (tasks.status === "fulfilled" && tasks.value.length > 0) setBabokTasks(tasks.value);
+      } catch (err) {
+        console.warn("Chưa tải được dữ liệu tiến độ:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAssessmentProgress();
+  }, [currentSessionId]);
+
+  const latestScore = report?.finalScore != null
+    ? Math.round(Number(report.finalScore))
+    : (report?.aiFeedback?.suggestedScore != null
+        ? Math.round(Number(report.aiFeedback.suggestedScore))
+        : 72);
   return (
     <>
       <PageHeader
@@ -48,7 +84,7 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
       <div className="grid gap-4 sm:grid-cols-3">
         {[
           [TrendingUp, "+11%", "Tăng trưởng qua 3 phiên thực chiến", "text-emerald-700 bg-emerald-500/10"],
-          [Award, "72/100", "Mức độ hoàn thành gần nhất", "text-navy bg-navy/10"],
+          [Award, `${latestScore}/100`, "Mức độ hoàn thành gần nhất", "text-navy bg-navy/10"],
           [CalendarDays, "6.4 giờ", "Tổng thời lượng thực hành", "text-brass bg-brass/10"],
         ].map(([Icon, value, label, tone]) => (
           <Card key={String(label)} className="flex items-center gap-4 p-5 border-slate/15">

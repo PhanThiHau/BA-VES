@@ -140,8 +140,28 @@ export const assessmentService = {
     });
   },
 
+  async getReviewRequests(status?: string): Promise<ReviewRequestDto[]> {
+    const qs = status ? `?status=${status}` : "";
+    return apiClient.get<ReviewRequestDto[]>(`/api/review-requests${qs}`);
+  },
+
+  async acceptReviewRequest(id: number): Promise<void> {
+    return apiClient.post<void>(`/api/review-requests/${id}/accept`);
+  },
+
+  async completeReview(
+    id: number,
+    payload: {
+      overallFeedback: string;
+      criterionScores: { rubricCriterionId: number; score: number; comment?: string }[];
+    }
+  ): Promise<HumanReviewDto> {
+    return apiClient.post<HumanReviewDto>(`/api/review-requests/${id}/complete`, payload);
+  },
+
   // 4. Báo cáo tổng hợp đánh giá
   async getFinalReport(submissionId: number): Promise<FinalSubmissionReportDto> {
     return apiClient.get<FinalSubmissionReportDto>(`/api/submissions/${submissionId}/report`);
   },
 };
+
