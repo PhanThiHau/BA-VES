@@ -1,20 +1,8 @@
 import { apiClient } from "./apiClient";
 
-export type ArtifactType =
-  | "BRD"
-  | "Generic"
-  | "BAP"
-  | "StakeholderRegister"
-  | "BusinessRulesCatalog"
-  | "SRS"
-  | "UserStories"
-  | "UseCaseSpecification"
-  | "ImpactAnalysis"
-  | "RTM"
-  | number;
-
 export interface ArtifactTemplateSectionDto {
   id: number;
+  artifactTemplateId: number;
   sectionKey: string;
   title: string;
   instructions: string | null;
@@ -24,12 +12,10 @@ export interface ArtifactTemplateSectionDto {
 
 export interface ArtifactTemplateDto {
   id: number;
-  code: string;
   name: string;
-  artifactType: ArtifactType;
+  artifactType: number | string;
   description: string | null;
   status: "Draft" | "Published" | "Archived" | number;
-  createdAt: string;
   sections: ArtifactTemplateSectionDto[];
 }
 
@@ -37,14 +23,12 @@ export interface ArtifactDto {
   id: number;
   sessionId: number;
   artifactTemplateId: number;
-  templateCode: string;
-  templateName: string;
-  artifactType: ArtifactType;
+  templateCode?: string;
+  currentVersionNo?: number;
   title: string;
+  status: string;
   draftStructuredContentJson: string | null;
   draftPlainTextContent: string | null;
-  status: "Draft" | "Frozen" | "Submitted" | number;
-  currentVersionNo: number;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -52,11 +36,10 @@ export interface ArtifactDto {
 export interface ArtifactVersionDto {
   id: number;
   artifactId: number;
-  versionNo: number;
+  versionNumber: number;
+  versionNo?: number;
   structuredContentJson: string;
   plainTextContent: string;
-  createdByUserId: number;
-  processingStatus: "Pending" | "Ready" | "Failed" | number;
   createdAt: string;
 }
 
@@ -64,19 +47,27 @@ export interface SubmissionDto {
   id: number;
   sessionId: number;
   artifactVersionId: number;
-  attemptNo: number;
-  status: "Submitted" | "Grading" | "Graded" | "RevisionRequested" | number;
+  status: "Submitted" | "Reviewed" | "Finalized" | string;
   submittedAt: string;
-  finalizedAt: string | null;
-  artifactVersion?: ArtifactVersionDto | null;
 }
 
 export interface CreateArtifactTemplatePayload {
-  code: string;
   name: string;
   artifactType: number | string;
   description?: string;
-  publishImmediately?: boolean;
+  sections: {
+    sectionKey: string;
+    title: string;
+    instructions?: string;
+    displayOrder: number;
+    isRequired: boolean;
+  }[];
+}
+
+export interface UpdateArtifactTemplatePayload {
+  name: string;
+  artifactType: number | string;
+  description?: string | null;
   sections: {
     sectionKey: string;
     title: string;
@@ -110,6 +101,11 @@ export const artifactService = {
     return apiClient.post<ArtifactTemplateDto>("/api/artifact-templates", payload);
   },
 
+  // PUT /api/artifact-templates/{id}: Cập nhật bản nháp mẫu tài liệu
+  async updateTemplate(id: number, payload: UpdateArtifactTemplatePayload): Promise<ArtifactTemplateDto> {
+    return apiClient.put<ArtifactTemplateDto>(`/api/artifact-templates/${id}`, payload);
+  },
+
   async publishTemplate(id: number): Promise<ArtifactTemplateDto> {
     return apiClient.post<ArtifactTemplateDto>(`/api/artifact-templates/${id}/publish`);
   },
@@ -135,19 +131,29 @@ export const artifactService = {
     return apiClient.put<ArtifactDto>(`/api/artifacts/${id}/draft`, payload);
   },
 
+  async getVersions(id: number): Promise<ArtifactVersionDto[]> {
+    const list = await apiClient.get<ArtifactVersionDto[]>(`/api/artifacts/${id}/versions`);
+    return list.map((v) => ({ ...v, versionNo: v.versionNo ?? v.versionNumber }));
+  },
+
   async getArtifactVersions(id: number): Promise<ArtifactVersionDto[]> {
-    return apiClient.get<ArtifactVersionDto[]>(`/api/artifacts/${id}/versions`);
+    return this.getVersions(id);
   },
 
   async freezeVersion(id: number, payload: FreezeVersionPayload): Promise<ArtifactVersionDto> {
-    return apiClient.post<ArtifactVersionDto>(`/api/artifacts/${id}/versions`, payload);
+    const v = await apiClient.post<ArtifactVersionDto>(`/api/artifacts/${id}/versions`, payload);
+    return { ...v, versionNo: v.versionNo ?? v.versionNumber };
   },
 
-  // 4. Nộp bài (Submissions)
-  async submitArtifactVersion(sessionId: number, artifactVersionId: number): Promise<SubmissionDto> {
+  // 4. Nộp bài đánh giá (Submission)
+  async submitSessionArtifact(sessionId: number, artifactVersionId: number): Promise<SubmissionDto> {
     return apiClient.post<SubmissionDto>(`/api/sessions/${sessionId}/submissions`, {
       artifactVersionId,
     });
+  },
+
+  async submitArtifactVersion(sessionId: number, artifactVersionId: number): Promise<SubmissionDto> {
+    return this.submitSessionArtifact(sessionId, artifactVersionId);
   },
 
   async getSessionSubmissions(sessionId: number): Promise<SubmissionDto[]> {
@@ -158,4 +164,3 @@ export const artifactService = {
     return apiClient.get<SubmissionDto>(`/api/submissions/${id}`);
   },
 };
-

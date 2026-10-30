@@ -41,6 +41,32 @@ export interface RubricDetailDto {
   criteria: RubricCriterionDetailDto[];
 }
 
+export interface RubricCriterionInputPayload {
+  babokTaskId: number;
+  code: string;
+  name: string;
+  description: string;
+  weight: number;
+  maxScore: number;
+  evidenceGuidance?: string | null;
+  displayOrder?: number;
+  isRequired?: boolean;
+}
+
+export interface CreateRubricPayload {
+  scenarioVersionId: number;
+  name: string;
+  description?: string | null;
+  publishImmediately?: boolean;
+  criteria: RubricCriterionInputPayload[];
+}
+
+export interface UpdateRubricPayload {
+  name: string;
+  description?: string | null;
+  criteria: RubricCriterionInputPayload[];
+}
+
 export interface AIFeedbackCriterionScoreDto {
   rubricCriterionId: number;
   criterionCode: string;
@@ -58,12 +84,10 @@ export interface AIPracticeFeedbackDto {
   suggestedScore: number | null;
   confidence: number | null;
   overallFeedback: string | null;
-  strengths: string[];
-  weaknesses: string[];
-  criticalErrors: string[];
   criterionScores: AIFeedbackCriterionScoreDto[];
-  startedAt: string;
-  completedAt: string | null;
+  evaluatedAt: string;
+  strengths?: string[];
+  weaknesses?: string[];
 }
 
 export interface ReviewRequestDto {
@@ -98,6 +122,47 @@ export interface HumanReviewDto {
   reviewedAt: string;
 }
 
+export interface ArtifactSnapshotDto {
+  id: number;
+  artifactId: number;
+  versionNumber: number;
+  structuredContentJson: string;
+  plainTextContent: string;
+  createdAt: string;
+}
+
+export interface PlanSnapshotDto {
+  id: number;
+  sessionId: number;
+  scopeSummary?: string | null;
+  plannedQuestions?: any[];
+}
+
+export interface AnalysisItemSnapshotDto {
+  id: number;
+  sessionId: number;
+  category: string;
+  code: string;
+  title: string;
+  description: string;
+  status: string;
+}
+
+export interface ReviewCaseDossierDto {
+  reviewRequestId: number;
+  submissionId: number;
+  sessionId: number;
+  learnerId: number;
+  status: string;
+  requestNote: string | null;
+  requestedAt: string;
+  artifact: ArtifactSnapshotDto;
+  plan?: PlanSnapshotDto | null;
+  analysisItems: AnalysisItemSnapshotDto[];
+  aiFeedback?: AIPracticeFeedbackDto | null;
+  rubricCriteria: RubricCriterionDetailDto[];
+}
+
 export interface FinalSubmissionReportDto {
   submissionId: number;
   sessionId: number;
@@ -122,6 +187,21 @@ export const assessmentService = {
 
   async getRubricById(id: number): Promise<RubricDetailDto> {
     return apiClient.get<RubricDetailDto>(`/api/rubrics/${id}`);
+  },
+
+  // POST /api/rubrics: Giảng viên / Quản trị viên tạo mới bộ tiêu chí Rubric
+  async createRubric(payload: CreateRubricPayload): Promise<RubricDetailDto> {
+    return apiClient.post<RubricDetailDto>("/api/rubrics", payload);
+  },
+
+  // PUT /api/rubrics/{id}: Giảng viên / Quản trị viên cập nhật bộ tiêu chí Rubric (Draft)
+  async updateRubric(id: number, payload: UpdateRubricPayload): Promise<RubricDetailDto> {
+    return apiClient.put<RubricDetailDto>(`/api/rubrics/${id}`, payload);
+  },
+
+  // POST /api/rubrics/{id}/publish: Giảng viên / Quản trị viên phát hành Rubric
+  async publishRubric(id: number): Promise<RubricDetailDto> {
+    return apiClient.post<RubricDetailDto>(`/api/rubrics/${id}/publish`);
   },
 
   // 2. Chấm điểm tự động bằng AI (AI Assessor)
@@ -149,6 +229,11 @@ export const assessmentService = {
     return apiClient.post<void>(`/api/review-requests/${id}/accept`);
   },
 
+  // GET /api/review-requests/{id}/case: Lấy hồ sơ kiểm thử nghiệp vụ (Case Dossier) để chấm bài
+  async getReviewCaseDossier(id: number): Promise<ReviewCaseDossierDto> {
+    return apiClient.get<ReviewCaseDossierDto>(`/api/review-requests/${id}/case`);
+  },
+
   async completeReview(
     id: number,
     payload: {
@@ -164,4 +249,3 @@ export const assessmentService = {
     return apiClient.get<FinalSubmissionReportDto>(`/api/submissions/${submissionId}/report`);
   },
 };
-

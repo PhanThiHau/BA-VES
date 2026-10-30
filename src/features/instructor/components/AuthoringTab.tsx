@@ -10,6 +10,8 @@ import {
   X,
 } from "lucide-react";
 import { scenarioAuthoringService } from "../../../services/scenarioAuthoringService";
+import { AuthoringRubricsManager } from "./AuthoringRubricsManager";
+import { AuthoringTemplatesManager } from "./AuthoringTemplatesManager";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -45,7 +47,7 @@ export function AuthoringTab({
   onPublishVersion,
 }: AuthoringTabProps) {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>("INV-2026");
-  const [activeSubTab, setActiveSubTab] = useState<"blueprint" | "personas" | "knowledge" | "events">("blueprint");
+  const [activeSubTab, setActiveSubTab] = useState<"blueprint" | "personas" | "knowledge" | "events" | "rubrics" | "templates">("blueprint");
   const [domainFilter, setDomainFilter] = useState<string>("all");
 
   // Modals state
@@ -397,6 +399,8 @@ export function AuthoringTab({
               { id: "personas", label: `2. Các Nhân vật AI để Phỏng vấn`, count: scenarioPersonas.length },
               { id: "knowledge", label: `3. Kho Kiến thức & Quy tắc của Nhân vật`, count: scenarioKnowledge.length },
               { id: "events", label: `4. Tình huống Bất ngờ (Sự cố)`, count: scenarioEvents.length },
+              { id: "rubrics", label: `5. Bộ tiêu chí Rubric chấm điểm`, count: null },
+              { id: "templates", label: `6. Mẫu tài liệu bàn giao (Templates)`, count: null },
             ].map(({ id, label, count }) => (
               <button
                 key={id}
@@ -606,6 +610,19 @@ export function AuthoringTab({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+        {/* Tab Con 5: Bộ Tiêu Chí Rubric Chấm Điểm */}
+        {activeSubTab === "rubrics" && (
+          <div className="p-6">
+            <AuthoringRubricsManager scenarioVersionId={1} />
+          </div>
+        )}
+
+        {/* Tab Con 6: Mẫu Tài Liệu Bàn Giao */}
+        {activeSubTab === "templates" && (
+          <div className="p-6">
+            <AuthoringTemplatesManager />
           </div>
         )}
       </Card>
