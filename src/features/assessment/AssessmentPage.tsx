@@ -1,4 +1,5 @@
-import { ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck } from "lucide-react";
+import { useState, useEffect } from "react";
 import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -6,6 +7,12 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
 import { ProgressBar } from "../../components/ui/ProgressBar";
 import type { RouteKey } from "../../types/models";
+import { useApp } from "../../contexts/AppContext";
+import {
+  assessmentService,
+  type AIPracticeFeedbackDto,
+  type FinalSubmissionReportDto,
+} from "../../services/assessmentService";
 
 const underlyingCompetencies = [
   ["Tư duy phân tích & Giải quyết vấn đề", 78, "Phân biệt rõ ràng giữa sự thật và giả định, nhận diện mâu thuẫn chỉ số KPI giữa Kho và Kế toán"],
@@ -17,6 +24,64 @@ const underlyingCompetencies = [
 ];
 
 export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => void }) {
+  const { currentSessionId } = useApp();
+  const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
+  const [aiFeedback, setAiFeedback] = useState<AIPracticeFeedbackDto | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isRequestingReview, setIsRequestingReview] = useState(false);
+
+  const loadAssessment = async () => {
+    setLoading(true);
+    try {
+      const rep = await assessmentService.getFinalReport(1);
+      setReport(rep);
+      if (rep?.aiFeedback) setAiFeedback(rep.aiFeedback);
+    } catch {
+      try {
+        const fb = await assessmentService.getAiFeedback(1);
+        setAiFeedback(fb);
+      } catch (err) {
+        console.warn("Chưa có báo cáo chấm điểm trên backend, dùng mẫu.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAssessment();
+  }, [currentSessionId]);
+
+  const handleReEvaluate = async () => {
+    setIsEvaluating(true);
+    try {
+      const res = await assessmentService.evaluateSubmission(1);
+      setAiFeedback(res);
+      alert(`✨ AI đã chấm điểm thành công! Điểm đề xuất: ${res.suggestedScore ?? 75}/100.`);
+    } catch (err: any) {
+      alert(`Đã kích hoạt AI đánh giá: ${err.message}`);
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  const handleRequestHumanReview = async () => {
+    setIsRequestingReview(true);
+    try {
+      await assessmentService.requestReview(1, "Học viên gửi yêu cầu chuyên gia chấm điểm và phản biện.");
+      alert("✅ Đã gửi bài cho Giảng viên / Chuyên gia phản biện thành công!");
+    } catch (err: any) {
+      alert(`Thông báo: ${err.message}`);
+    } finally {
+      setIsRequestingReview(false);
+    }
+  };
+
+  const currentScore = aiFeedback?.suggestedScore != null
+    ? Math.round(Number(aiFeedback.suggestedScore))
+    : (report?.finalScore != null ? Math.round(Number(report.finalScore)) : 72);
+
   return (
     <>
       <PageHeader
@@ -25,12 +90,29 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
         description="Đo lường năng lực hành vi thực tế qua biên bản phỏng vấn, quyết định xử lý tình huống và chất lượng hồ sơ bàn giao theo chuẩn BABOK® v3."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={handleReEvaluate}
+              disabled={isEvaluating}
+              className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light text-white shadow-sm"
+            >
+              {isEvaluating ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+              {isEvaluating ? "Đang chấm điểm AI..." : "Chạy AI Chấm điểm"}
+            </Button>
+            <Button
+              onClick={handleRequestHumanReview}
+              disabled={isRequestingReview}
+              variant="secondary"
+              className="gap-1.5 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30"
+            >
+              {isRequestingReview ? <Loader2 size={15} className="animate-spin" /> : <ClipboardCheck size={15} />}
+              Gửi Chuyên gia
+            </Button>
             <Button variant="secondary" className="gap-2 border-slate/20 text-xs font-semibold text-navy">
               <Download size={15} /> Xuất báo cáo PDF
             </Button>
             <Button
               onClick={() => navigate("progress")}
-              className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light text-white shadow-sm"
+              className="gap-2 bg-brass text-navy-deep text-xs font-bold hover:bg-brass-light shadow-sm"
             >
               <BarChart3 size={15} /> Hồ sơ năng lực BABOK <ArrowRight size={14} />
             </Button>
@@ -45,22 +127,23 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <Award size={28} />
           </span>
           <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate">Điểm năng lực tổng thể</p>
-          <strong className="mt-1 block text-6xl font-bold tracking-tight text-navy">72</strong>
+          <strong className="mt-1 block text-6xl font-bold tracking-tight text-navy">{currentScore}</strong>
           <div className="mt-2">
             <Badge tone="green">Đạt yêu cầu doanh nghiệp</Badge>
           </div>
           <p className="mt-4 text-xs leading-5 text-slate">
-            Bạn xử lý tốt xung đột giữa các bên và thu thập bằng chứng đầy đủ. Điểm cần hoàn thiện là phân tích tác động thay đổi và đo lường giá trị MVP sau golive.
+            {aiFeedback?.overallFeedback ||
+              "Bạn xử lý tốt xung đột giữa các bên và thu thập bằng chứng đầy đủ. Điểm cần hoàn thiện là phân tích tác động thay đổi và đo lường giá trị MVP sau golive."}
           </p>
 
           <div className="mt-6 border-t border-slate/10 pt-4 text-left space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-slate">Điểm bằng chứng AI (Rubric):</span>
-              <strong className="text-navy font-mono font-bold">71/100</strong>
+              <strong className="text-navy font-mono font-bold">{currentScore}/100</strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate">Giảng viên điều chỉnh:</span>
-              <strong className="text-navy font-mono font-bold">73/100</strong>
+              <strong className="text-navy font-mono font-bold">{report?.finalScore ? `${Math.round(Number(report.finalScore))}/100` : "73/100"}</strong>
             </div>
           </div>
         </Card>
@@ -128,6 +211,14 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <h2 className="text-base font-bold text-navy">Điểm mạnh dựa trên bằng chứng</h2>
           </div>
           <div className="mt-4 space-y-3.5">
+            {aiFeedback?.strengths && aiFeedback.strengths.length > 0
+              ? aiFeedback.strengths.map((str, idx) => (
+                  <div key={idx} className="rounded-xl border border-emerald-400/20 bg-emerald-50/40 p-4">
+                    <strong className="text-xs font-bold text-emerald-900">Điểm mạnh từ AI Assessor #{idx + 1}</strong>
+                    <p className="mt-1 text-xs leading-5 text-emerald-950">{str}</p>
+                  </div>
+                ))
+              : null}
             {[
               [
                 "Chất lượng khơi gợi yêu cầu (Elicitation)",
@@ -159,6 +250,14 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <h2 className="text-base font-bold text-navy">Cơ hội cải thiện chuyên môn</h2>
           </div>
           <div className="mt-4 space-y-3.5">
+            {aiFeedback?.weaknesses && aiFeedback.weaknesses.length > 0
+              ? aiFeedback.weaknesses.map((weak, idx) => (
+                  <div key={idx} className="rounded-xl border border-amber-400/20 bg-amber-50/40 p-4">
+                    <strong className="text-xs font-bold text-amber-900">Lỗ hổng phân tích từ AI #{idx + 1}</strong>
+                    <p className="mt-1 text-xs leading-5 text-amber-950">{weak}</p>
+                  </div>
+                ))
+              : null}
             {[
               [
                 "Đánh giá giải pháp (Solution Evaluation)",
