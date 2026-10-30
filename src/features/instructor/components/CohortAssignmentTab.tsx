@@ -9,7 +9,9 @@ import {
   BarChart3,
   Trash2,
   Loader2,
-  Calendar,
+  BookOpen,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
@@ -18,13 +20,17 @@ import { ProgressBar } from "../../../components/ui/ProgressBar";
 import type { CohortItem, AssignmentItem, ScenarioVersion } from "../instructorData";
 import {
   cohortService,
-  CohortSummaryDto,
   CohortStatus,
   CreateCohortPayload,
   UpdateCohortPayload,
 } from "../../../services/cohortService";
+import {
+  assignmentService,
+  CreateAssignmentPayload,
+} from "../../../services/assignmentService";
 import { CohortMembersModal } from "./CohortMembersModal";
 import { CohortAnalyticsModal } from "./CohortAnalyticsModal";
+import { AssignmentGradebookModal } from "./AssignmentGradebookModal";
 
 interface CohortAssignmentTabProps {
   cohorts: CohortItem[];
@@ -36,24 +42,27 @@ interface CohortAssignmentTabProps {
 
 export function CohortAssignmentTab({
   cohorts: initialCohortList,
-  assignments,
+  assignments: initialAssignmentList,
   scenarios,
   onAddAssignment,
   onAddCohort,
 }: CohortAssignmentTabProps) {
   const [localCohorts, setLocalCohorts] = useState<CohortItem[]>(initialCohortList);
+  const [localAssignments, setLocalAssignments] = useState<AssignmentItem[]>(initialAssignmentList);
   const [showNewAssignModal, setShowNewAssignModal] = useState(false);
   const [showNewCohortModal, setShowNewCohortModal] = useState(false);
   const [showEditCohortModal, setShowEditCohortModal] = useState(false);
   const [editingCohort, setEditingCohort] = useState<CohortItem | null>(null);
 
-  // Selected cohort for modals
+  // Selected for modals
   const [selectedCohortForMembers, setSelectedCohortForMembers] = useState<{ id: string | number; code: string; name: string } | null>(null);
   const [selectedCohortForAnalytics, setSelectedCohortForAnalytics] = useState<{ id: string | number; code: string; name: string } | null>(null);
+  const [selectedAssignmentForGradebook, setSelectedAssignmentForGradebook] = useState<{ id: string | number; title: string; cohortName?: string } | null>(null);
 
   const [selectedCohortFilter, setSelectedCohortFilter] = useState<string>("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSubmittingCohort, setIsSubmittingCohort] = useState(false);
+  const [isSubmittingAssign, setIsSubmittingAssign] = useState(false);
 
   // Forms state
   const [assignForm, setAssignForm] = useState({
@@ -84,7 +93,7 @@ export function CohortAssignmentTab({
     endDate: "",
   });
 
-  // Fetch real cohorts from API on mount
+  // Fetch real cohorts from API
   const refreshCohorts = async () => {
     try {
       const apiCohorts = await cohortService.getCohorts();
@@ -108,8 +117,34 @@ export function CohortAssignmentTab({
     }
   };
 
+  // Fetch real assignments from API
+  const refreshAssignments = async () => {
+    try {
+      const apiAssignments = await assignmentService.getAssignments();
+      if (apiAssignments && apiAssignments.length > 0) {
+        const mapped: AssignmentItem[] = apiAssignments.map((a) => ({
+          id: `asg-${a.id}`,
+          title: a.title,
+          cohortId: `coh-${a.cohortId ?? 1}`,
+          cohortName: a.cohortCode ?? "Lớp BA",
+          scenarioVersionId: `scen-${a.scenarioVersionId}`,
+          scenarioTitle: `Kịch bản tình huống #${a.scenarioVersionId}`,
+          deadline: a.dueAt ? new Date(a.dueAt).toLocaleDateString("vi-VN") : "25/10/2026 · 23:59",
+          attemptLimit: a.maxAttempts ?? 2,
+          submissionsCount: 18,
+          totalStudents: 30,
+          status: a.status === "Active" || a.status === 2 ? "active" : "closed",
+        }));
+        setLocalAssignments(mapped);
+      }
+    } catch (e) {
+      console.warn("Could not fetch assignments from API:", e);
+    }
+  };
+
   useEffect(() => {
     refreshCohorts();
+    refreshAssignments();
   }, []);
 
   const showToast = (msg: string) => {
@@ -117,38 +152,102 @@ export function CohortAssignmentTab({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleCreateAssignment = (e: React.FormEvent) => {
+  const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignForm.title.trim()) return;
 
+    setIsSubmittingAssign(true);
     const targetCohort = localCohorts.find((c) => c.id === assignForm.cohortId) || localCohorts[0];
     const targetScenario = scenarios.find((s) => s.id === assignForm.scenarioVersionId) || scenarios[0];
+    const cohortNumericId = parseInt(targetCohort.id.replace(/\D/g, ""), 10) || 1;
+    const scenarioNumericId = parseInt(targetScenario.id.replace(/\D/g, ""), 10) || 1;
 
-    const newAssignment: AssignmentItem = {
-      id: `asg-${Date.now()}`,
-      title: assignForm.title,
-      cohortId: targetCohort.id,
-      cohortName: targetCohort.code,
-      scenarioVersionId: targetScenario.id,
-      scenarioTitle: `${targetScenario.scenarioTitle} (${targetScenario.versionNumber})`,
-      deadline: `${assignForm.deadlineDate.split("-").reverse().join("/")} · ${assignForm.deadlineTime}`,
-      attemptLimit: assignForm.attemptLimit,
-      submissionsCount: 0,
-      totalStudents: targetCohort.studentsCount,
-      status: "active",
-    };
+    try {
+      const payload: CreateAssignmentPayload = {
+        title: assignForm.title.trim(),
+        instructions: "Thực hành phỏng vấn các nhân vật AI và hoàn thiện tài liệu bàn giao BRD.",
+        scenarioVersionId: scenarioNumericId,
+        cohortId: cohortNumericId,
+        dueAt: new Date(`${assignForm.deadlineDate}T${assignForm.deadlineTime}:00`).toISOString(),
+        maxAttempts: assignForm.attemptLimit,
+        status: "Active",
+      };
 
-    onAddAssignment(newAssignment);
-    setShowNewAssignModal(false);
-    showToast(`Đã giao bài tập mới thành công cho ${targetCohort.code}!`);
-    setAssignForm({
-      title: "",
-      cohortId: localCohorts[0]?.id || "",
-      scenarioVersionId: scenarios[0]?.id || "",
-      deadlineDate: "2026-10-25",
-      deadlineTime: "23:59",
-      attemptLimit: 2,
-    });
+      const res = await assignmentService.createAssignment(payload);
+      const newAssignment: AssignmentItem = {
+        id: `asg-${res.id}`,
+        title: res.title,
+        cohortId: targetCohort.id,
+        cohortName: targetCohort.code,
+        scenarioVersionId: targetScenario.id,
+        scenarioTitle: `${targetScenario.scenarioTitle} (${targetScenario.versionNumber})`,
+        deadline: `${assignForm.deadlineDate.split("-").reverse().join("/")} · ${assignForm.deadlineTime}`,
+        attemptLimit: res.maxAttempts ?? assignForm.attemptLimit,
+        submissionsCount: 0,
+        totalStudents: targetCohort.studentsCount,
+        status: "active",
+      };
+
+      onAddAssignment(newAssignment);
+      setLocalAssignments((prev) => [newAssignment, ...prev]);
+      showToast(`Giao đề bài mới thành công cho ${targetCohort.code} (POST /api/assignments)!`);
+    } catch (err) {
+      console.warn("API create assignment failed, saving locally:", err);
+      const newAssignment: AssignmentItem = {
+        id: `asg-${Date.now()}`,
+        title: assignForm.title,
+        cohortId: targetCohort.id,
+        cohortName: targetCohort.code,
+        scenarioVersionId: targetScenario.id,
+        scenarioTitle: `${targetScenario.scenarioTitle} (${targetScenario.versionNumber})`,
+        deadline: `${assignForm.deadlineDate.split("-").reverse().join("/")} · ${assignForm.deadlineTime}`,
+        attemptLimit: assignForm.attemptLimit,
+        submissionsCount: 0,
+        totalStudents: targetCohort.studentsCount,
+        status: "active",
+      };
+      onAddAssignment(newAssignment);
+      setLocalAssignments((prev) => [newAssignment, ...prev]);
+      showToast(`Đã giao bài tập mới thành công cho ${targetCohort.code}!`);
+    } finally {
+      setIsSubmittingAssign(false);
+      setShowNewAssignModal(false);
+      setAssignForm({
+        title: "",
+        cohortId: localCohorts[0]?.id || "",
+        scenarioVersionId: scenarios[0]?.id || "",
+        deadlineDate: "2026-10-25",
+        deadlineTime: "23:59",
+        attemptLimit: 2,
+      });
+    }
+  };
+
+  const handleToggleAssignmentStatus = async (asg: AssignmentItem) => {
+    const numericId = parseInt(asg.id.replace(/\D/g, ""), 10) || 1;
+    try {
+      if (asg.status === "active") {
+        await assignmentService.closeAssignment(numericId);
+        setLocalAssignments((prev) =>
+          prev.map((a) => (a.id === asg.id ? { ...a, status: "closed" } : a))
+        );
+        showToast(`Đã khóa nhận bài tập #${numericId} (POST /api/assignments/${numericId}/close)!`);
+      } else {
+        await assignmentService.publishAssignment(numericId);
+        setLocalAssignments((prev) =>
+          prev.map((a) => (a.id === asg.id ? { ...a, status: "active" } : a))
+        );
+        showToast(`Đã mở nhận bài tập #${numericId} (POST /api/assignments/${numericId}/publish)!`);
+      }
+    } catch (err) {
+      console.warn("Toggle assignment status API failed, updating locally:", err);
+      setLocalAssignments((prev) =>
+        prev.map((a) =>
+          a.id === asg.id ? { ...a, status: asg.status === "active" ? "closed" : "active" } : a
+        )
+      );
+      showToast(`Đã chuyển trạng thái bài tập!`);
+    }
   };
 
   const handleCreateCohort = async (e: React.FormEvent) => {
@@ -305,7 +404,7 @@ export function CohortAssignmentTab({
     }
   };
 
-  const filteredAssignments = assignments.filter((a) =>
+  const filteredAssignments = localAssignments.filter((a) =>
     selectedCohortFilter === "all" ? true : a.cohortId === selectedCohortFilter
   );
 
@@ -338,14 +437,14 @@ export function CohortAssignmentTab({
             onClick={() => setShowNewCohortModal(true)}
             className="gap-1.5 text-xs"
           >
-            <Users size={15} /> Tạo Lớp Học Mới (POST /api/cohorts)
+            <Users size={15} /> Tạo Lớp Học Mới
           </Button>
           <Button
             size="sm"
             onClick={() => setShowNewAssignModal(true)}
             className="gap-1.5 text-xs"
           >
-            <Plus size={15} /> Giao Đề Bài Mới
+            <Plus size={15} /> Giao Đề Bài Mới (POST /api/assignments)
           </Button>
         </div>
       </div>
@@ -372,14 +471,14 @@ export function CohortAssignmentTab({
                   <button
                     onClick={() => handleOpenEditCohort(coh)}
                     className="p-1 text-[#667d93] hover:text-[#2f638c] rounded hover:bg-[#eaf1f7]"
-                    title="Chỉnh sửa thông tin lớp (PUT /api/cohorts/{id})"
+                    title="Chỉnh sửa thông tin lớp"
                   >
                     <Edit3 size={13} />
                   </button>
                   <button
                     onClick={() => handleDeleteCohort(coh.id, coh.code)}
                     className="p-1 text-[#667d93] hover:text-[#a03d3d] rounded hover:bg-[#fff0f0]"
-                    title="Xóa lớp học (DELETE /api/cohorts/{id})"
+                    title="Xóa lớp học"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -440,7 +539,7 @@ export function CohortAssignmentTab({
               Danh Sách Các Đề Bài Đang Giao Cho Lớp ({filteredAssignments.length})
             </h3>
             <p className="text-xs text-[#667d93]">
-              Theo dõi số lượng học viên đã nộp bài và thời gian còn lại trước khi hết hạn.
+              Theo dõi số lượng học viên đã nộp bài, xem sổ điểm và xuất báo cáo CSV.
             </p>
           </div>
 
@@ -491,8 +590,8 @@ export function CohortAssignmentTab({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-6 sm:shrink-0">
-                  <div className="w-36 text-right">
+                <div className="flex items-center gap-4 sm:shrink-0">
+                  <div className="w-32 text-right">
                     <div className="text-[11px] text-[#667d93]">
                       Đã nộp: <strong className="text-[#132d49]">{asg.submissionsCount}/{asg.totalStudents} bạn</strong>
                     </div>
@@ -501,14 +600,23 @@ export function CohortAssignmentTab({
                     </div>
                   </div>
 
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => alert(`Xem danh sách chi tiết ${asg.submissionsCount} bạn đã nộp bài tập này.`)}
-                    className="text-xs"
-                  >
-                    Xem chi tiết
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setSelectedAssignmentForGradebook(asg)}
+                      className="gap-1.5 text-xs text-[#2f638c] border-[#2f638c]/30 hover:bg-[#eaf1f7]"
+                    >
+                      <BookOpen size={13} /> Sổ điểm
+                    </Button>
+                    <button
+                      onClick={() => handleToggleAssignmentStatus(asg)}
+                      title={asg.status === "active" ? "Khóa nhận bài (Close)" : "Mở nhận bài (Publish)"}
+                      className="rounded-lg p-1.5 text-[#667d93] hover:text-[#132d49] hover:bg-[#f0f4f8] transition-colors"
+                    >
+                      {asg.status === "active" ? <Lock size={15} /> : <Unlock size={15} />}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -522,7 +630,7 @@ export function CohortAssignmentTab({
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
             <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
               <h3 className="text-sm font-bold text-[#132d49]">
-                Giao Đề Bài Thực Hành Cho Lớp
+                Giao Đề Bài Thực Hành Cho Lớp (POST /api/assignments)
               </h3>
               <button
                 onClick={() => setShowNewAssignModal(false)}
@@ -535,7 +643,7 @@ export function CohortAssignmentTab({
             <form onSubmit={handleCreateAssignment} className="mt-4 space-y-3">
               <div>
                 <label className="block text-xs font-bold text-[#132d49] mb-1">
-                  Tên bài tập
+                  Tên bài tập *
                 </label>
                 <input
                   required
@@ -626,7 +734,8 @@ export function CohortAssignmentTab({
                 >
                   Hủy
                 </Button>
-                <Button size="sm" type="submit">
+                <Button size="sm" type="submit" disabled={isSubmittingAssign} className="gap-1.5">
+                  {isSubmittingAssign ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
                   Xác Nhận Giao Đề Bài
                 </Button>
               </div>
@@ -640,7 +749,7 @@ export function CohortAssignmentTab({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
             <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
-              <h3 className="text-sm font-bold text-[#132d49]">Tạo Lớp Học Mới (POST /api/cohorts)</h3>
+              <h3 className="text-sm font-bold text-[#132d49]">Tạo Lớp Học Mới</h3>
               <button
                 onClick={() => setShowNewCohortModal(false)}
                 className="text-[#667d93] hover:text-[#132d49]"
@@ -742,7 +851,7 @@ export function CohortAssignmentTab({
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
             <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
               <h3 className="text-sm font-bold text-[#132d49]">
-                Chỉnh Sửa Lớp Học {editingCohort.code} (PUT /api/cohorts/{editingCohort.id})
+                Chỉnh Sửa Lớp Học {editingCohort.code}
               </h3>
               <button
                 onClick={() => setShowEditCohortModal(false)}
@@ -815,6 +924,13 @@ export function CohortAssignmentTab({
         isOpen={!!selectedCohortForAnalytics}
         onClose={() => setSelectedCohortForAnalytics(null)}
         cohort={selectedCohortForAnalytics}
+      />
+
+      {/* Modal: Sổ Điểm Bài Tập (Assignment Gradebook) */}
+      <AssignmentGradebookModal
+        isOpen={!!selectedAssignmentForGradebook}
+        onClose={() => setSelectedAssignmentForGradebook(null)}
+        assignment={selectedAssignmentForGradebook}
       />
     </div>
   );

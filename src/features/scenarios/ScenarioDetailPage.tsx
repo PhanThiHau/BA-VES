@@ -17,6 +17,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { catalogService, type ScenarioContextDto } from "../../services/catalogService";
 import { simulationService } from "../../services/simulationService";
+import { assignmentService, LearnerAssignmentDto } from "../../services/assignmentService";
 import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 
@@ -80,6 +81,7 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
 
   // FE-07: Load Scenario Context: GET /api/scenario-versions/{id}/context
   const [context, setContext] = useState<ScenarioContextDto | null>(null);
+  const [myAssignment, setMyAssignment] = useState<LearnerAssignmentDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -90,8 +92,17 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
     async function loadContext() {
       setLoading(true);
       try {
-        const data = await catalogService.getScenarioContext(versionId);
-        setContext(data);
+        const [data, myAsgs] = await Promise.allSettled([
+          catalogService.getScenarioContext(versionId),
+          assignmentService.getMyAssignments(),
+        ]);
+        if (data.status === "fulfilled") {
+          setContext(data.value);
+        }
+        if (myAsgs.status === "fulfilled" && myAsgs.value.length > 0) {
+          const matched = myAsgs.value.find((a) => a.scenarioVersionId === versionId);
+          if (matched) setMyAssignment(matched);
+        }
       } catch (err) {
         console.warn("Không tải được bối cảnh từ API, hiển thị bối cảnh mẫu mặc định:", err);
       } finally {
@@ -101,14 +112,21 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
     loadContext();
   }, [versionId]);
 
-  // FE-08: Bắt đầu làm bài / Khởi tạo phiên luyện tập: POST /api/sessions
+  // FE-08: Bắt đầu làm bài / Khởi tạo phiên luyện tập: POST /api/sessions hoặc POST /api/assignments/{id}/start
   const handleStartSession = async (targetRoute: RouteKey = "planning") => {
     setStarting(true);
     setStartError(null);
     try {
-      const session = await simulationService.startSession(versionId);
-      setCurrentSessionId(session.id);
-      if (session.agents && session.agents.length > 0) {
+      let session;
+      if (myAssignment) {
+        session = await assignmentService.startAssignmentSession(myAssignment.id);
+      } else {
+        session = await simulationService.startSession(versionId);
+      }
+      if (session?.id) {
+        setCurrentSessionId(session.id);
+      }
+      if (session?.agents && session.agents.length > 0) {
         setActiveAgents(session.agents);
       }
       navigate(targetRoute);
