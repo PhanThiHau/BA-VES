@@ -14,6 +14,7 @@ import {
   Settings2,
   ShieldAlert,
   ShieldCheck,
+  Target,
   Users,
   X,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const learnerItems: Array<{ route: RouteKey; label: string; icon: typeof LayoutD
   { route: "dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { route: "applications", label: "Ứng dụng nghiệp vụ", icon: AppWindow },
   { route: "scenarios", label: "Kịch bản mô phỏng", icon: BookOpenCheck },
+  { route: "planning", label: "Lập kế hoạch BA", icon: Target },
   { route: "simulation", label: "Phiên phỏng vấn AI", icon: MessageSquareText },
   { route: "analysis", label: "Phân tích bằng chứng", icon: SearchCheck },
   { route: "artifacts", label: "Hồ sơ bàn giao BA", icon: FileStack },

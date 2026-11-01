@@ -21,6 +21,8 @@ interface AppContextValue {
 
   currentSessionId: number | null;
   setCurrentSessionId: (id: number | null) => void;
+  currentSubmissionId: number | null;
+  setCurrentSubmissionId: (id: number | null) => void;
   currentScenarioVersionId: number | null;
   setCurrentScenarioVersionId: (id: number | null) => void;
   activeAgents: SessionAgentDto[];
@@ -53,6 +55,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [byokModalOpen, setByokModalOpen] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [currentSubmissionId, setCurrentSubmissionId] = useState<number | null>(null);
   const [currentScenarioVersionId, setCurrentScenarioVersionId] = useState<number | null>(1);
   const [activeAgents, setActiveAgents] = useState<SessionAgentDto[]>([]);
 
@@ -195,6 +198,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setByokModalOpen,
       currentSessionId,
       setCurrentSessionId,
+      currentSubmissionId,
+      setCurrentSubmissionId,
       currentScenarioVersionId,
       setCurrentScenarioVersionId,
       activeAgents,
@@ -222,6 +227,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isLoadingUser,
       byokModalOpen,
       currentSessionId,
+      currentSubmissionId,
       currentScenarioVersionId,
       activeAgents,
       selectedDomainId,

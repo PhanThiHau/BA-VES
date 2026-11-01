@@ -286,6 +286,9 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
         <div className="flex flex-col gap-2 border-b border-slate/15 bg-navy-deep px-4 py-3 text-white lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded bg-brass/25 px-2 py-0.5 text-[11px] font-bold text-brass uppercase tracking-wide">
+                Bước 2/5 · Mô phỏng Khơi gợi
+              </span>
               <Badge tone="green">Đang phỏng vấn</Badge>
               <span className="font-mono text-xs text-mist">
                 {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014"}
@@ -338,6 +341,14 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
             >
               <XCircle size={14} />
               {isAbandoning ? "Đang hủy..." : "Hủy"}
+            </Button>
+
+            <Button
+              variant="secondary"
+              onClick={() => navigate("planning")}
+              className="border-slate/30 bg-navy/60 text-xs font-semibold text-mist hover:bg-navy hover:text-white"
+            >
+              ← Kế hoạch
             </Button>
 
             <Button
