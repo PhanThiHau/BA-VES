@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Bell, KeyRound, LogOut, Menu, Sparkles, User, Settings } from "lucide-react";
+import { Bell, Crown, KeyRound, LogOut, Menu, Sparkles, User, Settings } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import { ByokModal } from "../common/ByokModal";
 import { ProfileModal } from "../common/ProfileModal";
+import { SubscriptionModal } from "../common/SubscriptionModal";
 
 export function Header({ onMenu }: { onMenu: () => void }) {
   const { role, user, logout, byokModalOpen, setByokModalOpen } = useApp();
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [subModalOpen, setSubModalOpen] = useState(false);
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(" ");
@@ -57,6 +59,15 @@ export function Header({ onMenu }: { onMenu: () => void }) {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setSubModalOpen(true)}
+            title="Gói hội viên & Cổng thanh toán (VNPay / PayOS)"
+            className="flex items-center gap-1.5 rounded-xl border border-brass/40 bg-brass/10 px-2.5 py-1.5 text-xs font-bold text-navy hover:bg-brass/25 transition-all shadow-xs"
+          >
+            <Crown size={14} className="text-brass" />
+            <span className="hidden md:inline">Gói dịch vụ</span>
+          </button>
+
           {/* FE-05: Nút Cài đặt API Key AI (BYOK) */}
           <button
             onClick={() => setByokModalOpen(true)}
@@ -129,6 +140,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
 
       {/* Profile & Password Modal */}
       <ProfileModal isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
+    <SubscriptionModal isOpen={subModalOpen} onClose={() => setSubModalOpen(false)} />
     </>
   );
 }
