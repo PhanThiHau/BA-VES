@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { RouteKey } from "../../types/models";
 import { useParallax, useReducedMotion } from "./hooks";
 import { scrollToSection } from "./primitives";
