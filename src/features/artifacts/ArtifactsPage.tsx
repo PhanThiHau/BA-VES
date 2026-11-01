@@ -234,7 +234,7 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
   return (
     <>
       <PageHeader
-        eyebrow="Bước 4/5 · Sản phẩm bàn giao BA"
+        eyebrow="Bước 4/5 · Sản phẩm bàn giao BA (Artifacts & Deliverables)"
         title="Bộ tài liệu bàn giao (BA Artifacts)"
         description="Nộp, quản lý phiên bản và nhận phản biện đa chiều từ AI và chuyên gia dựa trên bằng chứng thu thập thực tế."
         actions={
@@ -438,6 +438,7 @@ function UploadWorkspace({
   currentSessionId: number | null;
   onRefresh: () => void;
 }) {
+  const { setCurrentSubmissionId } = useApp();
   const [changeNote, setChangeNote] = useState("");
   const [draftContent, setDraftContent] = useState(backendArtifact?.draftPlainTextContent || "");
   const [versions, setVersions] = useState<ArtifactVersionDto[]>([]);
@@ -508,7 +509,10 @@ function UploadWorkspace({
     setIsSubmitting(true);
     try {
       const latestVersionId = versions[versions.length - 1].id;
-      await artifactService.submitArtifactVersion(currentSessionId, latestVersionId);
+      const subRes = await artifactService.submitArtifactVersion(currentSessionId, latestVersionId);
+      if (subRes?.id) {
+        setCurrentSubmissionId(subRes.id);
+      }
       alert(`🎉 Đã nộp gói tài liệu ${selected.title} thành công!`);
       onRefresh();
     } catch (e: any) {

@@ -310,13 +310,13 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
   return (
     <>
       <PageHeader
-        eyebrow="Bước 3/5 · Phân tích & Thẩm định"
+        eyebrow="Bước 3/5 · Phân tích & Thẩm định yêu cầu (Analysis & Traceability)"
         title="Trung tâm Phân tích & Bằng chứng"
         description="Đối soát bằng chứng phỏng vấn, giải quyết xung đột, phân loại giả định và kiểm soát tính truy vết theo chuẩn BABOK® v3."
         actions={
           <>
-            <Button variant="secondary" onClick={() => navigate("simulation")} className="border-slate/20 text-xs">
-              Biên bản phỏng vấn
+            <Button variant="secondary" onClick={() => navigate("simulation")} className="border-slate/20 text-xs gap-1.5">
+              ← Quay lại phỏng vấn
             </Button>
             <Button onClick={() => navigate("artifacts")} className="bg-navy text-xs font-semibold hover:bg-navy-light">
               Tài liệu bàn giao (BRD, RTM) <ArrowRight size={16} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, ClipboardList, Database, FileQuestion, Lightbulb, Plus, Save, Target, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ClipboardList, Database, FileQuestion, Lightbulb, Plus, Save, Target, Trash2, Users } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
@@ -146,11 +146,18 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
   return (
     <>
       <PageHeader
-        eyebrow="Step 1 of 5 · BA Planning & Monitoring"
+        eyebrow="Bước 1/5 · Lập kế hoạch Phân tích (BA Planning & Monitoring)"
         title="Kế hoạch Phân tích Nghiệp vụ (BA Plan)"
         description="Xác định mục tiêu đo lường, kế hoạch phỏng vấn các bên liên quan và ngân hàng câu hỏi định hướng trước khi bắt đầu mô phỏng."
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => navigate("scenarios")}
+              className="text-xs font-semibold gap-1.5 border-slate/20"
+            >
+              <ArrowLeft size={14} /> Quay lại kịch bản
+            </Button>
             <Button
               variant="secondary"
               onClick={handleSavePlan}

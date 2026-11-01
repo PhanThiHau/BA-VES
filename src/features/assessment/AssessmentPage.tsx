@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
@@ -24,7 +24,9 @@ const underlyingCompetencies = [
 ];
 
 export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId } = useApp();
+  const { currentSessionId, currentSubmissionId } = useApp();
+  const submissionId = currentSubmissionId ?? 1;
+
   const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
   const [aiFeedback, setAiFeedback] = useState<AIPracticeFeedbackDto | null>(null);
   const [loading, setLoading] = useState(false);
@@ -34,12 +36,12 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
   const loadAssessment = async () => {
     setLoading(true);
     try {
-      const rep = await assessmentService.getFinalReport(1);
+      const rep = await assessmentService.getFinalReport(submissionId);
       setReport(rep);
       if (rep?.aiFeedback) setAiFeedback(rep.aiFeedback);
     } catch {
       try {
-        const fb = await assessmentService.getAiFeedback(1);
+        const fb = await assessmentService.getAiFeedback(submissionId);
         setAiFeedback(fb);
       } catch (err) {
         console.warn("Chưa có báo cáo chấm điểm trên backend, dùng mẫu.");
@@ -51,12 +53,12 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
 
   useEffect(() => {
     loadAssessment();
-  }, [currentSessionId]);
+  }, [currentSessionId, currentSubmissionId]);
 
   const handleReEvaluate = async () => {
     setIsEvaluating(true);
     try {
-      const res = await assessmentService.evaluateSubmission(1);
+      const res = await assessmentService.evaluateSubmission(submissionId);
       setAiFeedback(res);
       alert(`✨ AI đã chấm điểm thành công! Điểm đề xuất: ${res.suggestedScore ?? 75}/100.`);
     } catch (err: any) {
@@ -69,7 +71,7 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
   const handleRequestHumanReview = async () => {
     setIsRequestingReview(true);
     try {
-      await assessmentService.requestReview(1, "Học viên gửi yêu cầu chuyên gia chấm điểm và phản biện.");
+      await assessmentService.requestReview(submissionId, "Học viên gửi yêu cầu chuyên gia chấm điểm và phản biện.");
       alert("✅ Đã gửi bài cho Giảng viên / Chuyên gia phản biện thành công!");
     } catch (err: any) {
       alert(`Thông báo: ${err.message}`);
@@ -85,11 +87,18 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
   return (
     <>
       <PageHeader
-        eyebrow="Kết quả phiên thực hành · INV-2026-014"
+        eyebrow="Bước 5/5 · Đánh giá & Chấm điểm năng lực (Assessment & Debrief)"
         title="Báo cáo Đánh giá Năng lực Thực chiến"
         description="Đo lường năng lực hành vi thực tế qua biên bản phỏng vấn, quyết định xử lý tình huống và chất lượng hồ sơ bàn giao theo chuẩn BABOK® v3."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => navigate("artifacts")}
+              className="gap-1.5 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30"
+            >
+              <ArrowLeft size={14} /> Xem lại Hồ sơ BA
+            </Button>
             <Button
               onClick={handleReEvaluate}
               disabled={isEvaluating}
