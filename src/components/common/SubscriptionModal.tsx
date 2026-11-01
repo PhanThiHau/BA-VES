@@ -308,3 +308,4 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
     </div>
   );
 }
+
