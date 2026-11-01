@@ -96,6 +96,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     currentSessionId,
     setCurrentSessionId,
     loadAgentMessages,
+    toggleEvidence,
   } = useApp();
 
   const [draft, setDraft] = useState("");
@@ -487,7 +488,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                     <div className="mt-2 flex items-center justify-between border-t border-slate/10 pt-1.5 text-[10px]">
                       {message.sender === "agent" && (
                         <button
-                          onClick={() => {}}
+                          onClick={() => toggleEvidence(message.id)}
                           className={classNames(
                             "flex items-center gap-1 font-semibold transition",
                             message.evidence ? "text-emerald-700" : "hover:text-navy text-slate"
