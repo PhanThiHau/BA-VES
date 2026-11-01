@@ -68,6 +68,10 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
     }
   };
 
+    const handleExportPdf = () => {
+    window.print();
+  };
+
   const handleRequestHumanReview = async () => {
     setIsRequestingReview(true);
     try {
@@ -116,7 +120,7 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
               {isRequestingReview ? <Loader2 size={15} className="animate-spin" /> : <ClipboardCheck size={15} />}
               Gửi Chuyên gia
             </Button>
-            <Button variant="secondary" className="gap-2 border-slate/20 text-xs font-semibold text-navy">
+            <Button variant="secondary" onClick={handleExportPdf} title="In hoặc lưu hồ sơ đánh giá năng lực dưới dạng file PDF" className="gap-2 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30">
               <Download size={15} /> Xuất báo cáo PDF
             </Button>
             <Button

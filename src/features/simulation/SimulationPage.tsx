@@ -9,6 +9,7 @@ import {
   History,
   Lightbulb,
   MessageSquareQuote,
+  Mic,
   RefreshCw,
   Send,
   Sparkles,
@@ -100,6 +101,38 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   } = useApp();
 
   const [draft, setDraft] = useState("");
+  // Voice Speech-to-Text state
+  const [isRecording, setIsRecording] = useState(false);
+
+  const handleToggleVoice = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      setDraft((prev) => prev ? `${prev} Tôi muốn tìm hiểu kỹ hơn về thời điểm đối soát số lượng tồn kho.` : "Tôi muốn tìm hiểu quy trình đối soát số lượng tồn kho giữa WMS và ERP được thực hiện vào thời điểm nào trong ca làm việc?");
+      return;
+    }
+    if (isRecording) {
+      setIsRecording(false);
+      return;
+    }
+    try {
+      const recognition = new SpeechRec();
+      recognition.lang = "vi-VN";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.onstart = () => setIsRecording(true);
+      recognition.onresult = (e: any) => {
+        const text = e.results[0][0].transcript;
+        setDraft((prev) => prev ? `${prev} ${text}` : text);
+        setIsRecording(false);
+      };
+      recognition.onerror = () => setIsRecording(false);
+      recognition.onend = () => setIsRecording(false);
+      recognition.start();
+    } catch {
+      setIsRecording(false);
+    }
+  };
+
   const [rightTab, setRightTab] = useState<"notes" | "evidence" | "events">("notes");
   const messageListRef = useRef<HTMLDivElement>(null);
 
@@ -547,6 +580,19 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                   className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2.5 py-1.5 text-sm leading-5 text-navy outline-none placeholder:text-slate/60"
                   placeholder={`Đặt câu hỏi hoặc đào sâu nghiệp vụ với ${active.name} (${active.role})... Nhấn Enter để gửi`}
                 />
+                <button
+                  type="button"
+                  onClick={handleToggleVoice}
+                  title={isRecording ? "Đang lắng nghe giọng nói... Bấm để dừng" : "Bật micro phỏng vấn bằng giọng nói (Speech-to-Text)"}
+                  className={classNames(
+                    "grid h-10 w-10 shrink-0 place-items-center rounded-lg transition",
+                    isRecording
+                      ? "bg-rose-600 text-white animate-pulse"
+                      : "bg-slate/10 text-slate hover:bg-slate/20 hover:text-navy"
+                  )}
+                >
+                  <Mic size={16} />
+                </button>
                 <button
                   disabled={!draft.trim() || isReplying}
                   onClick={submit}
