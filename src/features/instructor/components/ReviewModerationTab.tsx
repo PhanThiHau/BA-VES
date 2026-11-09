@@ -8,6 +8,8 @@ import {
   Quote,
   X,
   Eye,
+  MessageSquare,
+  PhoneCall,
 } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
@@ -16,6 +18,7 @@ import { classNames } from "../../../utils/format";
 import type { ReviewItem, CriterionReview } from "../instructorData";
 import { assessmentService } from "../../../services/assessmentService";
 import { ReviewCaseDossierModal } from "./ReviewCaseDossierModal";
+import { ConsultationModal } from "../../../components/common/ConsultationModal";
 
 interface ReviewModerationTabProps {
   reviewItems: ReviewItem[];
@@ -47,6 +50,7 @@ export function ReviewModerationTab({
   );
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [showDossierModal, setShowDossierModal] = useState(false);
+  const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
 
   const handleSelectItem = (item: ReviewItem) => {
@@ -249,6 +253,14 @@ export function ReviewModerationTab({
                       className="gap-1.5 text-xs text-[#2f638c] border-[#2f638c]/30 hover:bg-[#eaf1f7]"
                     >
                       <Eye size={14} /> Hồ sơ chứng cứ (Case Dossier)
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowConsultationModal(true)}
+                      className="gap-1.5 text-xs text-navy border-navy/30 hover:bg-navy/5 font-semibold"
+                    >
+                      <MessageSquare size={14} /> Trao đổi 1-on-1
                     </Button>
                     <Button
                       variant="secondary"
@@ -484,6 +496,13 @@ export function ReviewModerationTab({
           </div>
         </div>
       )}
+
+      <ConsultationModal
+        isOpen={showConsultationModal}
+        onClose={() => setShowConsultationModal(false)}
+        reviewRequestId={parseInt(selectedItem?.id.replace(/\D/g, ""), 10) || 1}
+        isExpertMode={true}
+      />
     </div>
   );
 }
