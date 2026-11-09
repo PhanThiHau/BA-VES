@@ -1,14 +1,29 @@
-import { useState } from "react";
-import { Bell, Crown, KeyRound, LogOut, Menu, Sparkles, User, Settings } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bell, Crown, KeyRound, LogOut, Menu, Sparkles, User, Settings, CheckCircle2 } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import { ByokModal } from "../common/ByokModal";
 import { ProfileModal } from "../common/ProfileModal";
 import { SubscriptionModal } from "../common/SubscriptionModal";
+import { commerceService, type CreditBalanceSummaryDto } from "../../services/commerceService";
 
 export function Header({ onMenu }: { onMenu: () => void }) {
   const { role, user, logout, byokModalOpen, setByokModalOpen } = useApp();
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [subModalOpen, setSubModalOpen] = useState(false);
+  const [credits, setCredits] = useState<CreditBalanceSummaryDto | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    commerceService
+      .getMyCreditsSummary()
+      .then((res) => {
+        if (isMounted && res) setCredits(res);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [subModalOpen]);
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(" ");
@@ -59,6 +74,24 @@ export function Header({ onMenu }: { onMenu: () => void }) {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Credit balance quick glance */}
+          {credits && (
+            <button
+              onClick={() => setSubModalOpen(true)}
+              title="Số dư lượt sử dụng: Bấm để xem chi tiết hoặc nạp thêm"
+              className="hidden lg:flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-50/80 px-2.5 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-100 transition-all shadow-2xs"
+            >
+              <span className="flex items-center gap-1">
+                <Sparkles size={13} className="text-emerald-700" />
+                <strong className="font-bold text-emerald-800">{credits.reviewCredits}</strong> lượt chấm
+              </span>
+              <span className="text-emerald-300">·</span>
+              <span>
+                <strong className="font-bold text-emerald-800">{credits.consultationCredits}</strong> tư vấn 1-on-1
+              </span>
+            </button>
+          )}
+
           <button
             onClick={() => setSubModalOpen(true)}
             title="Gói hội viên & Cổng thanh toán (VNPay / PayOS)"

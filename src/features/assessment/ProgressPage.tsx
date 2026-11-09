@@ -1,4 +1,4 @@
-import { ArrowRight, Award, CalendarDays, CheckCircle2, MessageSquareText, Sparkles, TrendingUp, BookOpen, Loader2 } from "lucide-react";
+import { ArrowRight, Award, CalendarDays, CheckCircle2, MessageSquareText, Sparkles, TrendingUp, BookOpen, Loader2, PhoneCall } from "lucide-react";
 import { useState, useEffect } from "react";
 import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
@@ -13,6 +13,7 @@ import {
   type BabokTaskDto,
   type FinalSubmissionReportDto,
 } from "../../services/assessmentService";
+import { ConsultationModal } from "../../components/common/ConsultationModal";
 
 const observedBehaviors = [
   ["Tư duy phân tích (Analytical Thinking)", 78, "+9", "Phân biệt Fact vs Assumption · Phân tích xung đột"],
@@ -34,6 +35,7 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
   const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
   const [babokTasks, setBabokTasks] = useState<BabokTaskDto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showConsultationModal, setShowConsultationModal] = useState(false);
 
   useEffect(() => {
     async function loadAssessmentProgress() {
@@ -70,6 +72,14 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brass/30 bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">
               <Sparkles size={14} /> Tích lũy 3 phiên thực hành
             </span>
+            <Button
+              variant="secondary"
+              onClick={() => setShowConsultationModal(true)}
+              className="gap-1.5 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30"
+              title="Đặt lịch hoặc mở phòng trao đổi trực tiếp với Chuyên gia BA"
+            >
+              <PhoneCall size={14} className="text-emerald-700" /> Tư vấn 1-on-1 với Chuyên gia
+            </Button>
             <Button
               onClick={() => navigate("scenarios")}
               className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light text-white shadow-sm"
@@ -196,6 +206,11 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
           </table>
         </div>
       </Card>
+
+      <ConsultationModal
+        isOpen={showConsultationModal}
+        onClose={() => setShowConsultationModal(false)}
+      />
     </>
   );
 }

@@ -9,6 +9,11 @@ import {
   Sparkles,
   X,
   Zap,
+  History,
+  Receipt,
+  Clock,
+  ArrowRight,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
@@ -34,6 +39,32 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
   const [paymentMethod, setPaymentMethod] = useState<"vietqr" | "vnpay" | "payos">("vietqr");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
+  const [activeTab, setActiveTab] = useState<"plans" | "history">("plans");
+  const [myOrders, setMyOrders] = useState<OrderDto[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+
+  const loadMyOrders = async () => {
+    setIsLoadingOrders(true);
+    try {
+      const orders = await commerceService.getMyOrders();
+      setMyOrders(orders);
+    } catch (e) {
+      console.warn("Could not load my orders:", e);
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: number) => {
+    if (!confirm("Bạn có chắc chắn muốn hủy đơn hàng này?")) return;
+    try {
+      await commerceService.cancelOrder(orderId);
+      await loadMyOrders();
+    } catch (err: any) {
+      alert(`Lỗi khi hủy đơn hàng: ${err.message}`);
+    }
+  };
+
   const [activeOrder, setActiveOrder] = useState<OrderDto | null>(null);
   const [creditSummary, setCreditSummary] = useState<CreditBalanceSummaryDto | null>(null);
 
@@ -171,12 +202,43 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
           </button>
         </div>
 
+        {/* Tab Switcher: Gói cước vs Lịch sử đơn hàng */}
+        {step === "plans" && (
+          <div className="flex border-b border-slate/15 bg-slate-50 px-6 gap-2">
+            <button
+              onClick={() => setActiveTab("plans")}
+              className={`px-4 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+                activeTab === "plans"
+                  ? "border-navy text-navy"
+                  : "border-transparent text-slate hover:text-navy"
+              }`}
+            >
+              <Crown size={14} /> Danh mục Gói cước
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("history");
+                loadMyOrders();
+              }}
+              className={`px-4 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+                activeTab === "history"
+                  ? "border-navy text-navy"
+                  : "border-transparent text-slate hover:text-navy"
+              }`}
+            >
+              <History size={14} /> Lịch sử đơn hàng của tôi
+            </button>
+          </div>
+        )}
+
         {/* Body */}
         <div className="p-6">
           {step === "plans" && (
             <div>
-              {/* Credits Balance Banner if user has credits */}
-              {creditSummary && (creditSummary.reviewCredits > 0 || creditSummary.consultationCredits > 0) && (
+              {activeTab === "plans" && (
+                <div>
+                  {/* Credits Balance Banner if user has credits */}
+                  {creditSummary && (creditSummary.reviewCredits > 0 || creditSummary.consultationCredits > 0) && (
                 <div className="mb-5 flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -316,7 +378,115 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
             </div>
           )}
 
-          {step === "checkout" && selectedPlan && (
+          {/* Orders History Tab */}
+          {activeTab === "history" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate/15">
+                <div>
+                  <h4 className="text-sm font-bold text-navy">Lịch sử thanh toán & Đơn hàng PayOS</h4>
+                  <p className="text-xs text-slate mt-0.5">Theo dõi chi tiết các giao dịch mua gói hội viên và lượt tư vấn</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={loadMyOrders}
+                  disabled={isLoadingOrders}
+                  className="text-xs gap-1.5"
+                >
+                  {isLoadingOrders ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
+                  Làm mới
+                </Button>
+              </div>
+
+              {isLoadingOrders ? (
+                <div className="py-16 text-center text-slate flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="animate-spin text-navy" size={26} />
+                  <span className="text-xs">Đang tải lịch sử giao dịch...</span>
+                </div>
+              ) : myOrders.length === 0 ? (
+                <div className="p-8 text-center border-dashed border border-slate/20 rounded-xl">
+                  <Receipt size={36} className="mx-auto text-slate/30 mb-2" />
+                  <p className="text-xs font-bold text-navy">Chưa có giao dịch thanh toán nào</p>
+                  <p className="text-[11px] text-slate mt-1">Khi bạn nâng cấp gói học tập qua PayOS, lịch sử đơn hàng sẽ hiển thị tại đây.</p>
+                  <Button
+                    size="sm"
+                    onClick={() => setActiveTab("plans")}
+                    className="mt-3 text-xs bg-navy text-white hover:bg-navy-light"
+                  >
+                    Khám phá gói học tập
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myOrders.map((o) => {
+                    const isPending = o.status === OrderStatus.Pending;
+                    const isPaid = o.status === OrderStatus.Paid;
+                    const isCancelled = o.status === OrderStatus.Cancelled;
+
+                    return (
+                      <div
+                        key={o.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-slate/15 bg-white hover:border-slate/30 transition shadow-2xs"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-navy">#{o.orderCode}</span>
+                            {isPaid && <Badge tone="green">Đã thanh toán</Badge>}
+                            {isPending && <Badge tone="amber">Chờ thanh toán</Badge>}
+                            {isCancelled && <Badge tone="gray">Đã hủy</Badge>}
+                            {o.status === OrderStatus.Expired && <Badge tone="red">Hết hạn</Badge>}
+                            <span className="text-[11px] text-slate flex items-center gap-1">
+                              <Clock size={11} /> {new Date(o.createdAt).toLocaleString("vi-VN")}
+                            </span>
+                          </div>
+                          <h5 className="font-bold text-sm text-navy">
+                            {o.planName || `Đơn hàng gói học tập #${o.planId}`}
+                          </h5>
+                          <p className="text-xs text-slate font-medium">
+                            Cổng thanh toán: <span className="uppercase font-semibold text-navy">PayOS / VietQR</span>
+                          </p>
+                        </div>
+
+                        <div className="flex sm:flex-col items-end justify-between gap-2">
+                          <span className="font-mono text-base font-extrabold text-navy">
+                            {formatPrice(o.amount, "VNĐ")}
+                          </span>
+
+                          {isPending && (
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setActiveOrder(o);
+                                  const p = plans.find((x) => x.id === o.planId) || plans[1] || plans[0];
+                                  setSelectedPlan(p);
+                                  setStep("checkout");
+                                }}
+                                className="text-[11px] bg-navy text-white hover:bg-navy-light py-1 px-2.5 h-auto"
+                              >
+                                Thanh toán ngay <ArrowRight size={12} />
+                              </Button>
+                              <button
+                                onClick={() => handleCancelOrder(o.id)}
+                                title="Hủy đơn hàng này"
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded"
+                              >
+                                <XCircle size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === "checkout" && selectedPlan && (
             <div className="max-w-2xl mx-auto">
               <button
                 onClick={() => {
