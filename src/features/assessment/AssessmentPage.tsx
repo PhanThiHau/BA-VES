@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck, PhoneCall, MessagesSquare } from "lucide-react";
 import { useState, useEffect } from "react";
 import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
@@ -13,6 +13,7 @@ import {
   type AIPracticeFeedbackDto,
   type FinalSubmissionReportDto,
 } from "../../services/assessmentService";
+import { ConsultationModal } from "../../components/common/ConsultationModal";
 
 const underlyingCompetencies = [
   ["Tư duy phân tích & Giải quyết vấn đề", 78, "Phân biệt rõ ràng giữa sự thật và giả định, nhận diện mâu thuẫn chỉ số KPI giữa Kho và Kế toán"],
@@ -32,6 +33,7 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
   const [loading, setLoading] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isRequestingReview, setIsRequestingReview] = useState(false);
+  const [showConsultationModal, setShowConsultationModal] = useState(false);
 
   const loadAssessment = async () => {
     setLoading(true);
@@ -119,6 +121,13 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             >
               {isRequestingReview ? <Loader2 size={15} className="animate-spin" /> : <ClipboardCheck size={15} />}
               Gửi Chuyên gia
+            </Button>
+            <Button
+              onClick={() => setShowConsultationModal(true)}
+              className="gap-1.5 bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 shadow-sm"
+              title="Đặt lịch hoặc mở phòng trao đổi 1-on-1 trực tiếp với Chuyên gia"
+            >
+              <PhoneCall size={14} /> Trao đổi 1-on-1
             </Button>
             <Button variant="secondary" onClick={handleExportPdf} title="In hoặc lưu hồ sơ đánh giá năng lực dưới dạng file PDF" className="gap-2 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30">
               <Download size={15} /> Xuất báo cáo PDF
@@ -337,6 +346,30 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
         </div>
       </Card>
 
+      {/* 1-on-1 Consultation CTA Banner */}
+      <Card className="mt-6 p-6 border-slate/15 bg-gradient-to-r from-navy/5 via-navy/10 to-brass/10 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-navy text-brass shadow-sm">
+            <PhoneCall size={22} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-navy text-sm">Cần Chuyên gia BA phản biện & phân tích điểm yếu 1-on-1?</h3>
+              <Badge tone="green">Được hỗ trợ trong gói</Badge>
+            </div>
+            <p className="text-xs text-slate mt-1 leading-relaxed">
+              Bạn có thể sử dụng quyền lợi Consultation Credit để đặt lịch thảo luận trực tiếp với Giảng viên / Chuyên gia phản biện bài nộp, làm rõ các lỗi logic và chuẩn hóa tài liệu nghiệp vụ.
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={() => setShowConsultationModal(true)}
+          className="gap-2 bg-navy text-white text-xs font-bold hover:bg-navy-light shrink-0 px-4 py-2.5 shadow-sm"
+        >
+          <MessagesSquare size={15} /> Mở phòng trao đổi 1-on-1
+        </Button>
+      </Card>
+
       {/* Next Experience */}
       <Card className="mt-6 flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between border-slate/15">
         <div className="flex gap-4">
@@ -369,6 +402,13 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
           </Button>
         </div>
       </Card>
+
+      <ConsultationModal
+        isOpen={showConsultationModal}
+        onClose={() => setShowConsultationModal(false)}
+        submissionId={submissionId}
+        reviewRequestId={report?.expertReview?.id || 1}
+      />
     </>
   );
 }
