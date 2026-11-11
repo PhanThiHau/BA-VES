@@ -46,42 +46,11 @@ export function CohortMembersModal({
     setLoading(true);
     try {
       const data = await cohortService.getCohortMembers(cohortNumericId);
-      setMembers(data);
-    } catch (err) {
-      console.warn("Could not fetch cohort members from API, using fallback data:", err);
-      // Fallback mock members
-      setMembers([
-        {
-          id: 1,
-          cohortId: cohortNumericId,
-          learnerId: 101,
-          fullName: "Đặng Hoàng Nam",
-          email: "nam.dang@example.com",
-          avatarUrl: null,
-          status: "Active",
-          joinedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-        },
-        {
-          id: 2,
-          cohortId: cohortNumericId,
-          learnerId: 102,
-          fullName: "Lê Thị Mai Anh",
-          email: "maianh.le@example.com",
-          avatarUrl: null,
-          status: "Active",
-          joinedAt: new Date(Date.now() - 86400000 * 4).toISOString(),
-        },
-        {
-          id: 3,
-          cohortId: cohortNumericId,
-          learnerId: 103,
-          fullName: "Trần Quốc Bảo",
-          email: "bao.tran@example.com",
-          avatarUrl: null,
-          status: "Active",
-          joinedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-        },
-      ]);
+      setMembers(data || []);
+    } catch (err: any) {
+      console.warn("Could not fetch cohort members from API:", err);
+      setMembers([]);
+      setStatusMessage({ type: "error", text: err?.message || "Không thể tải danh sách học viên từ server." });
     } finally {
       setLoading(false);
     }
@@ -111,21 +80,7 @@ export function CohortMembersModal({
       setStatusMessage({ type: "success", text: `Đã thêm thành công học viên ${res.fullName || singleEmail}!` });
       onMembersUpdated?.();
     } catch (err: any) {
-      console.warn("API error adding member, adding locally:", err);
-      const newMock: CohortMemberDto = {
-        id: Date.now(),
-        cohortId: cohortNumericId,
-        learnerId: 200 + members.length,
-        fullName: singleEmail.split("@")[0].replace(".", " ").toUpperCase(),
-        email: singleEmail.trim(),
-        avatarUrl: null,
-        status: "Active",
-        joinedAt: new Date().toISOString(),
-      };
-      setMembers((prev) => [newMock, ...prev]);
-      setSingleEmail("");
-      setStatusMessage({ type: "success", text: `Đã thêm học viên ${singleEmail} vào lớp!` });
-      onMembersUpdated?.();
+      setStatusMessage({ type: "error", text: err?.message || `Không thể thêm học viên ${singleEmail}.` });
     } finally {
       setSubmitting(false);
     }
@@ -155,23 +110,8 @@ export function CohortMembersModal({
       setBatchEmails("");
       setIsBatchMode(false);
       onMembersUpdated?.();
-    } catch (err) {
-      console.warn("Batch API failed, adding locally:", err);
-      const newMocks: CohortMemberDto[] = emailsList.map((em, idx) => ({
-        id: Date.now() + idx,
-        cohortId: cohortNumericId,
-        learnerId: 300 + idx,
-        fullName: em.split("@")[0].toUpperCase(),
-        email: em,
-        avatarUrl: null,
-        status: "Active",
-        joinedAt: new Date().toISOString(),
-      }));
-      setMembers((prev) => [...newMocks, ...prev]);
-      setBatchEmails("");
-      setIsBatchMode(false);
-      setStatusMessage({ type: "success", text: `Đã thêm hàng loạt ${emailsList.length} học viên!` });
-      onMembersUpdated?.();
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: err?.message || "Lỗi khi thêm danh sách học viên hàng loạt." });
     } finally {
       setSubmitting(false);
     }
@@ -186,11 +126,8 @@ export function CohortMembersModal({
       setMembers((prev) => prev.filter((m) => m.learnerId !== learnerId));
       setStatusMessage({ type: "success", text: `Đã xóa học viên ${memberName} khỏi lớp.` });
       onMembersUpdated?.();
-    } catch (err) {
-      console.warn("Remove member API failed, removing locally:", err);
-      setMembers((prev) => prev.filter((m) => m.learnerId !== learnerId));
-      setStatusMessage({ type: "success", text: `Đã xóa học viên khỏi danh sách lớp.` });
-      onMembersUpdated?.();
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: err?.message || "Không thể xóa học viên khỏi lớp." });
     }
   };
 

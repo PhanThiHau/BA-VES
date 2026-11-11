@@ -50,83 +50,10 @@ export function ReviewCaseDossierModal({
         }
       })
       .catch((err) => {
-        console.warn("Could not fetch case dossier from API, using fallback data:", err);
+        console.warn("Could not fetch case dossier from API:", err);
         if (isMounted) {
-          setErrorNote("Hệ thống hiển thị bản lưu hồ sơ kiểm thử cục bộ cho bài này.");
-          setDossier({
-            reviewRequestId: numericId,
-            submissionId: 100 + numericId,
-            sessionId: 200 + numericId,
-            learnerId: 300 + numericId,
-            status: reviewItem.status,
-            requestNote:
-              "Học viên đề nghị phúc khảo kết quả AI đánh giá phần đặc tả BRD và biên bản phỏng vấn.",
-            requestedAt: new Date().toISOString(),
-            artifact: {
-              id: 1,
-              artifactId: 1,
-              versionNumber: 2,
-              structuredContentJson: JSON.stringify(
-                {
-                  title: `Tài liệu BRD - ${reviewItem.scenarioTitle}`,
-                  summary: reviewItem.issueSummary,
-                  scope: "Quản lý luồng xử lý hàng hoàn và kiểm soát số liệu tồn kho thực tế.",
-                  deliverables: reviewItem.deliverablesSubmitted,
-                },
-                null,
-                2
-              ),
-              plainTextContent: `# TÀI LIỆU YÊU CẦU NGHIỆP VỤ (BRD)\n\n## 1. Giới thiệu tổng quan\nBài tập: ${reviewItem.scenarioTitle}\nHọc viên: ${reviewItem.learner} (${reviewItem.cohort})\n\n## 2. Vấn đề cốt lõi đã nhận diện\n${reviewItem.issueSummary}\n\n## 3. Các thành phẩm bàn giao\n${reviewItem.deliverablesSubmitted.map((d) => `- ${d}`).join("\n")}`,
-              createdAt: new Date().toISOString(),
-            },
-            plan: {
-              id: 1,
-              sessionId: 200 + numericId,
-              scopeSummary: "Kế hoạch phỏng vấn các stakeholder chính: Trưởng kho, Kế toán trưởng, Quản trị hệ thống",
-              plannedQuestions: [
-                "Quy trình xử lý hiện tại khi có khách trả hàng tại quầy hoặc gửi bưu điện?",
-                "Thời điểm ghi nhận giảm tồn trên phần mềm so với thời điểm hàng về tới kho?",
-                "Các điểm thắt cổ chai gây chậm trễ cập nhật số dư kho?",
-              ],
-            },
-            analysisItems: [
-              {
-                id: 1,
-                sessionId: 200 + numericId,
-                category: "Yêu cầu chức năng",
-                code: "FR-01",
-                title: "Tự động ghi nhận phiếu nhập hàng hoàn khi quét mã barcode",
-                description:
-                  "Thủ kho quét mã đơn hàng trả lại sẽ tự động sinh phiếu kiểm tra và đẩy vào trạng thái chờ phân loại.",
-                status: "Đã xác minh",
-              },
-              {
-                id: 2,
-                sessionId: 200 + numericId,
-                category: "Quy tắc nghiệp vụ",
-                code: "BR-02",
-                title: "Quy tắc cách ly sản phẩm lỗi hỏng",
-                description:
-                  "Sản phẩm hỏng bao bì phải được chuyển vào kho cách ly trong vòng 2 giờ kể từ khi quét mã nhận hàng.",
-                status: "Đã xác minh",
-              },
-            ],
-            rubricCriteria: (reviewItem.criteria || []).map((c, idx) => ({
-              id: idx + 1,
-              rubricId: 1,
-              babokTaskId: idx + 1,
-              babokTaskCode: c.babokArea,
-              babokTaskName: c.babokArea,
-              code: `CRIT-0${idx + 1}`,
-              name: c.name,
-              description: `Tiêu chí thẩm định năng lực: ${c.name}`,
-              weight: c.weight,
-              maxScore: 100,
-              evidenceGuidance: c.aiEvidenceQuote,
-              displayOrder: idx + 1,
-              isRequired: true,
-            })),
-          });
+          setDossier(null);
+          setErrorNote(err?.message || "Không thể tải hồ sơ kiểm thử từ máy chủ Backend.");
         }
       })
       .finally(() => {

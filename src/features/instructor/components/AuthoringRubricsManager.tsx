@@ -25,82 +25,6 @@ interface AuthoringRubricsManagerProps {
   scenarioVersionId?: number;
 }
 
-const DEFAULT_MOCK_RUBRICS: RubricDetailDto[] = [
-  {
-    id: 1,
-    scenarioVersionId: 1,
-    createdByUserId: 1,
-    name: "Bộ tiêu chí thẩm định kỹ năng khơi gợi & đặc tả BRD",
-    version: 1,
-    description: "Áp dụng đánh giá năng lực phỏng vấn stakeholder, trích xuất dữ liệu và viết tài liệu yêu cầu chuẩn BABOK v3",
-    status: "Published",
-    createdAt: new Date().toISOString(),
-    updatedAt: null,
-    criteria: [
-      {
-        id: 1,
-        rubricId: 1,
-        babokTaskId: 1,
-        babokTaskCode: "ELICIT",
-        babokTaskName: "Elicitation & Collaboration",
-        code: "CRIT-01",
-        name: "Kỹ năng khơi gợi thông tin & đặt câu hỏi mở",
-        description: "Học viên sử dụng câu hỏi mở và đào sâu nguyên nhân gốc rễ vấn đề hàng hoàn lệch số liệu.",
-        weight: 25,
-        maxScore: 100,
-        evidenceGuidance: "Kiểm tra log phỏng vấn có ít nhất 3 câu hỏi tiếp nối làm rõ số dư tồn kho.",
-        displayOrder: 1,
-        isRequired: true,
-      },
-      {
-        id: 2,
-        rubricId: 1,
-        babokTaskId: 2,
-        babokTaskCode: "STAKEHOLDER",
-        babokTaskName: "Stakeholder Engagement",
-        code: "CRIT-02",
-        name: "Hòa giải mâu thuẫn giữa Kho và Kế toán",
-        description: "Xử lý xung đột mục tiêu tốc độ soạn hàng và nguyên tắc phân tách nhiệm vụ kiểm toán.",
-        weight: 25,
-        maxScore: 100,
-        evidenceGuidance: "Biên bản BRD ghi nhận phương án đồng thuận từ cả 2 bên.",
-        displayOrder: 2,
-        isRequired: true,
-      },
-      {
-        id: 3,
-        rubricId: 1,
-        babokTaskId: 3,
-        babokTaskCode: "TRACE",
-        babokTaskName: "Requirements Life Cycle",
-        code: "CRIT-03",
-        name: "Ma trận truy vết yêu cầu (Traceability Matrix)",
-        description: "Tất cả yêu cầu phần mềm đều được ánh xạ về mục tiêu kinh doanh và biên bản họp.",
-        weight: 25,
-        maxScore: 100,
-        evidenceGuidance: "Mục 4 của tài liệu BRD có bảng đối chiếu ID yêu cầu.",
-        displayOrder: 3,
-        isRequired: true,
-      },
-      {
-        id: 4,
-        rubricId: 1,
-        babokTaskId: 4,
-        babokTaskCode: "QUALITY",
-        babokTaskName: "Requirements Analysis",
-        code: "CRIT-04",
-        name: "Tính hoàn thiện & Nhất quán của tài liệu BRD",
-        description: "Tài liệu không bị mâu thuẫn logic, có sơ đồ quy trình và ca kiểm thử rõ ràng.",
-        weight: 25,
-        maxScore: 100,
-        evidenceGuidance: "Không có lỗi logic trong luồng trả hàng đối ứng.",
-        displayOrder: 4,
-        isRequired: true,
-      },
-    ],
-  },
-];
-
 export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubricsManagerProps) {
   const [rubrics, setRubrics] = useState<RubricDetailDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -118,14 +42,10 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
     setLoading(true);
     try {
       const data = await assessmentService.getRubrics(scenarioVersionId);
-      if (data && data.length > 0) {
-        setRubrics(data);
-      } else {
-        setRubrics(DEFAULT_MOCK_RUBRICS);
-      }
+      setRubrics(data || []);
     } catch (err) {
-      console.warn("Could not fetch rubrics from API, using fallback data:", err);
-      setRubrics(DEFAULT_MOCK_RUBRICS);
+      console.warn("Could not fetch rubrics from API:", err);
+      setRubrics([]);
     } finally {
       setLoading(false);
     }
@@ -257,68 +177,7 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
       }
       setModalMode(null);
     } catch (err: any) {
-      console.warn("API operation failed, saving locally:", err);
-      // Fallback local update
-      if (modalMode === "create") {
-        const fakeId = Date.now();
-        const newRubric: RubricDetailDto = {
-          id: fakeId,
-          scenarioVersionId,
-          createdByUserId: 1,
-          name: rubricName,
-          version: 1,
-          description: rubricDesc,
-          status: "Draft",
-          createdAt: new Date().toISOString(),
-          updatedAt: null,
-          criteria: criteriaList.map((c, i) => ({
-            id: i + 1,
-            rubricId: fakeId,
-            babokTaskId: c.babokTaskId,
-            babokTaskCode: null,
-            babokTaskName: null,
-            code: c.code,
-            name: c.name,
-            description: c.description,
-            weight: c.weight,
-            maxScore: c.maxScore,
-            evidenceGuidance: c.evidenceGuidance || null,
-            displayOrder: c.displayOrder || i + 1,
-            isRequired: c.isRequired ?? true,
-          })),
-        };
-        setRubrics((prev) => [newRubric, ...prev]);
-        showToast(`Đã tạo bộ Rubric bản nháp "${rubricName}"!`);
-      } else if (modalMode === "edit" && editingRubricId) {
-        setRubrics((prev) =>
-          prev.map((r) =>
-            r.id === editingRubricId
-              ? {
-                  ...r,
-                  name: rubricName,
-                  description: rubricDesc,
-                  criteria: criteriaList.map((c, i) => ({
-                    id: i + 1,
-                    rubricId: editingRubricId,
-                    babokTaskId: c.babokTaskId,
-                    babokTaskCode: null,
-                    babokTaskName: null,
-                    code: c.code,
-                    name: c.name,
-                    description: c.description,
-                    weight: c.weight,
-                    maxScore: c.maxScore,
-                    evidenceGuidance: c.evidenceGuidance || null,
-                    displayOrder: c.displayOrder || i + 1,
-                    isRequired: c.isRequired ?? true,
-                  })),
-                }
-              : r
-          )
-        );
-        showToast(`Đã lưu thay đổi cho Rubric "${rubricName}"!`);
-      }
-      setModalMode(null);
+      alert(`Lỗi khi lưu Rubric: ${err?.message || "Không xác định"}`);
     } finally {
       setSubmitting(false);
     }
@@ -329,13 +188,11 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
       return;
     }
     try {
-      const res = await assessmentService.publishRubric(rubricId);
+      await assessmentService.publishRubric(rubricId);
       showToast(`Đã phát hành Rubric #${rubricId} thành công (POST /api/rubrics/${rubricId}/publish)!`);
       setRubrics((prev) => prev.map((r) => (r.id === rubricId ? { ...r, status: "Published" } : r)));
-    } catch (err) {
-      console.warn("Could not publish via API, updating status locally:", err);
-      setRubrics((prev) => prev.map((r) => (r.id === rubricId ? { ...r, status: "Published" } : r)));
-      showToast(`Đã phát hành chính thức Rubric #${rubricId}!`);
+    } catch (err: any) {
+      alert(`Lỗi khi phát hành Rubric: ${err?.message || "Không xác định"}`);
     }
   };
 
@@ -371,6 +228,10 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
           <Loader2 size={24} className="animate-spin text-[#2f638c]" />
           <span>Đang tải danh sách Rubrics...</span>
         </div>
+      ) : rubrics.length === 0 ? (
+        <Card className="p-8 text-center border-dashed border-[#d9e4ec] text-xs text-[#667d93]">
+          Chưa có bộ Rubric nào được cấu hình cho phiên bản kịch bản này.
+        </Card>
       ) : (
         <div className="space-y-6">
           {rubrics.map((rubric) => {

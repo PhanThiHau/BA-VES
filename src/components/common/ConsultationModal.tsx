@@ -121,13 +121,7 @@ export function ConsultationModal({
       const res = await commerceService.getMyCreditsSummary();
       setCredits(res);
     } catch {
-      setCredits({
-        userId: 1,
-        reviewCredits: 3,
-        consultationCredits: 2,
-        lastUpdated: new Date().toISOString(),
-        recentLedgers: [],
-      });
+      setCredits(null);
     }
   };
 
@@ -201,8 +195,7 @@ export function ConsultationModal({
     try {
       const sentMsg = await bookingService.sendMessage(
         selectedBooking.id,
-        textToSend,
-        isExpertMode ? "Instructor" : "Learner"
+        textToSend
       );
       setMessages((prev) => [...prev, sentMsg]);
     } catch (err: any) {

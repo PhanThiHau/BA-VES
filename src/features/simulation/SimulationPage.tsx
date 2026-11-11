@@ -24,8 +24,6 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { ProgressBar } from "../../components/ui/ProgressBar";
-import { stakeholders } from "../../constants/scenario";
-import { coachPrompts, evidenceRegister } from "../../constants/trainingScenario";
 import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
@@ -35,54 +33,9 @@ import {
   type SessionEventDto,
   type ScenarioEventAvailabilityDto,
   type SessionHistoryItemDto,
-  type SessionDto,
 } from "../../services/simulationService";
 
-const notesByStakeholder: Record<string, string> = {
-  warehouse:
-    "• Lấy hàng theo đợt (Wave picking): 8h, 13h, 17h\n• Hàng trả về nằm tại khu cách ly (quarantine), chỉ cập nhật số lượng cuối ca\n• Khu vực B thường xuyên mất kết nối Wi-Fi; máy quét gửi trễ dễ tạo bản ghi trùng lặp\n\nCâu hỏi mở: Cam kết SLA kiểm định chất lượng (QC) cho hàng trả là bao lâu?",
-  planner:
-    "• Dự báo nhu cầu 8 tuần và định mức min-max hiện lập trên file Excel cá nhân\n• Có quy tắc ngầm: Kiểm tra kho dư thừa trước khi tạo PO mua sắm mới\n• Chưa có công thức tính safety stock cho giai đoạn khuyến mãi lớn\n\nCâu hỏi mở: Cách tính safety stock khi có khuyến mãi chuỗi?",
-  finance:
-    "• Yêu cầu kiểm toán khắt khe: Lưu rõ người thực hiện, người duyệt, thời gian, lý do, số lượng trước/sau\n• Phân quyền duyệt: < 10tr hệ thống tự động; 10–50tr Trưởng kho; > 50tr Giám đốc Tài chính\n\nCâu hỏi mở: Xử lý thế nào với điều chỉnh tồn kho khi đã khóa sổ kế toán tháng?",
-  supply:
-    "• Thử nghiệm tại 3 kho miền Nam trong vòng 3 tháng\n• Chỉ tiêu KPI: Tỷ lệ đứt hàng (stockout) < 5%; Tỷ lệ đáp ứng (fill rate) >= 96%\n• Mức tăng chi phí lưu kho không vượt quá 8%\n\nCâu hỏi mở: Ai có thẩm quyền ghi đè (override) quyết định chuyển kho?",
-  operator:
-    "• Khi mất mạng Wifi: Ghi giấy tạm → nhập bổ sung sau ca gây trễ dữ liệu\n• Màn hình máy quét cũ không hiển thị danh sách giao dịch đang chờ đồng bộ\n\nCâu hỏi mở: Model thiết bị quét mã vạch hiện tại và tần suất rớt mạng?",
-  sponsor:
-    "• Thời gian triển khai MVP 6 tháng / Ngân sách tối đa 4 tỷ VNĐ\n• Cam kết không thay đổi hệ thống POS cửa hàng và không làm gián đoạn vận hành kho\n\nCâu hỏi mở: Tiêu chí dừng dự án (stop criteria) là gì?",
-};
-
-const suggestedQuickPrompts: Record<string, string[]> = {
-  warehouse: [
-    "Khu vực cách ly (quarantine) mất bao lâu để kiểm định hàng trả về?",
-    "Khi máy quét rớt Wi-Fi, nhân viên xử lý đơn giao dịch thế nào?",
-    "Số liệu tồn khả dụng (ATP) tại kho được cập nhật tức thời hay theo lô?",
-  ],
-  planner: [
-    "Quy tắc ưu tiên điều chuyển tồn kho nội bộ trước khi tạo PO mua mới là gì?",
-    "File Excel dự báo hiện lấy dữ liệu từ những nguồn nào?",
-    "Làm sao anh cân bằng giữa chi phí vận chuyển liên kho và chi phí mua mới?",
-  ],
-  finance: [
-    "Hạn mức duyệt sai lệch tồn kho được quy định cụ thể như thế nào?",
-    "Nếu điều chỉnh tồn kho rơi vào kỳ đã khóa sổ kế toán thì xử lý ra sao?",
-    "Yêu cầu về bằng chứng kiểm toán (audit trail) bắt buộc những trường nào?",
-  ],
-  supply: [
-    "Tiêu chí thành công chính của giai đoạn thử nghiệm (Pilot) là gì?",
-    "Trường hợp có mâu thuẫn về điều chuyển hàng, ai là người quyết định cuối?",
-    "Kế hoạch đo lường mức độ ảnh hưởng đến chi phí lưu kho sau triển khai?",
-  ],
-  operator: [
-    "Màn hình máy quét có cảnh báo khi đơn hàng chưa đồng bộ lên WMS không?",
-    "Quy trình ghi chép sổ giấy khi mất mạng có dễ gây nhầm lẫn số lượng không?",
-  ],
-  sponsor: [
-    "Ràng buộc về ngân sách và thời gian triển khai có thể linh hoạt không?",
-    "Tiêu chí nghiệm thu quan trọng nhất đối với Ban Giám đốc là gì?",
-  ],
-};
+const avatarPalette = ["#dbeafe", "#fef3c7", "#d1fae5", "#fae8ff", "#ffe4e6", "#e0e7ff"];
 
 export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const {
@@ -94,11 +47,14 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     setEventOpen,
     isReplying,
     activeAgents,
+    setActiveAgents,
     currentSessionId,
     setCurrentSessionId,
     loadAgentMessages,
     toggleEvidence,
   } = useApp();
+
+  const [notesMap, setNotesMap] = useState<Record<string, string>>({});
 
   const [draft, setDraft] = useState("");
   // Voice Speech-to-Text state
@@ -154,10 +110,65 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const active = stakeholders.find((person) => person.id === activeStakeholderId) ?? stakeholders[0];
-  const activeEvidence = evidenceRegister.filter((item) => item.stakeholderId === active.id);
-  const prompts = coachPrompts[active.id] ?? [];
-  const quickPrompts = suggestedQuickPrompts[active.id] ?? [];
+  const displayStakeholders = activeAgents.map((agent, idx) => {
+    const parts = (agent.name || "AI").trim().split(" ");
+    const initials =
+      parts.length >= 2
+        ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+        : (agent.name || "AI").slice(0, 2).toUpperCase();
+    return {
+      id: String(agent.id),
+      agentId: agent.id,
+      name: agent.name,
+      role: agent.stakeholderRole,
+      focus: `Tin cậy: ${agent.trustLevel}/100 · Hợp tác: ${agent.cooperationLevel}/100`,
+      initials,
+      color: avatarPalette[idx % avatarPalette.length],
+      status: "available" as const,
+    };
+  });
+
+  const active = displayStakeholders.find(
+    (person) =>
+      person.id === activeStakeholderId ||
+      person.role.toLowerCase().includes(activeStakeholderId.toLowerCase()) ||
+      person.name.toLowerCase().includes(activeStakeholderId.toLowerCase())
+  ) ||
+    displayStakeholders[0] || {
+      id: "none",
+      agentId: 0,
+      name: "Chưa có nhân vật AI",
+      role: "Chưa bắt đầu phiên",
+      focus: "Vui lòng chọn kịch bản từ thư viện để khởi tạo phòng phỏng vấn",
+      initials: "AI",
+      color: "#e2e8f0",
+      status: "unavailable" as const,
+    };
+
+  const activeEvidence = messages
+    .filter((m) => m.evidence)
+    .map((m) => ({
+      id: `EV-${m.id}`,
+      quote: m.text,
+      category: "Phỏng vấn AI",
+      source: `${active.name} (${m.time})`,
+      confidence: "Cao",
+    }));
+
+  // Tải danh sách agents nếu có session mà activeAgents rỗng
+  useEffect(() => {
+    if (currentSessionId && activeAgents.length === 0) {
+      simulationService
+        .getSessionAgents(currentSessionId)
+        .then((agents) => {
+          if (agents && agents.length > 0) {
+            setActiveAgents(agents);
+            setActiveStakeholderId(String(agents[0].id));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [currentSessionId]);
 
   // Tải tin nhắn của agent đang chọn
   useEffect(() => {
@@ -165,6 +176,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
       const agent =
         activeAgents.find(
           (a) =>
+            String(a.id) === activeStakeholderId ||
             a.stakeholderRole?.toLowerCase().includes(activeStakeholderId.toLowerCase()) ||
             a.name?.toLowerCase().includes(activeStakeholderId.toLowerCase())
         ) || activeAgents[0];
@@ -210,7 +222,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     }
   };
 
-  const handleSelectStakeholder = (person: (typeof stakeholders)[0]) => {
+  const handleSelectStakeholder = (person: { id: string }) => {
     setActiveStakeholderId(person.id);
   };
 
@@ -406,40 +418,40 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1 xl:flex-col xl:overflow-visible">
-              {stakeholders.map((person) => (
-                <button
-                  key={person.id}
-                  onClick={() => handleSelectStakeholder(person)}
-                  className={classNames(
-                    "group relative flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
-                    person.id === active.id
-                      ? "border-navy bg-white shadow-sm ring-1 ring-navy/10"
-                      : "border-transparent hover:bg-white/80"
-                  )}
-                >
-                  <span
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-navy shadow-xs"
-                    style={{ backgroundColor: person.color }}
+              {displayStakeholders.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate/20 bg-white p-4 text-center text-xs text-slate">
+                  Chưa có nhân vật AI trong phiên này. Hãy chọn kịch bản từ thư viện để khởi tạo.
+                </div>
+              ) : (
+                displayStakeholders.map((person) => (
+                  <button
+                    key={person.id}
+                    onClick={() => handleSelectStakeholder(person)}
+                    className={classNames(
+                      "group relative flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
+                      person.id === active.id
+                        ? "border-navy bg-white shadow-sm ring-1 ring-navy/10"
+                        : "border-transparent hover:bg-white/80"
+                    )}
                   >
-                    {person.initials}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-xs font-bold text-navy">
-                      {person.name}
-                    </strong>
-                    <small className="block truncate text-[11px] text-slate">
-                      {person.role}
-                    </small>
-                  </span>
-                  {person.status === "interviewed" ? (
-                    <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                      <Check size={11} />
+                    <span
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-navy shadow-xs"
+                      style={{ backgroundColor: person.color }}
+                    >
+                      {person.initials}
                     </span>
-                  ) : (
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  )}
-                </button>
-              ))}
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-xs font-bold text-navy">
+                        {person.name}
+                      </strong>
+                      <small className="block truncate text-[11px] text-slate">
+                        {person.role}
+                      </small>
+                    </span>
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  </button>
+                ))
+              )}
             </div>
 
             {/* Mission Progress Checklist */}
@@ -450,11 +462,11 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               <div className="mt-3 space-y-2">
                 <div>
                   <div className="flex justify-between text-xs text-slate">
-                    <span>Số stakeholder đã hỏi:</span>
-                    <strong className="text-navy">{activeAgents.length || 6} người</strong>
+                    <span>Tổng số nhân vật AI:</span>
+                    <strong className="text-navy">{activeAgents.length} người</strong>
                   </div>
                   <div className="mt-1.5">
-                    <ProgressBar value={75} />
+                    <ProgressBar value={activeAgents.length > 0 ? Math.min(100, messages.length * 10) : 0} />
                   </div>
                 </div>
                 <div className="pt-2 text-[11px] text-slate">
@@ -546,24 +558,6 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               )}
             </div>
 
-            {/* Quick Prompts Chips */}
-            {quickPrompts.length > 0 && (
-              <div className="border-t border-slate/10 bg-white/80 px-3 py-1.5">
-                <div className="flex items-center gap-2 overflow-x-auto text-[11px]">
-                  <span className="shrink-0 font-bold text-slate">Gợi ý câu hỏi:</span>
-                  {quickPrompts.map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => setDraft(q)}
-                      className="shrink-0 rounded-full border border-slate/20 bg-mist/20 px-2.5 py-1 text-slate transition hover:border-navy hover:bg-white hover:text-navy"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Text Input Area */}
             <div className="shrink-0 border-t border-slate/15 bg-white p-3">
               <div className="flex items-end gap-2 rounded-xl border border-slate/20 bg-[#fafcfd] p-1.5 focus-within:border-navy focus-within:ring-1 focus-within:ring-navy/20">
@@ -649,8 +643,10 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                 <>
                   <textarea
                     key={active.id}
+                    value={notesMap[active.id] || ""}
+                    onChange={(e) => setNotesMap((prev) => ({ ...prev, [active.id]: e.target.value }))}
+                    placeholder={`Ghi chú nhanh nội dung phỏng vấn với ${active.name}...`}
                     className="min-h-32 w-full rounded-xl border border-slate/20 bg-white p-3 text-xs leading-5 text-navy outline-none focus:border-navy"
-                    defaultValue={notesByStakeholder[active.id]}
                   />
 
                   {/* AI Coach Feedback Section */}
@@ -746,45 +742,9 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                         </div>
                       </div>
                     ) : (
-                      // Fallback hiển thị mẫu trước khi bấm xin nhận xét
-                      <div className="space-y-2">
-                        {prompts.map((prompt) => (
-                          <div
-                            key={prompt.type}
-                            className={classNames(
-                              "rounded-xl p-3 border",
-                              prompt.type === "strength"
-                                ? "border-emerald-200 bg-emerald-50/50"
-                                : prompt.type === "gap"
-                                ? "border-amber-200 bg-amber-50/50"
-                                : "border-slate/15 bg-white"
-                            )}
-                          >
-                            <div className="flex gap-2">
-                              <Lightbulb
-                                size={14}
-                                className={classNames(
-                                  "mt-0.5 shrink-0",
-                                  prompt.type === "strength"
-                                    ? "text-emerald-700"
-                                    : prompt.type === "gap"
-                                    ? "text-amber-700"
-                                    : "text-navy"
-                                )}
-                              />
-                              <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate">
-                                  {prompt.type === "strength"
-                                    ? "Điểm mạnh phỏng vấn"
-                                    : prompt.type === "gap"
-                                    ? "Lỗ hổng phân tích"
-                                    : "Gợi ý đào sâu tiếp theo"}
-                                </p>
-                                <p className="mt-1 text-xs leading-5 text-navy/90">{prompt.text}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="rounded-xl border border-dashed border-slate/20 bg-white p-4 text-center text-xs text-slate">
+                        <Lightbulb size={18} className="mx-auto mb-1.5 text-amber-500/70" />
+                        Chưa có nhận xét từ AI Coach. Hãy bấm <strong>&quot;Xin nhận xét&quot;</strong> sau khi trao đổi vài câu hỏi với Stakeholder.
                       </div>
                     )}
                   </div>

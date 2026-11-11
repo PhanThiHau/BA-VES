@@ -39,93 +39,6 @@ interface Deliverable {
   required: boolean;
 }
 
-const deliverables: Deliverable[] = [
-  {
-    id: "DEL-01",
-    title: "Kế hoạch Phân tích Nghiệp vụ (BA Plan)",
-    purpose: "Phương pháp tiếp cận BA, kế hoạch gắn kết Stakeholder, quy chế quản trị và quản lý thông tin.",
-    files: "BA_Plan_v1.1.docx",
-    formats: "DOCX · PDF",
-    version: "v1.1",
-    status: "approved",
-    evidence: "Đầy đủ",
-    reviewer: "Giảng viên hướng dẫn",
-    required: true,
-  },
-  {
-    id: "DEL-02",
-    title: "Tài liệu Yêu cầu Nghiệp vụ (BRD)",
-    purpose: "Bài toán của VinaSupply, mục tiêu kinh doanh, phạm vi dự án, nhu cầu của các bên và yêu cầu mức cao.",
-    files: "BRD_Inventory_v1.2.docx",
-    formats: "DOCX · PDF",
-    version: "v1.2",
-    status: "needs-revision",
-    evidence: "7/9 bằng chứng",
-    reviewer: "AI Reviewer + Sponsor",
-    required: true,
-  },
-  {
-    id: "DEL-03",
-    title: "Mô hình quy trình BPMN Hiện trạng & Tương lai",
-    purpose: "Quy trình bổ sung tồn kho hiện tại (As-Is) và tương lai (To-Be), điểm kiểm soát và xử lý ngoại lệ.",
-    files: "Replenishment_Process.drawio · .pdf",
-    formats: "DRAWIO + PDF/PNG",
-    version: "v1.0",
-    status: "ai-reviewed",
-    evidence: "4/4 phát hiện",
-    reviewer: "Trưởng kho vận",
-    required: true,
-  },
-  {
-    id: "DEL-04",
-    title: "Đặc tả danh mục Yêu cầu Phần mềm (URD / SRS)",
-    purpose: "Phân loại yêu cầu nghiệp vụ, yêu cầu các bên liên quan, chức năng, phi chức năng và chuyển giao.",
-    files: "Requirements_Catalogue.xlsx",
-    formats: "XLSX · DOCX · PDF",
-    version: "v1.1",
-    status: "needs-revision",
-    evidence: "8/9 bằng chứng",
-    reviewer: "AI Reviewer + Product Owner",
-    required: true,
-  },
-  {
-    id: "DEL-05",
-    title: "Ma trận truy vết yêu cầu (RTM)",
-    purpose: "Liên kết chuỗi: Mục tiêu → Bằng chứng → Yêu cầu → Tiêu chí nghiệm thu → Chỉ số KPI.",
-    files: "RTM_Inventory_v1.0.xlsx",
-    formats: "XLSX · CSV",
-    version: "v1.0",
-    status: "ai-reviewed",
-    evidence: "4/5 yêu cầu",
-    reviewer: "AI Reviewer",
-    required: true,
-  },
-  {
-    id: "DEL-06",
-    title: "Báo cáo Đánh giá Giải pháp & Thay đổi",
-    purpose: "Phân tích tác động sự cố nhà cung ứng trễ hàng, so sánh phương án và kế hoạch đo lường giá trị MVP.",
-    files: "Chưa tải lên",
-    formats: "DOCX · PDF",
-    version: "—",
-    status: "missing",
-    evidence: "0/3 quyết định",
-    reviewer: "Giám đốc Vận hành + Giảng viên",
-    required: true,
-  },
-  {
-    id: "DEL-07",
-    title: "Mô hình giao diện Wireframe / Prototype",
-    purpose: "Minh họa màn hình hiển thị tồn kho đa kênh và gợi ý điều chuyển hàng nội bộ cho người dùng.",
-    files: "Figma link",
-    formats: "FIGMA URL · PDF · PNG",
-    version: "v0.3",
-    status: "ai-reviewed",
-    evidence: "Tùy chọn",
-    reviewer: "Chuyên viên Kế hoạch",
-    required: false,
-  },
-];
-
 const statusBadge = (status: DeliverableStatus) => {
   if (status === "approved") return <Badge tone="green">Đã phê duyệt</Badge>;
   if (status === "needs-revision") return <Badge tone="amber">Cần sửa đổi</Badge>;
@@ -136,8 +49,8 @@ const statusBadge = (status: DeliverableStatus) => {
 export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { currentSessionId } = useApp();
   const [tab, setTab] = useState<Tab>("Gói tài liệu bàn giao");
-  const [selectedId, setSelectedId] = useState("DEL-02");
-  const [deliverablesList, setDeliverablesList] = useState<Deliverable[]>(deliverables);
+  const [selectedId, setSelectedId] = useState("");
+  const [deliverablesList, setDeliverablesList] = useState<Deliverable[]>([]);
   const [backendArtifacts, setBackendArtifacts] = useState<ArtifactDto[]>([]);
   const [templates, setTemplates] = useState<ArtifactTemplateDto[]>([]);
   const [submissions, setSubmissions] = useState<SubmissionDto[]>([]);
@@ -146,47 +59,88 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
 
   // Tải danh sách templates và artifacts thực tế từ backend
   const loadArtifactsData = async () => {
+    setIsLoading(true);
     try {
-      const tmpls = await artifactService.getTemplates();
-      setTemplates(tmpls);
-    } catch (e) {
-      console.warn("Could not load templates:", e);
-    }
+      const [tmplsRes, artsRes, subsRes] = await Promise.allSettled([
+        artifactService.getTemplates(),
+        currentSessionId ? artifactService.getSessionArtifacts(currentSessionId) : Promise.resolve([]),
+        currentSessionId ? artifactService.getSessionSubmissions(currentSessionId) : Promise.resolve([]),
+      ]);
 
-    if (currentSessionId) {
-      try {
-        setIsLoading(true);
-        const [arts, subs] = await Promise.allSettled([
-          artifactService.getSessionArtifacts(currentSessionId),
-          artifactService.getSessionSubmissions(currentSessionId),
-        ]);
-        if (arts.status === "fulfilled" && arts.value.length > 0) {
-          setBackendArtifacts(arts.value);
-          setDeliverablesList((prev) =>
-            prev.map((item) => {
-              const found = arts.value.find(
-                (a) => a.templateCode === item.id || a.title.includes(item.id)
-              );
-              if (found) {
-                return {
-                  ...item,
-                  version: `v${found.currentVersionNo}.0`,
-                  status: found.status === "Submitted" ? "ai-reviewed" : "needs-revision",
-                  files: `${found.templateCode}_v${found.currentVersionNo}.0.json`,
-                };
-              }
-              return item;
-            })
-          );
+      const tmpls = tmplsRes.status === "fulfilled" && Array.isArray(tmplsRes.value) ? tmplsRes.value : [];
+      const arts = artsRes.status === "fulfilled" && Array.isArray(artsRes.value) ? artsRes.value : [];
+      const subs = subsRes.status === "fulfilled" && Array.isArray(subsRes.value) ? subsRes.value : [];
+
+      setTemplates(tmpls);
+      setBackendArtifacts(arts);
+      setSubmissions(subs);
+
+      // Map real artifacts + uninstantiated templates into Deliverables list
+      const mapped: Deliverable[] = [];
+      const matchedArtIds = new Set<number>();
+
+      for (const tmpl of tmpls) {
+        const found = arts.find(
+          (a) => a.artifactTemplateId === tmpl.id || a.templateCode === tmpl.artifactType
+        );
+        if (found) {
+          matchedArtIds.add(found.id);
+          const isSubmitted = String(found.status).toLowerCase() === "submitted";
+          mapped.push({
+            id: found.templateCode || String(found.id),
+            title: found.title || tmpl.name,
+            purpose: tmpl.description || "Tài liệu bàn giao BA chuẩn BABOK® v3.",
+            files: `${found.templateCode || "ARTIFACT"}_v${found.currentVersionNo}.0.json`,
+            formats: "JSON · DOCX · PDF",
+            version: `v${found.currentVersionNo}.0`,
+            status: isSubmitted ? "ai-reviewed" : "needs-revision",
+            evidence: isSubmitted ? "Đã nộp bài" : "Bản nháp trên hệ thống",
+            reviewer: "AI Assessor + Chuyên gia",
+            required: true,
+          });
+        } else {
+          mapped.push({
+            id: String(tmpl.artifactType || `TPL-${tmpl.id}`),
+            title: tmpl.name,
+            purpose: tmpl.description || "Mẫu tài liệu bàn giao chuẩn hệ thống.",
+            files: "Chưa khởi tạo",
+            formats: "JSON · DOCX · PDF",
+            version: "—",
+            status: "missing",
+            evidence: "Chưa tạo bản nháp",
+            reviewer: "Chờ học viên tạo",
+            required: true,
+          });
         }
-        if (subs.status === "fulfilled") {
-          setSubmissions(subs.value);
-        }
-      } catch (e) {
-        console.warn("Could not load session artifacts:", e);
-      } finally {
-        setIsLoading(false);
       }
+
+      // Include any extra artifacts not tied to listed templates
+      for (const art of arts) {
+        if (!matchedArtIds.has(art.id)) {
+          const isSubmitted = String(art.status).toLowerCase() === "submitted";
+          mapped.push({
+            id: art.templateCode || `ART-${art.id}`,
+            title: art.title,
+            purpose: "Tài liệu bàn giao của phiên thực hành.",
+            files: `${art.templateCode || "ART"}_v${art.currentVersionNo}.0.json`,
+            version: `v${art.currentVersionNo}.0`,
+            formats: "JSON · DOCX · PDF",
+            status: isSubmitted ? "ai-reviewed" : "needs-revision",
+            evidence: isSubmitted ? "Đã nộp bài" : "Bản nháp",
+            reviewer: "AI Assessor + Chuyên gia",
+            required: true,
+          });
+        }
+      }
+
+      setDeliverablesList(mapped);
+      if (mapped.length > 0 && !mapped.some((m) => m.id === selectedId)) {
+        setSelectedId(mapped[0].id);
+      }
+    } catch (e) {
+      console.warn("Could not load artifacts data:", e);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -194,38 +148,35 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
     loadArtifactsData();
   }, [currentSessionId]);
 
-  const selected = deliverablesList.find((item) => item.id === selectedId) ?? deliverablesList[1];
+  const selected = deliverablesList.find((item) => item.id === selectedId) ?? deliverablesList[0];
   const selectedBackendArtifact = backendArtifacts.find(
-    (a) => a.templateCode === selectedId || a.title.includes(selectedId)
+    (a) => (a.templateCode || `ART-${a.id}`) === selected?.id || a.title === selected?.title
   );
 
   const handleGenerateSampleDraft = async () => {
+    if (!currentSessionId) {
+      alert("Vui lòng bắt đầu phiên thực hành từ Thư viện kịch bản trước khi tạo hồ sơ.");
+      return;
+    }
+    if (templates.length === 0) {
+      alert("Chưa có mẫu tài liệu (Artifact Templates) nào trên hệ thống.");
+      return;
+    }
     setIsGenerating(true);
     try {
-      if (currentSessionId && templates.length > 0) {
-        for (const tmpl of templates) {
-          try {
-            await artifactService.createSessionArtifact(currentSessionId, {
-              artifactTemplateId: tmpl.id,
-              title: tmpl.name,
-            });
-          } catch {
-            // Already created or ignore
-          }
+      for (const tmpl of templates) {
+        const exists = backendArtifacts.some((a) => a.artifactTemplateId === tmpl.id);
+        if (!exists) {
+          await artifactService.createSessionArtifact(currentSessionId, {
+            artifactTemplateId: tmpl.id,
+            title: tmpl.name,
+          });
         }
-        await loadArtifactsData();
       }
-      setDeliverablesList((prev) =>
-        prev.map((d) => ({
-          ...d,
-          status: "ai-reviewed",
-          files: d.files === "Chưa tải lên" ? `${d.id}_Sample_Generated.docx` : d.files,
-          evidence: "Đã tổng hợp từ phiên phỏng vấn",
-        }))
-      );
-      alert("✨ Đã khởi tạo hồ sơ bàn giao mẫu thành công trên Backend!");
+      await loadArtifactsData();
+      alert("✨ Đã khởi tạo hồ sơ bàn giao thành công trên Backend!");
     } catch (err: any) {
-      alert(`Thông báo: ${err.message}`);
+      alert(`Lỗi khi khởi tạo hồ sơ: ${err?.message || "Không xác định"}`);
     } finally {
       setIsGenerating(false);
     }
@@ -290,6 +241,7 @@ export function ArtifactsPage({ navigate }: { navigate: (route: RouteKey) => voi
       )}
       {tab === "Tải lên & Quản lý phiên bản" && (
         <UploadWorkspace
+          items={deliverablesList}
           selected={selected}
           onSelect={setSelectedId}
           backendArtifact={selectedBackendArtifact}
@@ -322,60 +274,73 @@ function DeliverableList({
   onGenerateSampleDraft: () => void;
   isGenerating: boolean;
 }) {
+  const approvedCount = items.filter((i) => i.status === "approved" || i.status === "ai-reviewed").length;
+  const reviewingCount = items.filter((i) => i.status === "needs-revision").length;
+  const missingCount = items.filter((i) => i.status === "missing").length;
+  const pct = items.length > 0 ? Math.round(((approvedCount + reviewingCount) / items.length) * 100) : 0;
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <Card className="overflow-hidden border-slate/15">
         <div className="flex flex-col gap-3 border-b border-slate/10 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-bold text-navy">Gói tài liệu · Quản lý tồn kho VinaSupply</h2>
-            <p className="text-xs text-slate">6 tài liệu bắt buộc · 1 tài liệu tùy chọn mở rộng</p>
+            <h2 className="text-base font-bold text-navy">Danh mục tài liệu bàn giao BA</h2>
+            <p className="text-xs text-slate">Đồng bộ từ hệ thống Artifact Templates & Session Artifacts ({items.length} mục)</p>
           </div>
-          <Badge tone="amber">4/6 tài liệu đạt điều kiện</Badge>
+          <Badge tone={approvedCount === items.length && items.length > 0 ? "green" : "amber"}>
+            {approvedCount}/{items.length} tài liệu đã nộp/duyệt
+          </Badge>
         </div>
 
         <div className="divide-y divide-slate/10">
-          {items.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onSelect(item.id)}
-              className={classNames(
-                "grid w-full gap-4 p-5 text-left transition-colors md:grid-cols-[1fr_170px_140px] md:items-center",
-                selectedId === item.id ? "bg-mist/30" : "bg-white hover:bg-mist/10"
-              )}
-            >
-              <div className="flex gap-3.5">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy/10 text-navy">
-                  <FileText size={20} />
-                </span>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-slate">{item.id}</span>
-                    {item.required ? (
-                      <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-800 uppercase">
-                        Bắt buộc
-                      </span>
-                    ) : (
-                      <span className="rounded-md bg-slate/10 px-2 py-0.5 text-[10px] font-bold text-slate uppercase">
-                        Tùy chọn
-                      </span>
-                    )}
+          {items.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate">
+              Chưa có tài liệu bàn giao nào được cấu hình hoặc khởi tạo. Hãy bấm <strong>&quot;⚡ Nạp nhanh tài liệu mẫu (1-Click)&quot;</strong> sau khi bắt đầu phiên học.
+            </div>
+          ) : (
+            items.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onSelect(item.id)}
+                className={classNames(
+                  "grid w-full gap-4 p-5 text-left transition-colors md:grid-cols-[1fr_170px_140px] md:items-center",
+                  selectedId === item.id ? "bg-mist/30" : "bg-white hover:bg-mist/10"
+                )}
+              >
+                <div className="flex gap-3.5">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy/10 text-navy">
+                    <FileText size={20} />
+                  </span>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-slate">{item.id}</span>
+                      {item.required ? (
+                        <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-800 uppercase">
+                          Bắt buộc
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-slate/10 px-2 py-0.5 text-[10px] font-bold text-slate uppercase">
+                          Tùy chọn
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="mt-1 text-sm font-bold text-navy">{item.title}</h3>
+                    <p className="mt-1 text-xs leading-5 text-slate line-clamp-2">{item.purpose}</p>
                   </div>
-                  <h3 className="mt-1 text-sm font-bold text-navy">{item.title}</h3>
-                  <p className="mt-1 text-xs leading-5 text-slate line-clamp-2">{item.purpose}</p>
                 </div>
-              </div>
 
-              <div>
-                <p className="text-[11px] font-medium text-slate">Tệp hiện tại</p>
-                <p className="mt-1 break-words font-mono text-xs font-semibold text-navy">{item.files}</p>
-              </div>
+                <div>
+                  <p className="text-[11px] font-medium text-slate">Tệp hiện tại</p>
+                  <p className="mt-1 break-words font-mono text-xs font-semibold text-navy">{item.files}</p>
+                </div>
 
-              <div className="md:text-right">
-                {statusBadge(item.status)}
-                <p className="mt-1.5 text-[11px] text-slate">{item.evidence}</p>
-              </div>
-            </button>
-          ))}
+                <div className="md:text-right">
+                  {statusBadge(item.status)}
+                  <p className="mt-1.5 text-[11px] text-slate">{item.evidence}</p>
+                </div>
+              </button>
+            ))
+          )}
         </div>
       </Card>
 
@@ -383,25 +348,25 @@ function DeliverableList({
         <Card className="p-5 border-slate/15">
           <p className="text-xs font-bold uppercase tracking-wider text-slate">Tiến độ hoàn thiện hồ sơ</p>
           <div className="mt-3 flex items-end justify-between">
-            <strong className="text-4xl font-bold text-navy">67%</strong>
-            <span className="text-xs font-semibold text-slate">4/6 tài liệu đạt chuẩn</span>
+            <strong className="text-4xl font-bold text-navy">{pct}%</strong>
+            <span className="text-xs font-semibold text-slate">{approvedCount}/{items.length} tài liệu đã nộp</span>
           </div>
           <div className="mt-4">
-            <ProgressBar value={67} />
+            <ProgressBar value={pct} />
           </div>
 
           <div className="mt-5 space-y-3 text-xs">
             <div className="flex justify-between">
-              <span className="text-slate">Đã duyệt (Approved)</span>
-              <strong className="font-bold text-emerald-700">1</strong>
+              <span className="text-slate">Đã nộp / AI đã phản biện</span>
+              <strong className="font-bold text-emerald-700">{approvedCount}</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate">Đang phản biện / Cần sửa</span>
-              <strong className="font-bold text-amber-700">4</strong>
+              <span className="text-slate">Đang soạn / Bản nháp</span>
+              <strong className="font-bold text-amber-700">{reviewingCount}</strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate">Chưa nộp (Missing)</span>
-              <strong className="font-bold text-rose-700">1</strong>
+              <span className="text-slate">Chưa khởi tạo</span>
+              <strong className="font-bold text-rose-700">{missingCount}</strong>
             </div>
           </div>
 
@@ -426,13 +391,15 @@ function DeliverableList({
 }
 
 function UploadWorkspace({
+  items,
   selected,
   onSelect,
   backendArtifact,
   currentSessionId,
   onRefresh,
 }: {
-  selected: Deliverable;
+  items: Deliverable[];
+  selected?: Deliverable;
   onSelect: (id: string) => void;
   backendArtifact?: ArtifactDto;
   currentSessionId: number | null;
@@ -467,7 +434,7 @@ function UploadWorkspace({
         draftPlainTextContent: draftContent,
         draftStructuredContentJson: JSON.stringify({ note: changeNote, content: draftContent }),
       });
-      alert(`✅ Đã lưu bản nháp cho ${selected.title}!`);
+      alert(`✅ Đã lưu bản nháp cho ${selected?.title || "tài liệu"}!`);
       onRefresh();
     } catch (e: any) {
       alert(`Lỗi lưu nháp: ${e.message}`);
@@ -484,7 +451,7 @@ function UploadWorkspace({
     setIsFreezing(true);
     try {
       const v = await artifactService.freezeVersion(backendArtifact.id, {
-        plainTextContent: draftContent || `Tài liệu ${selected.title} - ${selected.id}`,
+        plainTextContent: draftContent || `Tài liệu ${selected?.title || ""} - ${selected?.id || ""}`,
         structuredContentJson: JSON.stringify({
           changeNote: changeNote || "Cập nhật tài liệu bàn giao mới",
           timestamp: new Date().toISOString(),
@@ -513,7 +480,7 @@ function UploadWorkspace({
       if (subRes?.id) {
         setCurrentSubmissionId(subRes.id);
       }
-      alert(`🎉 Đã nộp gói tài liệu ${selected.title} thành công!`);
+      alert(`🎉 Đã nộp gói tài liệu ${selected?.title || ""} thành công!`);
       onRefresh();
     } catch (e: any) {
       alert(`Lỗi nộp bài: ${e.message}`);
@@ -522,6 +489,14 @@ function UploadWorkspace({
     }
   };
 
+  if (!selected) {
+    return (
+      <Card className="p-8 text-center border-dashed border-slate/20 text-xs text-slate">
+        Chưa có tài liệu nào được khởi tạo. Vui lòng chuyển sang tab &quot;Gói tài liệu bàn giao&quot; để khởi tạo từ mẫu hệ thống.
+      </Card>
+    );
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
       <Card className="h-fit overflow-hidden border-slate/15">
@@ -529,7 +504,7 @@ function UploadWorkspace({
           <h2 className="text-sm font-bold text-navy">Chọn tài liệu cần tải lên</h2>
         </div>
         <div className="p-2 space-y-1">
-          {deliverables
+          {items
             .filter((item) => item.required)
             .map((item) => (
               <button

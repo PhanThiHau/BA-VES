@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   CheckCircle2,
   FileText,
@@ -10,6 +10,7 @@ import {
   Eye,
   MessageSquare,
   PhoneCall,
+  Loader2,
 } from "lucide-react";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
@@ -32,36 +33,125 @@ interface ReviewModerationTabProps {
 }
 
 export function ReviewModerationTab({
-  reviewItems,
   onCalibrateScore,
   onRequestRevision,
 }: ReviewModerationTabProps) {
-  const [selectedReviewId, setSelectedReviewId] = useState<string>(reviewItems[0]?.id || "");
+  const [localItems, setLocalItems] = useState<ReviewItem[]>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [selectedReviewId, setSelectedReviewId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "calibrated">("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const selectedItem =
-    reviewItems.find((i) => i.id === selectedReviewId) || reviewItems[0];
+    localItems.find((i) => i.id === selectedReviewId) || localItems[0];
 
-  const [moderatorNote, setModeratorNote] = useState(selectedItem?.moderatorNotes || "");
-  const [criteriaScores, setCriteriaScores] = useState<CriterionReview[]>(
-    selectedItem?.criteria || []
-  );
+  const [moderatorNote, setModeratorNote] = useState("");
+  const [criteriaScores, setCriteriaScores] = useState<CriterionReview[]>([]);
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [showDossierModal, setShowDossierModal] = useState(false);
   const [showConsultationModal, setShowConsultationModal] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
 
-  const handleSelectItem = (item: ReviewItem) => {
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingReviews(true);
+    assessmentService
+      .getReviewRequests()
+      .then((reqs) => {
+        if (!isMounted) return;
+        const mapped: ReviewItem[] = (reqs || []).map((r) => {
+          const isCompleted = String(r.status).toLowerCase() === "completed";
+          return {
+            id: `REV-${r.id}`,
+            learner: `Học viên #${r.learnerId}`,
+            cohort: `Submission #${r.submissionId}`,
+            scenarioId: `SUB-${r.submissionId}`,
+            scenarioTitle: `Yêu cầu thẩm định bài nộp #${r.submissionId}`,
+            stage: isCompleted ? "Đã duyệt & chốt điểm" : "Chờ giảng viên thẩm định",
+            submittedAt: r.requestedAt ? new Date(r.requestedAt).toLocaleString("vi-VN") : "Vừa xong",
+            due: "Theo lịch thẩm định",
+            aiScore: 75,
+            aiConfidence: 85,
+            humanScore: isCompleted ? 80 : null,
+            status: isCompleted ? "calibrated" : "pending",
+            tone: isCompleted ? "green" : "amber",
+            issueSummary: r.requestNote || "Học viên gửi yêu cầu chuyên gia thẩm định và hiệu chỉnh điểm AI.",
+            deliverablesSubmitted: ["Hồ sơ phân tích nghiệp vụ & Bài nộp"],
+            moderatorNotes: "",
+            criteria: [],
+          };
+        });
+        setLocalItems(mapped);
+        if (mapped.length > 0) {
+          handleSelectItem(mapped[0]);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not fetch review requests from backend:", err);
+        if (isMounted) setLocalItems([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingReviews(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSelectItem = async (item: ReviewItem) => {
     setSelectedReviewId(item.id);
     setModeratorNote(item.moderatorNotes || "");
     setCriteriaScores(item.criteria || []);
+
+    try {
+      const numericId = parseInt(item.id.replace(/\D/g, ""), 10);
+      if (!isNaN(numericId)) {
+        const dossier = await assessmentService.getReviewCaseDossier(numericId);
+        if (dossier) {
+          const aiEval = dossier.aiFeedback;
+          const criteria: CriterionReview[] = (aiEval?.criterionScores || []).map((cs) => {
+            const numScore = Math.round(Number(cs.score || 0));
+            return {
+              id: `crit-${cs.rubricCriterionId}`,
+              babokArea: cs.criterionCode || "BABOK® v3",
+              name: cs.criterionName || cs.criterionCode,
+              weight: Math.round(100 / Math.max(1, (aiEval?.criterionScores || []).length)),
+              aiScore: numScore,
+              humanScore: numScore,
+              aiEvidenceQuote: cs.evidenceSnippet || cs.comment || "Không có trích dẫn tự động.",
+              status: numScore >= 70 ? "Đạt" : "Cần xem xét",
+            };
+          });
+          setCriteriaScores(criteria);
+          if (dossier.requestNote && !moderatorNote) {
+            setModeratorNote(aiEval?.overallFeedback || "");
+          }
+          setLocalItems((prev) =>
+            prev.map((x) =>
+              x.id === item.id
+                ? {
+                    ...x,
+                    aiScore: aiEval?.suggestedScore ? Math.round(Number(aiEval.suggestedScore)) : x.aiScore,
+                    aiConfidence: aiEval?.confidence ? Math.round(Number(aiEval.confidence) * 100) : x.aiConfidence,
+                    criteria,
+                  }
+                : x
+            )
+          );
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load case dossier details:", e);
+    }
   };
 
-  const calculatedHumanScore = Math.round(
-    criteriaScores.reduce((acc, c) => acc + (c.humanScore * c.weight) / 100, 0)
-  );
+  const calculatedHumanScore =
+    criteriaScores.length > 0
+      ? Math.round(
+          criteriaScores.reduce((acc, c) => acc + (c.humanScore * c.weight) / 100, 0)
+        )
+      : selectedItem?.aiScore || 0;
 
   const handleCriterionScoreChange = (id: string, newScore: number) => {
     setCriteriaScores((prev) =>
@@ -76,12 +166,17 @@ export function ReviewModerationTab({
       const numericId = parseInt(selectedItem.id.replace(/\D/g, ""), 10) || 1;
       await assessmentService.completeReview(numericId, {
         overallFeedback: moderatorNote || "Chuyên gia đã chốt điểm và hoàn tất thẩm định",
-        criterionScores: criteriaScores.map((c, idx) => ({
-          rubricCriterionId: idx + 1,
+        criterionScores: criteriaScores.map((c) => ({
+          rubricCriterionId: parseInt(c.id.replace(/\D/g, ""), 10) || 1,
           score: c.humanScore,
           comment: c.aiEvidenceQuote,
         })),
       });
+      setLocalItems((prev) =>
+        prev.map((x) =>
+          x.id === selectedItem.id ? { ...x, status: "calibrated", humanScore: calculatedHumanScore } : x
+        )
+      );
     } catch (e) {
       console.warn("Could not sync review completion to backend:", e);
     }
@@ -98,7 +193,7 @@ export function ReviewModerationTab({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const filteredItems = reviewItems.filter((i) => {
+  const filteredItems = localItems.filter((i) => {
     const matchesQuery =
       i.learner.toLowerCase().includes(searchQuery.toLowerCase()) ||
       i.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -140,7 +235,7 @@ export function ReviewModerationTab({
                   </p>
                 </div>
                 <span className="grid h-7 w-7 place-items-center rounded-full bg-[#eaf1f7] font-mono text-xs font-bold text-[#2f638c]">
-                  {reviewItems.filter((r) => r.status === "pending").length}
+                  {localItems.filter((r) => r.status === "pending").length}
                 </span>
               </div>
 
@@ -177,7 +272,17 @@ export function ReviewModerationTab({
 
             {/* Danh Sách Thẻ Bài */}
             <div className="divide-y divide-[#e6edf2] max-h-[700px] overflow-y-auto">
-              {filteredItems.map((item) => {
+              {isLoadingReviews ? (
+                <div className="p-8 text-center text-xs text-[#667d93]">
+                  <Loader2 size={20} className="mx-auto mb-2 animate-spin text-[#2f638c]" />
+                  Đang tải hàng đợi bài nộp từ Backend API...
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#667d93]">
+                  Chưa có yêu cầu chấm bài nào trong hàng đợi.
+                </div>
+              ) : (
+                filteredItems.map((item) => {
                 const isSelected = item.id === selectedReviewId;
                 return (
                   <button
@@ -208,7 +313,7 @@ export function ReviewModerationTab({
                       <span className="font-mono text-[#667d93]">
                         AI chấm: <strong className="text-[#132d49]">{item.aiScore}/100</strong>
                       </span>
-                      {item.humanScore !== null ? (
+                      {item.humanScore != null ? (
                         <span className="font-mono font-bold text-[#2d7b60]">
                           Thầy cô chốt: {item.humanScore}đ
                         </span>
@@ -218,7 +323,7 @@ export function ReviewModerationTab({
                     </div>
                   </button>
                 );
-              })}
+              }))}
             </div>
           </Card>
         </div>

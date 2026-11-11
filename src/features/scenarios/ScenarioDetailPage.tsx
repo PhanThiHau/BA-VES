@@ -131,8 +131,8 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
       }
       navigate(targetRoute);
     } catch (err: any) {
-      console.warn("Không thể tạo phiên qua API, vào phòng thực hành với dữ liệu offline:", err);
-      navigate(targetRoute);
+      console.warn("Không thể tạo phiên qua API:", err);
+      setStartError(err?.message || "Không thể khởi tạo phiên thực hành từ máy chủ. Vui lòng thử lại.");
     } finally {
       setStarting(false);
     }
@@ -164,14 +164,20 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
                   <Badge tone="green">Phiên thực hành chuẩn BABOK® v3</Badge>
                 </div>
                 <p className="mt-5 font-mono text-xs font-bold uppercase tracking-widest text-brass-light">
-                  {context ? `${context.scenarioCode} · Phiên bản v${context.versionNo}` : "BÀI TOÁN DOANH NGHIỆP THỰC TẾ · INV-2026-014"}
+                  {loading
+                    ? "ĐANG TẢI THÔNG TIN KỊCH BẢN..."
+                    : context
+                    ? `${context.scenarioCode} · Phiên bản v${context.versionNo}`
+                    : `PHIÊN BẢN KỊCH BẢN #${versionId}`}
                 </p>
                 <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
-                  {context?.scenarioTitle || "Quản lý tồn kho & Điều phối chuỗi cung ứng"}
+                  {loading ? "Đang đồng bộ..." : context?.scenarioTitle || "Không tìm thấy bối cảnh kịch bản"}
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-white/80 sm:text-base">
                   {context?.businessContext ||
-                    "Bạn được giao trọng trách Business Analyst (BA) cho VinaSupply Retail. Doanh nghiệp vận hành 1 trung tâm phân phối chính (DC), 3 kho khu vực và 20 siêu thị bán lẻ. Tỷ lệ đứt gãy hàng hóa (stockout) đang ở mức 12%, trong khi dữ liệu tồn kho giữa POS, WMS và ERP lệch pha khiến khách hàng thất vọng và chi phí lưu kho tăng vọt."}
+                    (loading
+                      ? "Đang tải dữ liệu bối cảnh doanh nghiệp từ Backend API..."
+                      : "Chưa có dữ liệu mô tả bối cảnh cho phiên bản kịch bản này.")}
                 </p>
               </div>
             </div>
@@ -188,8 +194,7 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
                     <h2 className="text-base font-bold text-navy">Vấn đề cốt lõi (Business Problem)</h2>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate">
-                    {context?.businessProblem ||
-                      "Hàng được giữ sai thời điểm, một số đơn bị xử lý trùng, quy trình hủy đơn và hoàn tiền chưa rõ ràng, và các phòng ban có kỳ vọng khác nhau về tốc độ cập nhật trạng thái tồn."}
+                    {context?.businessProblem || "Chưa có dữ liệu mô tả vấn đề nghiệp vụ."}
                   </p>
                 </div>
 
@@ -202,8 +207,7 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
                     <h2 className="text-base font-bold text-navy">Mục tiêu giải pháp (Objectives)</h2>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate">
-                    {context?.businessObjectives ||
-                      "Giảm tỷ lệ đứt hàng xuống dưới 5%, tăng tỷ lệ đáp ứng đơn hàng lên tối thiểu 96%, kiểm soát chi phí lưu kho tăng không quá 8% và đồng bộ luồng phê duyệt kế toán."}
+                    {context?.businessObjectives || "Chưa có dữ liệu mục tiêu giải pháp."}
                   </p>
                 </div>
               </div>
@@ -278,21 +282,21 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
                   <p className="font-bold text-xs text-emerald-800">Trong phạm vi (In-Scope)</p>
                   <p className="mt-1 text-xs text-emerald-900 leading-relaxed">
-                    {context?.inScope || "Quy trình tiếp nhận đơn, giữ và trả tồn kho, hủy đơn, hoàn tiền, thông báo trạng thái cho khách."}
+                    {context?.inScope || "Không có mô tả chi tiết."}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5">
                   <p className="font-bold text-xs text-rose-800">Ngoài phạm vi (Out-of-Scope)</p>
                   <p className="mt-1 text-xs text-rose-900 leading-relaxed">
-                    {context?.outOfScope || "Lập trình hệ thống bán hàng, thay đổi nhà cung cấp thanh toán, chương trình khách hàng thân thiết."}
+                    {context?.outOfScope || "Không có mô tả chi tiết."}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5">
                   <p className="font-bold text-xs text-amber-800">Ràng buộc đã biết (Known Constraints)</p>
                   <p className="mt-1 text-xs text-amber-900 leading-relaxed">
-                    {context?.knownConstraints || "Ngân sách không vượt quá 4 tỷ VNĐ. Không thay thế hệ thống POS trong đợt này."}
+                    {context?.knownConstraints || "Không có ràng buộc bổ sung."}
                   </p>
                 </div>
               </div>

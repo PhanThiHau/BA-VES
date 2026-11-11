@@ -24,7 +24,6 @@ import {
   OrderDto,
   OrderStatus,
   CreditBalanceSummaryDto,
-  fallbackPlans,
 } from "../../services/commerceService";
 
 interface SubscriptionModalProps {
@@ -33,7 +32,8 @@ interface SubscriptionModalProps {
 }
 
 export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
-  const [plans, setPlans] = useState<PlanDto[]>(fallbackPlans);
+  const [plans, setPlans] = useState<PlanDto[]>([]);
+  const [plansError, setPlansError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanDto | null>(null);
   const [step, setStep] = useState<"plans" | "checkout" | "success">("plans");
   const [paymentMethod, setPaymentMethod] = useState<"vietqr" | "vnpay" | "payos">("vietqr");
@@ -74,18 +74,23 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
   useEffect(() => {
     if (isOpen) {
       setIsLoadingPlans(true);
+      setPlansError(null);
       Promise.all([
-        commerceService.getPlans().catch(() => fallbackPlans),
+        commerceService.getPlans(),
         commerceService.getMyCreditsSummary().catch(() => null),
       ])
         .then(([fetchedPlans, credits]) => {
+          setPlans(fetchedPlans || []);
           if (fetchedPlans && fetchedPlans.length > 0) {
-            setPlans(fetchedPlans);
             setSelectedPlan(fetchedPlans.find((p) => p.code === "PRO") || fetchedPlans[1] || fetchedPlans[0]);
           }
           if (credits) {
             setCreditSummary(credits);
           }
+        })
+        .catch((err: any) => {
+          setPlans([]);
+          setPlansError(err?.message || "Không thể kết nối máy chủ để tải danh sách gói dịch vụ.");
         })
         .finally(() => setIsLoadingPlans(false));
     } else {
@@ -131,36 +136,31 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
           console.warn("Lỗi khi kiểm tra trạng thái đơn hàng:", e);
         }
       }, 3000);
-    } catch (e) {
-      console.warn("Không thể tạo đơn hàng từ API, chuyển sang chế độ dự phòng:", e);
-      // Fallback local order for demonstration
-      setActiveOrder({
-        id: Date.now(),
-        orderCode: Math.floor(100000 + Math.random() * 900000),
-        userId: 1,
-        planId: plan.id,
-        planName: plan.name,
-        amount: plan.price,
-        currency: "VND",
-        status: OrderStatus.Pending,
-        checkoutUrl: null,
-        qrCode: null,
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        paidAt: null,
-      });
+    } catch (e: any) {
+      alert(`Không thể tạo đơn hàng thanh toán: ${e?.message || "Vui lòng kiểm tra kết nối máy chủ."}`);
+      setStep("plans");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleSimulatePayment = () => {
+  const handleCheckPaymentStatus = async () => {
+    if (!activeOrder) return;
     setIsProcessing(true);
-    setTimeout(() => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    try {
+      const freshOrder = await commerceService.getOrderById(activeOrder.id);
+      setActiveOrder(freshOrder);
+      if (freshOrder.status === OrderStatus.Paid) {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        setStep("success");
+      } else {
+        alert("Hệ thống chưa ghi nhận thanh toán cho đơn hàng này. Vui lòng quét mã QR và thử lại sau vài giây.");
+      }
+    } catch (e: any) {
+      alert(`Lỗi kiểm tra thanh toán: ${e?.message || "Không xác định"}`);
+    } finally {
       setIsProcessing(false);
-      setStep("success");
-    }, 1200);
+    }
   };
 
   const handleReset = () => {
@@ -271,6 +271,15 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                 <div className="py-16 text-center text-slate flex flex-col items-center justify-center gap-2">
                   <Loader2 className="animate-spin text-navy" size={28} />
                   <span className="text-xs">Đang tải biểu phí dịch vụ từ máy chủ...</span>
+                </div>
+              ) : plansError ? (
+                <div className="py-12 text-center rounded-xl border border-rose-200 bg-rose-50/50 p-6">
+                  <p className="text-xs font-bold text-rose-700">{plansError}</p>
+                  <p className="text-[11px] text-slate mt-1">Vui lòng kiểm tra lại kết nối Backend API.</p>
+                </div>
+              ) : plans.length === 0 ? (
+                <div className="py-12 text-center rounded-xl border border-dashed border-slate/20 p-6 text-xs text-slate">
+                  Hiện chưa có gói dịch vụ nào được phát hành trên hệ thống.
                 </div>
               ) : (
                 <div className="grid gap-6 md:grid-cols-3">
@@ -585,12 +594,12 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                   )}
 
                   <Button
-                    onClick={handleSimulatePayment}
-                    disabled={isProcessing}
+                    onClick={handleCheckPaymentStatus}
+                    disabled={isProcessing || !activeOrder}
                     className="mt-3 w-full justify-center gap-2 bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 shadow-sm"
                   >
                     <Check size={15} />
-                    {isProcessing ? "Đang xử lý Webhook IPN..." : "Mô phỏng Giao dịch Thành công"}
+                    {isProcessing ? "Đang kiểm tra trạng thái..." : "Kiểm tra Trạng thái Thanh toán"}
                   </Button>
                 </div>
               </div>

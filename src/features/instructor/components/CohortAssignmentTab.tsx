@@ -41,14 +41,12 @@ interface CohortAssignmentTabProps {
 }
 
 export function CohortAssignmentTab({
-  cohorts: initialCohortList,
-  assignments: initialAssignmentList,
   scenarios,
   onAddAssignment,
   onAddCohort,
 }: CohortAssignmentTabProps) {
-  const [localCohorts, setLocalCohorts] = useState<CohortItem[]>(initialCohortList);
-  const [localAssignments, setLocalAssignments] = useState<AssignmentItem[]>(initialAssignmentList);
+  const [localCohorts, setLocalCohorts] = useState<CohortItem[]>([]);
+  const [localAssignments, setLocalAssignments] = useState<AssignmentItem[]>([]);
   const [showNewAssignModal, setShowNewAssignModal] = useState(false);
   const [showNewCohortModal, setShowNewCohortModal] = useState(false);
   const [showEditCohortModal, setShowEditCohortModal] = useState(false);
@@ -67,7 +65,7 @@ export function CohortAssignmentTab({
   // Forms state
   const [assignForm, setAssignForm] = useState({
     title: "",
-    cohortId: initialCohortList[0]?.id || "",
+    cohortId: "",
     scenarioVersionId: scenarios.find((s) => s.status === "Đã ban hành")?.id || scenarios[0]?.id || "",
     deadlineDate: "2026-10-25",
     deadlineTime: "23:59",
@@ -77,7 +75,7 @@ export function CohortAssignmentTab({
   const [cohortForm, setCohortForm] = useState({
     code: "",
     name: "",
-    instructorName: "TS. Nguyễn Hoàng Long",
+    instructorName: "Giảng viên",
     domain: "Chuỗi cung ứng",
     description: "",
     startDate: "",
@@ -97,23 +95,25 @@ export function CohortAssignmentTab({
   const refreshCohorts = async () => {
     try {
       const apiCohorts = await cohortService.getCohorts();
-      if (apiCohorts && apiCohorts.length > 0) {
-        const mapped: CohortItem[] = apiCohorts.map((c) => ({
-          id: `coh-${c.id}`,
-          code: c.code,
-          name: c.name,
-          instructorName: "TS. Nguyễn Hoàng Long",
-          studentsCount: c.activeMemberCount,
-          activeAssignmentsCount: c.assignmentCount,
-          completionRate: 75,
-          averageScore: 80,
-          domain: "Phân tích Nghiệp vụ",
-          status: c.status === "Active" || c.status === 1 ? "active" : "archived",
-        }));
-        setLocalCohorts(mapped);
+      const mapped: CohortItem[] = (apiCohorts || []).map((c) => ({
+        id: `coh-${c.id}`,
+        code: c.code,
+        name: c.name,
+        instructorName: "Giảng viên phụ trách",
+        studentsCount: c.activeMemberCount,
+        activeAssignmentsCount: c.assignmentCount,
+        completionRate: 0,
+        averageScore: 0,
+        domain: "Phân tích Nghiệp vụ",
+        status: c.status === "Active" || c.status === 1 ? "active" : "archived",
+      }));
+      setLocalCohorts(mapped);
+      if (mapped.length > 0 && !assignForm.cohortId) {
+        setAssignForm((prev) => ({ ...prev, cohortId: mapped[0].id }));
       }
     } catch (e) {
-      console.warn("Could not fetch cohorts from API, using local cohorts:", e);
+      console.warn("Could not fetch cohorts from API:", e);
+      setLocalCohorts([]);
     }
   };
 
@@ -121,24 +121,23 @@ export function CohortAssignmentTab({
   const refreshAssignments = async () => {
     try {
       const apiAssignments = await assignmentService.getAssignments();
-      if (apiAssignments && apiAssignments.length > 0) {
-        const mapped: AssignmentItem[] = apiAssignments.map((a) => ({
-          id: `asg-${a.id}`,
-          title: a.title,
-          cohortId: `coh-${a.cohortId ?? 1}`,
-          cohortName: a.cohortCode ?? "Lớp BA",
-          scenarioVersionId: `scen-${a.scenarioVersionId}`,
-          scenarioTitle: `Kịch bản tình huống #${a.scenarioVersionId}`,
-          deadline: a.dueAt ? new Date(a.dueAt).toLocaleDateString("vi-VN") : "25/10/2026 · 23:59",
-          attemptLimit: a.maxAttempts ?? 2,
-          submissionsCount: 18,
-          totalStudents: 30,
-          status: a.status === "Active" || a.status === 2 ? "active" : "closed",
-        }));
-        setLocalAssignments(mapped);
-      }
+      const mapped: AssignmentItem[] = (apiAssignments || []).map((a) => ({
+        id: `asg-${a.id}`,
+        title: a.title,
+        cohortId: `coh-${a.cohortId ?? 1}`,
+        cohortName: a.cohortCode ?? "Lớp BA",
+        scenarioVersionId: `scen-${a.scenarioVersionId}`,
+        scenarioTitle: `Kịch bản tình huống #${a.scenarioVersionId}`,
+        deadline: a.dueAt ? new Date(a.dueAt).toLocaleDateString("vi-VN") : "Chưa đặt hạn",
+        attemptLimit: a.maxAttempts ?? 2,
+        submissionsCount: 0,
+        totalStudents: 0,
+        status: a.status === "Active" || a.status === 2 ? "active" : "closed",
+      }));
+      setLocalAssignments(mapped);
     } catch (e) {
       console.warn("Could not fetch assignments from API:", e);
+      setLocalAssignments([]);
     }
   };
 

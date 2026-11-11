@@ -29,63 +29,17 @@ interface LocalScenarioItem {
   progress?: number;
 }
 
-const defaultLocalScenarios: LocalScenarioItem[] = [
-  {
-    id: "INV-2026-014",
-    scenarioVersionId: 1,
-    title: "Quản lý tồn kho & Điều phối chuỗi cung ứng",
-    domain: "Chuỗi cung ứng",
-    description:
-      "Phân tích tình trạng đứt gãy tồn kho, đối soát chênh lệch dữ liệu giữa hệ thống POS, WMS và ERP trên mạng lưới 1 tổng kho và 20 cửa hàng.",
-    level: "Trung cấp",
-    duration: "90 phút",
-    people: "6 Stakeholder AI",
-    techniques: ["Phỏng vấn đào sâu", "Mô hình hóa BPMN", "Ma trận truy vết RTM", "Phân tích nguyên nhân gốc"],
-    image: "/images/landing/scenario-warehouse.webp",
-    active: true,
-    progress: 42,
-  },
-  {
-    id: "RET-2026-003",
-    scenarioVersionId: 2,
-    title: "Cải tiến xử lý đơn hàng & Điểm bán lẻ POS đa kênh (OmniMart)",
-    domain: "Bán lẻ",
-    description:
-      "Phân tích nguyên nhân chênh lệch tồn kho giữa website và cửa hàng, tối ưu hóa quy trình bán hàng tại quầy POS và chính sách đổi trả hàng đa kênh.",
-    level: "Cơ bản",
-    duration: "60 phút",
-    people: "5 Stakeholder AI",
-    techniques: ["Quan sát hiện trường", "Biểu đồ xương cá", "Đặc tả quy tắc nghiệp vụ", "User Story Mapping"],
-    image: "/images/landing/theme-evidence.webp",
-    active: false,
-  },
-  {
-    id: "FIN-2026-008",
-    scenarioVersionId: 3,
-    title: "Tự động hóa đối soát hóa đơn & Phê duyệt hạn mức thanh toán",
-    domain: "Tài chính",
-    description:
-      "Thiết kế quy trình đối soát 3 chiều tự động giữa đơn mua, biên bản nghiệm thu và hóa đơn tài chính, rút ngắn chu kỳ thanh toán công nợ nhà cung cấp.",
-    level: "Nâng cao",
-    duration: "75 phút",
-    people: "5 Stakeholder AI",
-    techniques: ["Phân tích tác động", "Cây quyết định", "Sơ đồ luồng dữ liệu DFD", "Đặc tả Use Case"],
-    image: "/images/landing/workspace-learner.webp",
-    active: false,
-  },
-];
-
-const fallbackIndustries: IndustryItem[] = [
-  { id: 1, code: "RETAIL", name: "Bán lẻ", description: "Bán lẻ đa kênh OmniMart, POS, thương mại điện tử", status: "Active", displayOrder: 1 },
-  { id: 2, code: "SUPPLY_CHAIN", name: "Chuỗi cung ứng", description: "Logistics, kho vận WMS, thu mua và điều phối", status: "Active", displayOrder: 2 },
-  { id: 3, code: "FINANCE", name: "Tài chính", description: "Kế toán, kiểm toán, ngân hàng và đối soát hóa đơn", status: "Active", displayOrder: 3 },
+const coverImages = [
+  "/images/landing/scenario-warehouse.webp",
+  "/images/landing/theme-evidence.webp",
+  "/images/landing/workspace-learner.webp",
 ];
 
 export function ScenarioLibraryPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { setCurrentScenarioVersionId } = useApp();
 
   // FE-06: 3-Tier Filter State
-  const [industries, setIndustries] = useState<IndustryItem[]>(fallbackIndustries);
+  const [industries, setIndustries] = useState<IndustryItem[]>([]);
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [apiScenarios, setApiScenarios] = useState<ApiScenarioItem[]>([]);
 
@@ -141,23 +95,20 @@ export function ScenarioLibraryPage({ navigate }: { navigate: (route: RouteKey) 
     loadScenarios();
   }, [selectedAppId]);
 
-  // Kết hợp danh sách hiển thị
-  const displayScenarios: LocalScenarioItem[] =
-    apiScenarios.length > 0
-      ? apiScenarios.map((s, index) => ({
-          id: s.code || s.id,
-          scenarioVersionId: s.id,
-          title: s.title,
-          domain: s.application?.name || "Chuỗi cung ứng & Bán lẻ",
-          description: s.description || "Thực hành phân tích yêu cầu nghiệp vụ chuyên sâu.",
-          level: "Trung cấp",
-          duration: "90 phút",
-          people: "6 Stakeholder AI",
-          techniques: ["Phỏng vấn đào sâu", "Mô hình hóa BPMN", "Ma trận truy vết RTM"],
-          image: defaultLocalScenarios[index % defaultLocalScenarios.length].image,
-          active: true,
-        }))
-      : defaultLocalScenarios;
+  // Chuyển đổi dữ liệu kịch bản thật từ Backend API
+  const displayScenarios: LocalScenarioItem[] = apiScenarios.map((s, index) => ({
+    id: s.code || s.id,
+    scenarioVersionId: s.id,
+    title: s.title,
+    domain: s.application?.name || "Ngành nghiệp vụ",
+    description: s.description || "Thực hành phân tích yêu cầu nghiệp vụ chuyên sâu.",
+    level: "Trung cấp",
+    duration: "90 phút",
+    people: "Stakeholder AI",
+    techniques: ["Phỏng vấn đào sâu", "Mô hình hóa BPMN", "Ma trận truy vết RTM"],
+    image: coverImages[index % coverImages.length],
+    active: s.hasPublishedVersion,
+  }));
 
   const filtered = displayScenarios.filter((s) => {
     const matchQuery =
