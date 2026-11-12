@@ -385,8 +385,8 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
       <ConsultationModal
         isOpen={showConsultationModal}
         onClose={() => setShowConsultationModal(false)}
-        submissionId={submissionId ?? 1}
-        reviewRequestId={report?.expertReview?.id || 1}
+        submissionId={submissionId ?? null}
+        reviewRequestId={report?.expertReview?.id ?? null}
       />
     </>
   );

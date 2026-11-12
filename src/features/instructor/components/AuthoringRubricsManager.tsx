@@ -15,6 +15,7 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import {
   assessmentService,
+  BabokTaskDto,
   RubricDetailDto,
   CreateRubricPayload,
   UpdateRubricPayload,
@@ -27,6 +28,7 @@ interface AuthoringRubricsManagerProps {
 
 export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubricsManagerProps) {
   const [rubrics, setRubrics] = useState<RubricDetailDto[]>([]);
+  const [babokTasks, setBabokTasks] = useState<BabokTaskDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -55,6 +57,13 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
     fetchRubrics();
   }, [scenarioVersionId]);
 
+  useEffect(() => {
+    assessmentService
+      .getBabokTasks()
+      .then((tasks) => setBabokTasks(tasks || []))
+      .catch(() => {});
+  }, []);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
@@ -65,9 +74,11 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
     setEditingRubricId(null);
     setRubricName("");
     setRubricDesc("");
+    const firstTaskId = babokTasks[0]?.id ?? 0;
+    const secondTaskId = babokTasks[1]?.id ?? firstTaskId;
     setCriteriaList([
       {
-        babokTaskId: 1,
+        babokTaskId: firstTaskId,
         code: "CRIT-01",
         name: "Khơi gợi và làm rõ yêu cầu",
         description: "Đánh giá khả năng đặt câu hỏi và phát hiện sự thật nghiệp vụ",
@@ -78,7 +89,7 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
         isRequired: true,
       },
       {
-        babokTaskId: 2,
+        babokTaskId: secondTaskId,
         code: "CRIT-02",
         name: "Chất lượng đặc tả BRD",
         description: "Đánh giá tính chính xác, cấu trúc và tính nhất quán của tài liệu nộp",
@@ -116,7 +127,7 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
     setCriteriaList([
       ...criteriaList,
       {
-        babokTaskId: 1,
+        babokTaskId: babokTasks[0]?.id ?? 0,
         code: `CRIT-0${nextIdx}`,
         name: `Tiêu chí đánh giá mới #${nextIdx}`,
         description: "Mô tả tiêu chuẩn năng lực cần đạt",
@@ -424,7 +435,25 @@ export function AuthoringRubricsManager({ scenarioVersionId = 1 }: AuthoringRubr
                           </div>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-[#667d93] mb-1">Nhiệm vụ BABOK (Task)</label>
+                            <select
+                              value={crit.babokTaskId}
+                              onChange={(e) => handleCriterionChange(idx, "babokTaskId", Number(e.target.value))}
+                              className="w-full rounded-lg border border-[#d9e4ec] bg-white p-2 text-xs"
+                            >
+                              {babokTasks.length === 0 ? (
+                                <option value={crit.babokTaskId || 0}>Task #{crit.babokTaskId || 0}</option>
+                              ) : (
+                                babokTasks.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    [{t.code}] {t.name}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </div>
                           <div>
                             <label className="block text-[11px] font-bold text-[#667d93] mb-1">Trọng số (%)</label>
                             <input

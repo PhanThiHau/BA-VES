@@ -1,6 +1,5 @@
 import type { RouteKey } from "../../types/models";
-import { scenarioChallenges, scenarioFacts } from "./data";
-import { scenarioObjectives, conflicts } from "../../constants/trainingScenario";
+import { scenarioChallenges, scenarioFacts, scenarioObjectives, scenarioOpenConflictTopic } from "./data";
 import { Reveal } from "./Reveal";
 import { Eyebrow } from "./primitives";
 
@@ -9,8 +8,6 @@ interface ScenarioSectionProps {
 }
 
 export function ScenarioSection({ navigate }: ScenarioSectionProps) {
-  const openConflict = conflicts.find((c) => c.status === "open");
-
   return (
     <section id="scenario" className="scroll-mt-20 bg-navy py-24 text-white lg:py-32">
       <div className="mx-auto max-w-[1240px] px-6 lg:px-10">
@@ -82,12 +79,10 @@ export function ScenarioSection({ navigate }: ScenarioSectionProps) {
                 </div>
               ))}
             </div>
-            {openConflict && (
-              <p className="mt-5 text-sm leading-relaxed text-mist/70">
-                <span className="font-semibold text-brass">Xung đột đang mở — </span>
-                {openConflict.topic}. Ngưỡng phê duyệt và quy tắc ưu tiên theo phân loại SKU chưa được định nghĩa rõ ràng.
-              </p>
-            )}
+            <p className="mt-5 text-sm leading-relaxed text-mist/70">
+              <span className="font-semibold text-brass">Xung đột đang mở — </span>
+              {scenarioOpenConflictTopic}. Ngưỡng phê duyệt và quy tắc ưu tiên theo phân loại SKU chưa được định nghĩa rõ ràng.
+            </p>
           </Reveal>
         </div>
       </div>

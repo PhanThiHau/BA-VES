@@ -7,17 +7,6 @@ export interface SystemStat {
   subtext: string;
 }
 
-export interface UserAccount {
-  id: string;
-  fullName: string;
-  email: string;
-  role: "ADMIN" | "INSTRUCTOR" | "BAEXPERT" | "LEARNER";
-  status: "ACTIVE" | "SUSPENDED" | "INVITED";
-  cohort?: string;
-  lastActive: string;
-  sessionsCount: number;
-}
-
 export interface MasterDomain {
   id: string;
   code: string;
@@ -26,14 +15,6 @@ export interface MasterDomain {
   applicationsCount: number;
   scenariosCount: number;
   status: "ACTIVE" | "DRAFT";
-}
-
-export interface BabokAreaConfig {
-  code: string;
-  name: string;
-  tasksCount: number;
-  weight: number; // percentage
-  rubricCriteriaCount: number;
 }
 
 export interface AiModelConfig {
@@ -90,106 +71,6 @@ export const initialAdminStats: SystemStat[] = [
     positive: true,
     subtext: "Bám sát 6 vùng tri thức BABOK v3",
   },
-];
-
-export const initialUserAccounts: UserAccount[] = [
-  {
-    id: "usr-01",
-    fullName: "Võ Minh Trí (Quản trị viên)",
-    email: "tri.vm@baves.edu.vn",
-    role: "ADMIN",
-    status: "ACTIVE",
-    lastActive: "Vừa xong",
-    sessionsCount: 0,
-  },
-  {
-    id: "usr-02",
-    fullName: "ThS. Nguyễn Đăng Khoa",
-    email: "khoa.nd@baves.edu.vn",
-    role: "INSTRUCTOR",
-    status: "ACTIVE",
-    cohort: "K2026-BA01",
-    lastActive: "15 phút trước",
-    sessionsCount: 42,
-  },
-  {
-    id: "usr-03",
-    fullName: "TS. Lê Hoàng Mai",
-    email: "mai.lh@baves.edu.vn",
-    role: "BAEXPERT",
-    status: "ACTIVE",
-    lastActive: "2 giờ trước",
-    sessionsCount: 18,
-  },
-  {
-    id: "usr-04",
-    fullName: "Đỗ Gia Hân (Học viên)",
-    email: "han.dg26@student.edu.vn",
-    role: "LEARNER",
-    status: "ACTIVE",
-    cohort: "K2026-BA01",
-    lastActive: "5 phút trước",
-    sessionsCount: 9,
-  },
-  {
-    id: "usr-05",
-    fullName: "Phan Anh Vũ (Học viên)",
-    email: "vu.pa26@student.edu.vn",
-    role: "LEARNER",
-    status: "ACTIVE",
-    cohort: "K2026-BA02",
-    lastActive: "Hôm qua",
-    sessionsCount: 4,
-  },
-  {
-    id: "usr-06",
-    fullName: "Lâm Quốc Cường",
-    email: "cuong.lq@student.edu.vn",
-    role: "LEARNER",
-    status: "SUSPENDED",
-    cohort: "K2026-BA01",
-    lastActive: "3 ngày trước",
-    sessionsCount: 1,
-  },
-];
-
-export const initialMasterDomains: MasterDomain[] = [
-  {
-    id: "dom-01",
-    code: "RETAIL",
-    name: "Bán lẻ đa kênh (OmniMart Retail)",
-    description: "Quản lý điểm bán lẻ POS, đồng bộ tồn kho đa kênh, thương mại điện tử và khách hàng thân thiết",
-    applicationsCount: 4,
-    scenariosCount: 5,
-    status: "ACTIVE",
-  },
-  {
-    id: "dom-02",
-    code: "SUPPLY_CHAIN",
-    name: "Chuỗi cung ứng & Kho vận (VinaSupply Logistics)",
-    description: "Mô phỏng đứt gãy tồn kho, kiểm kê barcode WMS, thu mua nhà cung cấp và điều phối vận tải",
-    applicationsCount: 4,
-    scenariosCount: 6,
-    status: "ACTIVE",
-  },
-  {
-    id: "dom-03",
-    code: "FINANCE",
-    name: "Tài chính & Kế toán (FinCorp Financials)",
-    description: "Kế toán tổng hợp, đối soát hóa đơn tự động, quản lý công nợ và phê duyệt hạn mức ngân sách",
-    applicationsCount: 4,
-    scenariosCount: 4,
-    status: "ACTIVE",
-  },
-];
-
-export const initialBabokAreas: BabokAreaConfig[] = [
-  { code: "BAPM", name: "Lập kế hoạch & Giám sát BA (BA Planning & Monitoring)", tasksCount: 5, weight: 15, rubricCriteriaCount: 6 },
-  { code: "EC", name: "Khai thác & Phối hợp (Elicitation & Collaboration)", tasksCount: 5, weight: 25, rubricCriteriaCount: 8 },
-  { code: "RLCM", name: "Quản lý vòng đời Yêu cầu (Requirements Life Cycle Mgmt)", tasksCount: 5, weight: 15, rubricCriteriaCount: 5 },
-  { code: "SA", name: "Phân tích Chiến lược (Strategy Analysis)", tasksCount: 4, weight: 10, rubricCriteriaCount: 4 },
-  { code: "RADD", name: "Phân tích Yêu cầu & Xác định Thiết kế (RADD)", tasksCount: 6, weight: 25, rubricCriteriaCount: 10 },
-  { code: "SE", name: "Đánh giá Giải pháp (Solution Evaluation)", tasksCount: 5, weight: 10, rubricCriteriaCount: 4 },
 ];
 
 export const initialAiModels: AiModelConfig[] = [

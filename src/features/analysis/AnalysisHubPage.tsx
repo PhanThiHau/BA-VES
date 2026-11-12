@@ -21,6 +21,7 @@ import {
   analysisItemTypeLabels,
   evidenceRelationshipLabels,
 } from "../../services/analysisService";
+import { simulationService } from "../../services/simulationService";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
 
@@ -45,7 +46,7 @@ const statusBadge = (status: string) => {
 };
 
 export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId, activeAgents, messages } = useApp();
+  const { currentSessionId, activeAgents, setActiveAgents, messages } = useApp();
   const [tab, setTab] = useState<Tab>("Tổng quan phiên");
   const [apiAnalysisItems, setApiAnalysisItems] = useState<AnalysisItemDto[]>([]);
   const [loadingItems, setLoadingItems] = useState<boolean>(false);
@@ -305,6 +306,38 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
     loadItems();
   }, [loadItems]);
 
+  useEffect(() => {
+    if (!currentSessionId || activeAgents.length > 0) return;
+    simulationService
+      .getSessionAgents(currentSessionId)
+      .then((agents) => {
+        if (agents && agents.length > 0) {
+          setActiveAgents(agents);
+        }
+      })
+      .catch(() => {});
+  }, [currentSessionId, activeAgents.length, setActiveAgents]);
+
+  const savedEvidenceCount = messages.filter((m) => m.evidence).length;
+  const findingsCount = apiAnalysisItems.filter((i) => Number(i.itemType) === AnalysisItemType.Finding).length;
+  const assumptionsCount = apiAnalysisItems.filter((i) => Number(i.itemType) === AnalysisItemType.Assumption).length;
+  const requirementsCount = apiAnalysisItems.filter(
+    (i) =>
+      Number(i.itemType) === AnalysisItemType.Requirement ||
+      Number(i.itemType) === AnalysisItemType.BusinessRule ||
+      Number(i.itemType) === AnalysisItemType.Constraint
+  ).length;
+  const unresolvedIssues = apiAnalysisItems.filter(
+    (i) =>
+      (Number(i.itemType) === AnalysisItemType.Conflict ||
+        Number(i.itemType) === AnalysisItemType.Risk ||
+        Number(i.itemType) === AnalysisItemType.OpenQuestion) &&
+      Number(i.status) === AnalysisItemStatus.Draft
+  );
+  const confirmedItemsCount = apiAnalysisItems.filter(
+    (i) => Number(i.status) === AnalysisItemStatus.Confirmed || Number(i.status) === AnalysisItemStatus.Resolved
+  ).length;
+
   return (
     <>
       <PageHeader
@@ -326,12 +359,12 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       {/* Metrics Ribbon */}
       <Card className="mb-5 flex divide-x divide-slate/15 overflow-x-auto border-slate/15">
         {[
-          ["6/6", "Stakeholder đã phỏng vấn", "bg-navy/10 text-navy"],
-          ["9/12", "Bằng chứng đã đối soát", "bg-emerald-500/10 text-emerald-800"],
-          ["4", "Phát hiện nghiệp vụ", "bg-purple-500/10 text-purple-800"],
-          ["4", "Giả định cần kiểm chứng", "bg-amber-500/10 text-amber-800"],
-          ["5", "Yêu cầu đã đặc tả", "bg-sky-500/10 text-sky-800"],
-          ["1", "Điểm nghẽn cần giải quyết", "bg-rose-500/10 text-rose-800"],
+          [String(activeAgents.length), "Stakeholder trong phiên", "bg-navy/10 text-navy"],
+          [String(savedEvidenceCount), "Bằng chứng đã lưu", "bg-emerald-500/10 text-emerald-800"],
+          [String(findingsCount), "Phát hiện nghiệp vụ", "bg-purple-500/10 text-purple-800"],
+          [String(assumptionsCount), "Giả định cần kiểm chứng", "bg-amber-500/10 text-amber-800"],
+          [String(requirementsCount), "Yêu cầu đã đặc tả", "bg-sky-500/10 text-sky-800"],
+          [String(unresolvedIssues.length), "Điểm nghẽn cần giải quyết", "bg-rose-500/10 text-rose-800"],
         ].map(([value, label, tone]) => (
           <div key={label} className="flex min-w-[170px] flex-1 items-center gap-3 px-4 py-3">
             <span className={classNames("grid h-9 min-w-9 place-items-center rounded-xl px-2 text-sm font-black", tone)}>
@@ -410,11 +443,11 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
               </div>
               <div className="mt-4 space-y-3">
                 {[
-                  ["Nguồn gốc và thời điểm cho từng bằng chứng", true],
-                  ["Phân biệt rõ sự thật (fact) và nhận định chủ quan", true],
-                  ["Xung đột có người chịu trách nhiệm giải quyết", true],
-                  ["Stakeholder xác nhận tính chính xác của phát hiện", false],
-                  ["Yêu cầu có tiêu chí chấp nhận đo lường được", true],
+                  ["Đã kết nối và phỏng vấn AI Stakeholder", activeAgents.length > 0],
+                  ["Đã thu thập bằng chứng từ hội thoại phỏng vấn", savedEvidenceCount > 0],
+                  ["Đã ghi nhận phát hiện / yêu cầu phân tích", apiAnalysisItems.length > 0],
+                  ["Có mục phân tích đã được Stakeholder xác nhận", confirmedItemsCount > 0],
+                  ["Không còn xung đột / rủi ro chưa xử lý", apiAnalysisItems.length > 0 && unresolvedIssues.length === 0],
                 ].map(([label, done]) => (
                   <div key={String(label)} className="flex items-start gap-2.5 text-xs">
                     <span className={classNames("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full", done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
@@ -430,12 +463,18 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
               <div className="flex gap-3">
                 <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={18} />
                 <div>
-                  <h3 className="text-xs font-bold text-amber-900 uppercase">Điểm nghẽn cần giải quyết (FND-04)</h3>
+                  <h3 className="text-xs font-bold text-amber-900 uppercase">
+                    {unresolvedIssues.length > 0
+                      ? `Điểm nghẽn cần giải quyết (${unresolvedIssues.length})`
+                      : "Trạng thái điểm nghẽn"}
+                  </h3>
                   <p className="mt-1.5 text-xs leading-5 text-amber-900/80">
-                    Phát hiện FND-04 chưa được nhân viên kho xác thực vì máy quét cũ không hiển thị hàng đợi giao dịch đang chờ đồng bộ dữ liệu.
+                    {unresolvedIssues.length > 0
+                      ? `${unresolvedIssues[0].code || `#${unresolvedIssues[0].id}`}: ${unresolvedIssues[0].title}`
+                      : "Chưa có xung đột, rủi ro hoặc câu hỏi mở nào đang ở trạng thái bản nháp."}
                   </p>
                   <button onClick={() => setTab("Xung đột & Câu hỏi mở")} className="mt-3 text-xs font-bold text-amber-800 hover:underline">
-                    Xem câu hỏi tồn đọng →
+                    Xem xung đột & câu hỏi mở →
                   </button>
                 </div>
               </div>
@@ -465,7 +504,7 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                     ? "Đang đồng bộ dữ liệu từ máy chủ..."
                     : apiAnalysisItems.length > 0
                     ? `Đã tải ${apiAnalysisItems.length} mục phân tích trực tiếp từ Backend`
-                    : "Chưa có mục phân tích trong DB phiên này (Đang hiển thị bản mẫu kịch bản)"}
+                    : "Chưa có mục phân tích nào trong phiên này."}
                 </p>
               </div>
             </div>
@@ -1306,16 +1345,9 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                       ))}
                     </select>
                   ) : (
-                    <select
-                      value={confirmAgentId}
-                      onChange={(e) => setConfirmAgentId(e.target.value)}
-                      className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
-                    >
-                      <option value="1">Nguyễn Văn An (Trưởng kho vận)</option>
-                      <option value="2">Trần Thị Bình (Chuyên viên Kế hoạch)</option>
-                      <option value="3">Lê Hoàng Nam (Kế toán trưởng)</option>
-                      <option value="4">Phạm Minh Đức (Giám đốc Chuỗi cung ứng)</option>
-                    </select>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      Chưa tải được danh sách Stakeholder AI từ phiên làm việc. Vui lòng khởi tạo hoặc mở một phiên phỏng vấn trước.
+                    </div>
                   )}
                 </div>
 
@@ -1346,8 +1378,8 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                   <Button
                     type="submit"
                     size="sm"
-                    disabled={isConfirming}
-                    className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light"
+                    disabled={isConfirming || !activeAgents || activeAgents.length === 0}
+                    className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light disabled:opacity-50"
                   >
                     {isConfirming ? (
                       <>

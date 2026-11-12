@@ -331,6 +331,15 @@ export const scenarioChallenges = [
   { label: "Gián đoạn vận hành & Quét mã offline", detail: "Xử lý mất kết nối quét mã vạch và chống trùng lặp dữ liệu khi kết nối trở lại." },
 ];
 
+export const scenarioObjectives = [
+  { label: "Stockout", baseline: "12%", target: "< 5%", owner: "Supply Chain Director" },
+  { label: "Fill rate", baseline: "89%", target: ">= 96%", owner: "Supply Chain Director" },
+  { label: "Inventory accuracy", baseline: "91%", target: ">= 98%", owner: "Warehouse Manager" },
+  { label: "Holding cost", baseline: "100%", target: "Increase no more than 8%", owner: "Finance Manager" },
+] as const;
+
+export const scenarioOpenConflictTopic = "Fill rate versus holding cost";
+
 export const workspacePoints = {
   learner: [
     "Phỏng vấn tác tử AI có trí nhớ phiên và thông tin ẩn riêng biệt",

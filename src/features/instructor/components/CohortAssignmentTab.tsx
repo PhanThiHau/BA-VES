@@ -146,6 +146,15 @@ export function CohortAssignmentTab({
     refreshAssignments();
   }, []);
 
+  useEffect(() => {
+    if (scenarios.length > 0 && !assignForm.scenarioVersionId) {
+      const preferred = scenarios.find((s) => s.status === "Đã ban hành") || scenarios[0];
+      if (preferred) {
+        setAssignForm((prev) => ({ ...prev, scenarioVersionId: preferred.id }));
+      }
+    }
+  }, [scenarios, assignForm.scenarioVersionId]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
@@ -155,9 +164,14 @@ export function CohortAssignmentTab({
     e.preventDefault();
     if (!assignForm.title.trim()) return;
 
-    setIsSubmittingAssign(true);
     const targetCohort = localCohorts.find((c) => c.id === assignForm.cohortId) || localCohorts[0];
     const targetScenario = scenarios.find((s) => s.id === assignForm.scenarioVersionId) || scenarios[0];
+    if (!targetCohort || !targetScenario) {
+      alert("Vui lòng tạo ít nhất 1 lớp học và 1 kịch bản trước khi giao bài tập.");
+      return;
+    }
+
+    setIsSubmittingAssign(true);
     const cohortNumericId = parseInt(targetCohort.id.replace(/\D/g, ""), 10) || 1;
     const scenarioNumericId = parseInt(targetScenario.id.replace(/\D/g, ""), 10) || 1;
 
@@ -189,27 +203,7 @@ export function CohortAssignmentTab({
 
       onAddAssignment(newAssignment);
       setLocalAssignments((prev) => [newAssignment, ...prev]);
-      showToast(`Giao đề bài mới thành công cho ${targetCohort.code} (POST /api/assignments)!`);
-    } catch (err) {
-      console.warn("API create assignment failed, saving locally:", err);
-      const newAssignment: AssignmentItem = {
-        id: `asg-${Date.now()}`,
-        title: assignForm.title,
-        cohortId: targetCohort.id,
-        cohortName: targetCohort.code,
-        scenarioVersionId: targetScenario.id,
-        scenarioTitle: `${targetScenario.scenarioTitle} (${targetScenario.versionNumber})`,
-        deadline: `${assignForm.deadlineDate.split("-").reverse().join("/")} · ${assignForm.deadlineTime}`,
-        attemptLimit: assignForm.attemptLimit,
-        submissionsCount: 0,
-        totalStudents: targetCohort.studentsCount,
-        status: "active",
-      };
-      onAddAssignment(newAssignment);
-      setLocalAssignments((prev) => [newAssignment, ...prev]);
-      showToast(`Đã giao bài tập mới thành công cho ${targetCohort.code}!`);
-    } finally {
-      setIsSubmittingAssign(false);
+      showToast(`Giao đề bài mới thành công cho ${targetCohort.code}!`);
       setShowNewAssignModal(false);
       setAssignForm({
         title: "",
@@ -219,6 +213,10 @@ export function CohortAssignmentTab({
         deadlineTime: "23:59",
         attemptLimit: 2,
       });
+    } catch (err: any) {
+      alert("Không thể giao bài tập: " + (err?.message || "Lỗi kết nối máy chủ."));
+    } finally {
+      setIsSubmittingAssign(false);
     }
   };
 
@@ -230,22 +228,16 @@ export function CohortAssignmentTab({
         setLocalAssignments((prev) =>
           prev.map((a) => (a.id === asg.id ? { ...a, status: "closed" } : a))
         );
-        showToast(`Đã khóa nhận bài tập #${numericId} (POST /api/assignments/${numericId}/close)!`);
+        showToast(`Đã khóa nhận bài tập #${numericId}!`);
       } else {
         await assignmentService.publishAssignment(numericId);
         setLocalAssignments((prev) =>
           prev.map((a) => (a.id === asg.id ? { ...a, status: "active" } : a))
         );
-        showToast(`Đã mở nhận bài tập #${numericId} (POST /api/assignments/${numericId}/publish)!`);
+        showToast(`Đã mở nhận bài tập #${numericId}!`);
       }
-    } catch (err) {
-      console.warn("Toggle assignment status API failed, updating locally:", err);
-      setLocalAssignments((prev) =>
-        prev.map((a) =>
-          a.id === asg.id ? { ...a, status: asg.status === "active" ? "closed" : "active" } : a
-        )
-      );
-      showToast(`Đã chuyển trạng thái bài tập!`);
+    } catch (err: any) {
+      alert("Không thể cập nhật trạng thái bài tập: " + (err?.message || "Lỗi kết nối máy chủ."));
     }
   };
 
@@ -280,38 +272,22 @@ export function CohortAssignmentTab({
 
       onAddCohort(newCohort);
       setLocalCohorts((prev) => [newCohort, ...prev]);
-      showToast(`Tạo thành công lớp học ${newCohort.code} (POST /api/cohorts)!`);
+      showToast(`Tạo thành công lớp học ${newCohort.code}!`);
       setShowNewCohortModal(false);
-    } catch (err: any) {
-      console.warn("API error creating cohort, saving locally:", err);
-      const newCohort: CohortItem = {
-        id: `coh-${Date.now()}`,
-        code: cohortForm.code.toUpperCase().trim(),
-        name: cohortForm.name.trim(),
-        instructorName: cohortForm.instructorName,
-        studentsCount: cohortForm.studentsCount || 30,
-        activeAssignmentsCount: 0,
-        completionRate: 0,
-        averageScore: 0,
-        domain: cohortForm.domain,
-        status: "active",
-      };
-      onAddCohort(newCohort);
-      setLocalCohorts((prev) => [newCohort, ...prev]);
-      showToast(`Đã tạo lớp học mới ${newCohort.code}!`);
-      setShowNewCohortModal(false);
-    } finally {
-      setIsSubmittingCohort(false);
       setCohortForm({
         code: "",
         name: "",
-        instructorName: "TS. Nguyễn Hoàng Long",
+        instructorName: "Giảng viên",
         domain: "Chuỗi cung ứng",
         description: "",
         startDate: "",
         endDate: "",
         studentsCount: 30,
       });
+    } catch (err: any) {
+      alert("Không thể tạo lớp học: " + (err?.message || "Lỗi kết nối máy chủ."));
+    } finally {
+      setIsSubmittingCohort(false);
     }
   };
 
@@ -349,19 +325,10 @@ export function CohortAssignmentTab({
             : c
         )
       );
-      showToast(`Cập nhật thành công lớp học ${editCohortForm.code} (PUT /api/cohorts/${numericId})!`);
+      showToast(`Cập nhật thành công lớp học ${editCohortForm.code}!`);
       setShowEditCohortModal(false);
-    } catch (err) {
-      console.warn("API update failed, updating locally:", err);
-      setLocalCohorts((prev) =>
-        prev.map((c) =>
-          c.id === editingCohort.id
-            ? { ...c, code: editCohortForm.code.toUpperCase(), name: editCohortForm.name }
-            : c
-        )
-      );
-      showToast(`Đã lưu thay đổi cho lớp ${editCohortForm.code}!`);
-      setShowEditCohortModal(false);
+    } catch (err: any) {
+      alert("Không thể cập nhật lớp học: " + (err?.message || "Lỗi kết nối máy chủ."));
     }
   };
 
@@ -375,15 +342,9 @@ export function CohortAssignmentTab({
           c.id === coh.id ? { ...c, status: coh.status === "active" ? "archived" : "active" } : c
         )
       );
-      showToast(`Đã chuyển trạng thái lớp ${coh.code} (PATCH /api/cohorts/${numericId}/status)!`);
-    } catch (err) {
-      console.warn("Status toggle API failed, updating locally:", err);
-      setLocalCohorts((prev) =>
-        prev.map((c) =>
-          c.id === coh.id ? { ...c, status: coh.status === "active" ? "archived" : "active" } : c
-        )
-      );
       showToast(`Đã chuyển trạng thái lớp ${coh.code}!`);
+    } catch (err: any) {
+      alert("Không thể chuyển trạng thái lớp: " + (err?.message || "Lỗi kết nối máy chủ."));
     }
   };
 
@@ -395,11 +356,9 @@ export function CohortAssignmentTab({
     try {
       await cohortService.deleteCohort(numericId);
       setLocalCohorts((prev) => prev.filter((c) => c.id !== cohId));
-      showToast(`Đã xóa lớp học ${cohCode} (DELETE /api/cohorts/${numericId})!`);
-    } catch (err) {
-      console.warn("Delete cohort API failed, removing locally:", err);
-      setLocalCohorts((prev) => prev.filter((c) => c.id !== cohId));
       showToast(`Đã xóa lớp học ${cohCode}!`);
+    } catch (err: any) {
+      alert("Không thể xóa lớp học: " + (err?.message || "Lỗi kết nối máy chủ."));
     }
   };
 
@@ -561,7 +520,10 @@ export function CohortAssignmentTab({
 
         <div className="divide-y divide-[#e6edf2]">
           {filteredAssignments.map((asg) => {
-            const submissionPercent = Math.round((asg.submissionsCount / asg.totalStudents) * 100);
+            const submissionPercent =
+              asg.totalStudents > 0
+                ? Math.round((asg.submissionsCount / asg.totalStudents) * 100)
+                : 0;
             return (
               <div
                 key={asg.id}

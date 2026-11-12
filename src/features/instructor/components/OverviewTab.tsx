@@ -16,10 +16,11 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { classNames } from "../../../utils/format";
-import type { ReviewItem, LiveSessionItem, ScenarioVersion } from "../instructorData";
+import type { ReviewItem, LiveSessionItem, ScenarioVersion, CohortItem } from "../instructorData";
 
 interface OverviewTabProps {
   scenarios: ScenarioVersion[];
+  cohorts: CohortItem[];
   liveSessions: LiveSessionItem[];
   reviewItems: ReviewItem[];
   onSelectTab: (tabId: string) => void;
@@ -29,6 +30,7 @@ interface OverviewTabProps {
 
 export function OverviewTab({
   scenarios,
+  cohorts,
   liveSessions,
   reviewItems,
   onSelectTab,
@@ -36,16 +38,26 @@ export function OverviewTab({
   onQuickObserve,
 }: OverviewTabProps) {
   const pendingReviews = reviewItems.filter((i) => i.status === "pending");
+  const totalStudents = cohorts.reduce((sum, c) => sum + (c.studentsCount || 0), 0);
+  const activeCohortsCount = cohorts.filter((c) => c.status === "active").length;
+  const scoredItems = reviewItems.filter((r) => r.humanScore != null || r.aiScore != null);
+  const avgScore =
+    scoredItems.length > 0
+      ? (
+          scoredItems.reduce((sum, r) => sum + Number(r.humanScore ?? r.aiScore ?? 0), 0) /
+          scoredItems.length
+        ).toFixed(1)
+      : "—";
 
   const kpiStats = [
     {
       icon: Users,
-      value: "85",
+      value: String(totalStudents),
       unit: "học viên",
       label: "Tổng sĩ số các lớp",
-      note: "3 lớp đang hoạt động",
+      note: `${activeCohortsCount} lớp đang hoạt động`,
       tone: "bg-[#e8f1f7] text-[#2f638c]",
-      trend: "Ổn định",
+      trend: cohorts.length > 0 ? "Theo dữ liệu lớp" : "Chưa có lớp",
     },
     {
       icon: Activity,
@@ -62,18 +74,18 @@ export function OverviewTab({
       value: String(pendingReviews.length).padStart(2, "0"),
       unit: "bài nộp",
       label: "Bài chờ thầy cô duyệt",
-      note: `${reviewItems.filter((r) => r.tone === "red").length} bài độ tin cậy AI thấp`,
+      note: `${reviewItems.filter((r) => r.tone === "red").length} bài cần ưu tiên`,
       tone: "bg-[#fff3e0] text-[#9b681d]",
       trend: "Cần xử lý",
     },
     {
       icon: BarChart3,
-      value: "71.4",
-      unit: "/100",
+      value: avgScore,
+      unit: avgScore !== "—" ? "/100" : "",
       label: "Điểm năng lực trung bình",
-      note: "+4.6 điểm so với bài trước",
+      note: `${reviewItems.filter((r) => r.status === "calibrated").length} bài đã chốt điểm`,
       tone: "bg-[#f1eef8] text-[#605594]",
-      trend: "Tăng trưởng",
+      trend: scoredItems.length > 0 ? "Dữ liệu chấm" : "Chưa có điểm",
     },
   ];
 
@@ -208,7 +220,12 @@ export function OverviewTab({
             </div>
 
             <div className="divide-y divide-[#e6edf2]">
-              {reviewItems.slice(0, 4).map((item) => (
+              {reviewItems.length === 0 ? (
+                <div className="p-6 text-center text-xs text-[#667d93]">
+                  Hiện chưa có bài nộp nào trong hàng đợi chờ thẩm định.
+                </div>
+              ) : (
+                reviewItems.slice(0, 4).map((item) => (
                 <div
                   key={item.id}
                   className="flex flex-col gap-3 p-4 transition-colors hover:bg-[#f8fafc] sm:flex-row sm:items-center sm:justify-between"
@@ -244,8 +261,10 @@ export function OverviewTab({
                     <div className="text-right">
                       <div className="text-[11px] text-[#667d93]">AI chấm / Thầy cô</div>
                       <div className="font-mono text-xs font-bold text-[#132d49]">
-                        {item.aiScore}/100{" "}
-                        <span className="text-[#8291a1]">({item.aiConfidence}% tin cậy)</span>
+                        {item.aiScore != null ? `${item.aiScore}/100` : "—"}
+                        {item.aiConfidence != null && (
+                          <span className="ml-1 text-[#8291a1]">({item.aiConfidence}% tin cậy)</span>
+                        )}
                         {item.humanScore !== null && (
                           <span className="ml-1 text-[#2d7b60] font-bold">➔ {item.humanScore}đ</span>
                         )}
@@ -261,7 +280,8 @@ export function OverviewTab({
                     </Button>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </Card>
 
@@ -286,7 +306,12 @@ export function OverviewTab({
               </Button>
             </div>
             <div className="divide-y divide-[#e6edf2]">
-              {scenarios.map((sc) => (
+              {scenarios.length === 0 ? (
+                <div className="p-6 text-center text-xs text-[#667d93]">
+                  Chưa có kịch bản nào trên hệ thống. Hãy sang mục &quot;Đề bài &amp; Nhân vật AI&quot; để tạo đề bài mới.
+                </div>
+              ) : (
+                scenarios.map((sc) => (
                 <div key={sc.id} className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-[#fafcfd]">
                   <div>
                     <div className="flex items-center gap-2">
@@ -313,7 +338,8 @@ export function OverviewTab({
                     </Badge>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </Card>
         </div>

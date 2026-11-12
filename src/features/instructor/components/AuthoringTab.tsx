@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   Copy,
   Layers3,
+  Loader2,
   Plus,
   Save,
   ShieldAlert,
   Sparkles,
   X,
 } from "lucide-react";
-import { scenarioAuthoringService } from "../../../services/scenarioAuthoringService";
+import { scenarioAuthoringService, type ScenarioDefinitionDto } from "../../../services/scenarioAuthoringService";
+import { catalogService, type ApplicationItem } from "../../../services/catalogService";
 import { AuthoringRubricsManager } from "./AuthoringRubricsManager";
 import { AuthoringTemplatesManager } from "./AuthoringTemplatesManager";
 import { Card } from "../../../components/ui/Card";
@@ -46,9 +48,41 @@ export function AuthoringTab({
   onAddEvent,
   onPublishVersion,
 }: AuthoringTabProps) {
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("INV-2026");
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(scenarios[0]?.scenarioId || "");
   const [activeSubTab, setActiveSubTab] = useState<"blueprint" | "personas" | "knowledge" | "events" | "rubrics" | "templates">("blueprint");
   const [domainFilter, setDomainFilter] = useState<string>("all");
+  const [definition, setDefinition] = useState<ScenarioDefinitionDto | null>(null);
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [loadingDefinition, setLoadingDefinition] = useState(false);
+  const [definitionError, setDefinitionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    catalogService
+      .getApplications()
+      .then((apps) => {
+        if (isMounted && Array.isArray(apps)) {
+          setApplications(apps);
+          if (apps.length > 0) {
+            setNewScenForm((prev) => ({
+              ...prev,
+              applicationId: prev.applicationId || apps[0].id,
+              domain: apps[0].name,
+            }));
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (scenarios.length > 0 && !scenarios.some((s) => s.scenarioId === selectedScenarioId)) {
+      setSelectedScenarioId(scenarios[0].scenarioId);
+    }
+  }, [scenarios, selectedScenarioId]);
 
   // Modals state
   const [showNewScenarioModal, setShowNewScenarioModal] = useState(false);
@@ -60,7 +94,8 @@ export function AuthoringTab({
   const [newScenForm, setNewScenForm] = useState({
     title: "",
     code: "",
-    domain: "Chuỗi cung ứng" as any,
+    applicationId: 0,
+    domain: "",
     version: "v1.0",
     baseline: "",
     groundTruth: "",
@@ -94,10 +129,93 @@ export function AuthoringTab({
   });
 
   const currentScenario = scenarios.find((s) => s.scenarioId === selectedScenarioId) || scenarios[0];
+  const activeNumericId = currentScenario
+    ? parseInt(String(currentScenario.id).replace(/\D/g, ""), 10) || 0
+    : 0;
+  const activeVersionId = definition?.id || activeNumericId || 1;
+
+  useEffect(() => {
+    if (!activeNumericId) {
+      setDefinition(null);
+      return;
+    }
+    let isMounted = true;
+    setLoadingDefinition(true);
+    setDefinitionError(null);
+    scenarioAuthoringService
+      .getDefinition(activeNumericId)
+      .then((def) => {
+        if (isMounted) setDefinition(def);
+      })
+      .catch((err: any) => {
+        if (isMounted) {
+          setDefinition(null);
+          setDefinitionError(err?.message || null);
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoadingDefinition(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [activeNumericId]);
+
   const filteredScenarios = scenarios.filter((s) => domainFilter === "all" || s.domain === domainFilter);
-  const scenarioPersonas = personas.filter((p) => p.scenarioId === selectedScenarioId);
-  const scenarioKnowledge = knowledgeItems.filter((k) => k.scenarioId === selectedScenarioId);
-  const scenarioEvents = events.filter((e) => e.scenarioId === selectedScenarioId);
+
+  const defPersonas: StakeholderPersona[] = definition
+    ? definition.personas.map((p) => ({
+        id: `per-${p.id}`,
+        scenarioId: selectedScenarioId,
+        name: p.name,
+        role: p.stakeholderRole,
+        department: p.department || "Phòng nghiệp vụ",
+        businessGoal: p.goals || p.businessConcerns || "—",
+        authority: p.responsibilities || "—",
+        knowledgeBoundary: p.communicationStyle || "Theo phạm vi phân quyền trong kịch bản",
+        hiddenInformation: p.painPoints || "—",
+        conflictingStance: p.personality || "—",
+        status: p.isActive ? "Đã kiểm thử đạt" : "Cần kiểm tra lại",
+      }))
+    : [];
+
+  const defKnowledge: AgentKnowledgeItem[] = definition
+    ? definition.knowledgeItems.map((k) => ({
+        id: `kno-${k.id}`,
+        scenarioId: selectedScenarioId,
+        title: k.title,
+        category: "Quy tắc nghiệp vụ",
+        content: k.content,
+        confidentiality: k.accessList?.some((a) => a.isHidden) ? "Tuyệt mật" : "Nội bộ",
+        knownByStakeholders: (k.accessList || []).map((a) => `per-${a.personaId}`),
+      }))
+    : [];
+
+  const defEvents: ScenarioEventConfig[] = definition
+    ? definition.events.map((ev) => ({
+        id: `evt-${ev.id}`,
+        scenarioId: selectedScenarioId,
+        title: ev.title,
+        triggerType: ev.triggerType === 0 ? "manual_instructor" : "time_elapsed",
+        triggerCondition: ev.triggerConditionJson || "Kích hoạt trong phiên phỏng vấn",
+        description: ev.description,
+        impactedRequirements: [],
+        injectedFact: ev.eventContent,
+      }))
+    : [];
+
+  const scenarioPersonas = [
+    ...defPersonas,
+    ...personas.filter((p) => p.scenarioId === selectedScenarioId),
+  ];
+  const scenarioKnowledge = [
+    ...defKnowledge,
+    ...knowledgeItems.filter((k) => k.scenarioId === selectedScenarioId),
+  ];
+  const scenarioEvents = [
+    ...defEvents,
+    ...events.filter((e) => e.scenarioId === selectedScenarioId),
+  ];
 
   const [savingDefinition, setSavingDefinition] = useState(false);
 
@@ -106,9 +224,15 @@ export function AuthoringTab({
     e.preventDefault();
     if (!newScenForm.title.trim() || !newScenForm.code.trim()) return;
 
+    const selectedAppId = newScenForm.applicationId || applications[0]?.id;
+    if (!selectedAppId) {
+      alert("Chưa tải được danh sách Lĩnh vực / Ứng dụng từ hệ thống.");
+      return;
+    }
+
     try {
-      await scenarioAuthoringService.createScenario({
-        applicationId: 1,
+      const created = await scenarioAuthoringService.createScenario({
+        applicationId: selectedAppId,
         code: newScenForm.code.toUpperCase(),
         title: newScenForm.title,
         summary: newScenForm.baseline,
@@ -117,55 +241,70 @@ export function AuthoringTab({
         businessObjectives: newScenForm.groundTruth || "Tối ưu hóa quy trình nghiệp vụ",
         assignment: "Lập kế hoạch BA và khảo sát yêu cầu",
       });
-    } catch (err) {
-      console.warn("Lưu kịch bản local:", err);
-    }
 
-    const newSc: ScenarioVersion = {
-      id: `sc-${Date.now()}`,
-      scenarioId: newScenForm.code.toUpperCase(),
-      scenarioTitle: newScenForm.title,
-      domain: newScenForm.domain,
-      versionNumber: newScenForm.version || "v1.0",
-      status: "Bản nháp",
-      baselineProblem: newScenForm.baseline,
-      groundTruth: newScenForm.groundTruth,
-      stakeholdersCount: 0,
-      eventsCount: 0,
-      evidenceCount: 0,
-      rubricCriteriaCount: 5,
-      updatedAt: new Date().toLocaleDateString("vi-VN"),
-    };
-    onAddScenario(newSc);
-    setSelectedScenarioId(newSc.scenarioId);
-    setShowNewScenarioModal(false);
-    setNewScenForm({ title: "", code: "", domain: "Chuỗi cung ứng", version: "v1.0", baseline: "", groundTruth: "" });
+      const appName = applications.find((a) => a.id === selectedAppId)?.name || newScenForm.domain || "Ngành nghiệp vụ";
+      const newSc: ScenarioVersion = {
+        id: String(created.currentDraftVersionId || created.id),
+        versionNumber: "v1.0",
+        scenarioId: created.code,
+        scenarioTitle: created.title,
+        domain: appName as any,
+        status: created.hasPublishedVersion ? "Đã ban hành" : "Bản nháp",
+        baselineProblem: newScenForm.baseline,
+        groundTruth: newScenForm.groundTruth,
+        stakeholdersCount: 0,
+        eventsCount: 0,
+        evidenceCount: 0,
+        rubricCriteriaCount: 0,
+        updatedAt: new Date().toLocaleDateString("vi-VN"),
+      };
+      onAddScenario(newSc);
+      setSelectedScenarioId(newSc.scenarioId);
+      setShowNewScenarioModal(false);
+      setNewScenForm({
+        title: "",
+        code: "",
+        applicationId: applications[0]?.id || 0,
+        domain: applications[0]?.name || "",
+        version: "v1.0",
+        baseline: "",
+        groundTruth: "",
+      });
+    } catch (err: any) {
+      alert("Không thể tạo kịch bản mới: " + (err?.message || "Lỗi kết nối máy chủ."));
+    }
   };
 
   // FE-10: Nút Tạo Version mới cho Scenario: POST /api/scenarios/{id}/versions
   const handleCreateVersion = async () => {
+    if (!currentScenario) return;
+    const scenarioNumericId = definition?.scenarioId || activeNumericId;
     try {
-      await scenarioAuthoringService.createVersion(1, true);
-      alert(`Đã tạo phiên bản mới thành công (POST /api/scenarios/1/versions)`);
+      const ver = await scenarioAuthoringService.createVersion(scenarioNumericId, true);
+      alert(`Đã tạo phiên bản mới v${ver.versionNo}.0 thành công!`);
+      const def = await scenarioAuthoringService.getDefinition(ver.id).catch(() => null);
+      if (def) setDefinition(def);
     } catch (err: any) {
-      alert(`Đã tạo phiên bản sao chép mới cho ${currentScenario.scenarioId}`);
+      alert("Không thể tạo phiên bản mới: " + (err?.message || "Lỗi kết nối máy chủ."));
     }
   };
 
   // FE-11: Cập nhật định nghĩa kịch bản: PUT /api/scenario-versions/{id}/definition
   const handleSaveDefinition = async () => {
+    if (!currentScenario) return;
     setSavingDefinition(true);
     try {
-      await scenarioAuthoringService.updateDefinition(1, {
-        summary: currentScenario.baselineProblem,
-        businessContext: currentScenario.baselineProblem,
-        businessProblem: currentScenario.baselineProblem,
-        businessObjectives: currentScenario.groundTruth,
-        assignment: "Đặc tả yêu cầu BRD chuẩn",
+      const updated = await scenarioAuthoringService.updateDefinition(activeVersionId, {
+        summary: definition?.summary || currentScenario.baselineProblem,
+        businessContext: definition?.businessContext || currentScenario.baselineProblem,
+        businessProblem: definition?.businessProblem || currentScenario.baselineProblem,
+        businessObjectives: definition?.businessObjectives || currentScenario.groundTruth,
+        assignment: definition?.assignment || "Đặc tả yêu cầu BRD chuẩn",
       });
-      alert("Đã lưu định nghĩa kịch bản thành công lên máy chủ (PUT /api/scenario-versions/1/definition)");
+      setDefinition(updated);
+      alert("Đã lưu định nghĩa kịch bản thành công lên máy chủ!");
     } catch (err: any) {
-      alert("Đã lưu định nghĩa kịch bản vào bộ nhớ!");
+      alert("Không thể lưu định nghĩa kịch bản: " + (err?.message || "Chỉ có thể sửa khi phiên bản đang ở trạng thái Draft."));
     } finally {
       setSavingDefinition(false);
     }
@@ -174,11 +313,12 @@ export function AuthoringTab({
   // FE-12: Nút Xuất bản Kịch bản: POST /api/scenario-versions/{id}/publish
   const handlePublish = async (scId: string) => {
     try {
-      await scenarioAuthoringService.publishVersion(1);
-    } catch (err) {
-      console.warn("Lỗi gọi publish API:", err);
+      await scenarioAuthoringService.publishVersion(activeVersionId);
+      onPublishVersion(scId);
+      alert("Đã ban hành phiên bản kịch bản thành công!");
+    } catch (err: any) {
+      alert("Không thể ban hành kịch bản: " + (err?.message || "Vui lòng kiểm tra đủ nhân vật AI & tiêu chí trước khi xuất bản."));
     }
-    onPublishVersion(scId);
   };
 
   const handleCreatePersona = (e: React.FormEvent) => {
@@ -266,9 +406,12 @@ export function AuthoringTab({
           <span className="text-xs font-bold text-[#667d93] mr-1">Lĩnh vực:</span>
           {[
             { id: "all", label: "Tất cả ngành nghề" },
-            { id: "Bán lẻ", label: "Bán lẻ" },
-            { id: "Chuỗi cung ứng", label: "Chuỗi cung ứng" },
-            { id: "Tài chính", label: "Tài chính" },
+            ...Array.from(
+              new Set([
+                ...applications.map((a) => a.name),
+                ...scenarios.map((s) => s.domain),
+              ].filter(Boolean))
+            ).map((name) => ({ id: name, label: name })),
           ].map((d) => (
             <button
               key={d.id}
@@ -329,6 +472,13 @@ export function AuthoringTab({
       </div>
 
       {/* Chi Tiết Kịch Bản Đang Chọn */}
+      {!currentScenario ? (
+        <Card className="p-10 text-center border-dashed border-[#d9e4ec]">
+          <p className="text-xs text-[#667d93]">
+            Chưa có đề bài kịch bản nào được tải từ máy chủ. Hãy bấm &quot;Tạo Đề Bài Mới&quot; để khởi tạo kịch bản đầu tiên.
+          </p>
+        </Card>
+      ) : (
       <Card className="overflow-hidden border-[#d9e4ec]">
         {/* Phần Đầu Kịch Bản */}
         <div className="border-b border-[#e2e9ef] bg-[#f8fafc] p-6">
@@ -339,18 +489,24 @@ export function AuthoringTab({
                   Mã: {currentScenario.scenarioId}
                 </span>
                 <span className="rounded-md bg-[#e3ecf3] px-2 py-0.5 text-xs font-bold text-[#2f638c]">
-                  Phiên bản {currentScenario.versionNumber}
+                  Phiên bản {definition ? `v${definition.versionNo}.0` : currentScenario.versionNumber}
                 </span>
-                <Badge tone={currentScenario.status === "Đã ban hành" ? "green" : "amber"}>
-                  {currentScenario.status}
+                <Badge tone={(definition?.isPublished ?? currentScenario.status === "Đã ban hành") ? "green" : "amber"}>
+                  {(definition?.isPublished ?? currentScenario.status === "Đã ban hành") ? "Đã ban hành" : "Bản nháp"}
                 </Badge>
+                {loadingDefinition && <Loader2 size={14} className="animate-spin text-[#2f638c]" />}
               </div>
               <h2 className="mt-2 text-lg font-bold text-[#132d49]">
-                {currentScenario.scenarioTitle}
+                {definition?.scenarioTitle || currentScenario.scenarioTitle}
               </h2>
               <p className="mt-1 max-w-4xl text-xs leading-5 text-[#667d93]">
-                {currentScenario.baselineProblem}
+                {definition?.businessProblem || currentScenario.baselineProblem || "Chưa có mô tả chi tiết."}
               </p>
+              {definitionError && (
+                <p className="mt-1 text-[11px] text-[#9b681d]">
+                  Lưu ý định nghĩa chi tiết: {definitionError}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -376,7 +532,7 @@ export function AuthoringTab({
               </Button>
 
               {/* FE-12: Nút Ban hành (Publish) */}
-              {currentScenario.status !== "Đã ban hành" ? (
+              {!(definition?.isPublished ?? currentScenario.status === "Đã ban hành") ? (
                 <Button
                   size="sm"
                   onClick={() => handlePublish(currentScenario.scenarioId)}
@@ -433,7 +589,7 @@ export function AuthoringTab({
                   Bản chất thực sự phía sau vấn đề mà học viên phải khéo léo đặt câu hỏi phỏng vấn để khám phá ra:
                 </p>
                 <div className="mt-4 rounded-xl bg-[#f5f8fa] p-4 text-xs leading-6 text-[#132d49] border border-[#e1e9f0]">
-                  {currentScenario.groundTruth}
+                  {definition?.businessObjectives || currentScenario.groundTruth || "Chưa cập nhật mục tiêu/sự thật ngầm hiểu cho phiên bản này."}
                 </div>
               </div>
 
@@ -615,7 +771,7 @@ export function AuthoringTab({
         {/* Tab Con 5: Bộ Tiêu Chí Rubric Chấm Điểm */}
         {activeSubTab === "rubrics" && (
           <div className="p-6">
-            <AuthoringRubricsManager scenarioVersionId={1} />
+            <AuthoringRubricsManager scenarioVersionId={activeVersionId} />
           </div>
         )}
 
@@ -626,6 +782,7 @@ export function AuthoringTab({
           </div>
         )}
       </Card>
+      )}
 
       {/* Modal 1: Tạo Đề Bài Mới */}
       {showNewScenarioModal && (
@@ -650,15 +807,29 @@ export function AuthoringTab({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#132d49] mb-1">Lĩnh vực hoạt động</label>
+                  <label className="block text-xs font-bold text-[#132d49] mb-1">Ứng dụng / Lĩnh vực nghiệp vụ</label>
                   <select
-                    value={newScenForm.domain}
-                    onChange={(e) => setNewScenForm({ ...newScenForm, domain: e.target.value as any })}
+                    value={newScenForm.applicationId || applications[0]?.id || ""}
+                    onChange={(e) => {
+                      const appId = Number(e.target.value);
+                      const matched = applications.find((a) => a.id === appId);
+                      setNewScenForm({
+                        ...newScenForm,
+                        applicationId: appId,
+                        domain: matched?.name || "",
+                      });
+                    }}
                     className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
                   >
-                    <option value="Bán lẻ">Bán lẻ</option>
-                    <option value="Chuỗi cung ứng">Chuỗi cung ứng</option>
-                    <option value="Tài chính">Tài chính</option>
+                    {applications.length === 0 ? (
+                      <option value="">Đang tải danh sách ứng dụng...</option>
+                    ) : (
+                      applications.map((app) => (
+                        <option key={app.id} value={app.id}>
+                          {app.name} ({app.industry?.name || app.code})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>

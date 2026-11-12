@@ -57,7 +57,7 @@ export function ScenarioLibraryPage({ navigate }: { navigate: (route: RouteKey) 
           setIndustries(data);
         }
       } catch (err) {
-        console.warn("Không tải được danh mục ngành từ API, sử dụng dữ liệu mặc định:", err);
+        console.warn("Không tải được danh mục ngành từ API:", err);
       }
     }
     loadIndustries();

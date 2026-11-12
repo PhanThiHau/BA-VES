@@ -104,7 +104,7 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
           if (matched) setMyAssignment(matched);
         }
       } catch (err) {
-        console.warn("Không tải được bối cảnh từ API, hiển thị bối cảnh mẫu mặc định:", err);
+        console.warn("Không tải được bối cảnh từ API:", err);
       } finally {
         setLoading(false);
       }
@@ -159,8 +159,8 @@ export function ScenarioDetailPage({ navigate }: { navigate: (route: RouteKey) =
               />
               <div className="relative z-10">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="navy">Chuỗi cung ứng</Badge>
-                  <Badge tone="amber">Cấp độ: Trung cấp</Badge>
+                  <Badge tone="navy">{context?.baRole || "Business Analyst"}</Badge>
+                  <Badge tone="amber">Cấp độ: {context?.difficulty || "Tiêu chuẩn"}</Badge>
                   <Badge tone="green">Phiên thực hành chuẩn BABOK® v3</Badge>
                 </div>
                 <p className="mt-5 font-mono text-xs font-bold uppercase tracking-widest text-brass-light">

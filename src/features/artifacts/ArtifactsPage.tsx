@@ -629,20 +629,9 @@ function UploadWorkspace({
                 </div>
               ))
             ) : (
-              [
-                ["v1.2", "18/09 · 16:42", "Bổ sung quy tắc nghiệp vụ và các chỉ số KPI", "Cần sửa đổi"],
-                ["v1.1", "17/09 · 10:15", "Điều chỉnh phạm vi theo góp ý từ Sponsor", "AI đã phản biện"],
-                ["v1.0", "16/09 · 17:05", "Bản nộp sơ thảo ban đầu", "Đã thay thế"],
-              ].map(([version, time, change, status]) => (
-                <div key={version} className="grid gap-3 p-5 sm:grid-cols-[90px_1fr_150px] sm:items-center">
-                  <strong className="font-mono text-sm font-bold text-navy">{version}</strong>
-                  <div>
-                    <p className="text-xs font-semibold text-navy">{change}</p>
-                    <span className="text-[11px] text-slate">{time} · Minh Nguyen (BA)</span>
-                  </div>
-                  <span className="text-xs font-medium text-slate sm:text-right">{status}</span>
-                </div>
-              ))
+              <div className="p-8 text-center text-xs text-slate">
+                Chưa có phiên bản nào được đóng băng. Hãy soạn bản nháp rồi bấm &quot;Đóng băng phiên bản mới&quot;.
+              </div>
             )}
           </div>
         </Card>

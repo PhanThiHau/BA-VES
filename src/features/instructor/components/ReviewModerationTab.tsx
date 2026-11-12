@@ -71,13 +71,13 @@ export function ReviewModerationTab({
             stage: isCompleted ? "Đã duyệt & chốt điểm" : "Chờ giảng viên thẩm định",
             submittedAt: r.requestedAt ? new Date(r.requestedAt).toLocaleString("vi-VN") : "Vừa xong",
             due: "Theo lịch thẩm định",
-            aiScore: 75,
-            aiConfidence: 85,
-            humanScore: isCompleted ? 80 : null,
+            aiScore: null,
+            aiConfidence: null,
+            humanScore: null,
             status: isCompleted ? "calibrated" : "pending",
             tone: isCompleted ? "green" : "amber",
             issueSummary: r.requestNote || "Học viên gửi yêu cầu chuyên gia thẩm định và hiệu chỉnh điểm AI.",
-            deliverablesSubmitted: ["Hồ sơ phân tích nghiệp vụ & Bài nộp"],
+            deliverablesSubmitted: [`Submission #${r.submissionId}`],
             moderatorNotes: "",
             criteria: [],
           };
@@ -161,10 +161,9 @@ export function ReviewModerationTab({
 
   const handleSaveCalibration = async () => {
     if (!selectedItem) return;
-    onCalibrateScore(selectedItem.id, calculatedHumanScore, moderatorNote, criteriaScores);
     try {
       const numericId = parseInt(selectedItem.id.replace(/\D/g, ""), 10) || 1;
-      await assessmentService.completeReview(numericId, {
+      const reviewRes = await assessmentService.completeReview(numericId, {
         overallFeedback: moderatorNote || "Chuyên gia đã chốt điểm và hoàn tất thẩm định",
         criterionScores: criteriaScores.map((c) => ({
           rubricCriterionId: parseInt(c.id.replace(/\D/g, ""), 10) || 1,
@@ -172,16 +171,19 @@ export function ReviewModerationTab({
           comment: c.aiEvidenceQuote,
         })),
       });
+      onCalibrateScore(selectedItem.id, reviewRes?.finalScore ?? calculatedHumanScore, moderatorNote, criteriaScores);
       setLocalItems((prev) =>
         prev.map((x) =>
-          x.id === selectedItem.id ? { ...x, status: "calibrated", humanScore: calculatedHumanScore } : x
+          x.id === selectedItem.id
+            ? { ...x, status: "calibrated", humanScore: reviewRes?.finalScore ?? calculatedHumanScore }
+            : x
         )
       );
-    } catch (e) {
-      console.warn("Could not sync review completion to backend:", e);
+      setToastMessage(`Đã chốt điểm ${reviewRes?.finalScore ?? calculatedHumanScore}/100 cho ${selectedItem.learner}!`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (e: any) {
+      alert("Không thể lưu kết quả thẩm định lên máy chủ: " + (e?.message || "Lỗi kết nối."));
     }
-    setToastMessage(`Đã chốt điểm ${calculatedHumanScore}/100 cho học viên ${selectedItem.learner}!`);
-    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleConfirmRevision = () => {
@@ -311,12 +313,14 @@ export function ReviewModerationTab({
 
                     <div className="mt-3 flex items-center justify-between border-t border-[#dfe8ee] pt-2 text-[11px]">
                       <span className="font-mono text-[#667d93]">
-                        AI chấm: <strong className="text-[#132d49]">{item.aiScore}/100</strong>
+                        AI chấm: <strong className="text-[#132d49]">{item.aiScore != null ? `${item.aiScore}/100` : "—"}</strong>
                       </span>
                       {item.humanScore != null ? (
                         <span className="font-mono font-bold text-[#2d7b60]">
                           Thầy cô chốt: {item.humanScore}đ
                         </span>
+                      ) : item.status === "calibrated" ? (
+                        <span className="font-mono font-bold text-[#2d7b60]">Đã chốt điểm</span>
                       ) : (
                         <span className="text-[#9b681d] font-semibold text-[10px]">Chưa duyệt điểm</span>
                       )}
@@ -389,12 +393,14 @@ export function ReviewModerationTab({
                     </span>
                     <div className="mt-1 flex items-baseline gap-2">
                       <strong className="font-mono text-3xl font-extrabold text-[#132d49]">
-                        {selectedItem.aiScore}
+                        {selectedItem.aiScore != null ? selectedItem.aiScore : "—"}
                       </strong>
                       <span className="text-xs text-[#667d93]">/100</span>
-                      <span className="text-xs font-semibold text-[#8b6a35]">
-                        ({selectedItem.aiConfidence}% tin cậy)
-                      </span>
+                      {selectedItem.aiConfidence != null && (
+                        <span className="text-xs font-semibold text-[#8b6a35]">
+                          ({selectedItem.aiConfidence}% tin cậy)
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-[11px] text-[#8291a1]">AI đối chiếu từ bài nộp và câu hỏi</p>
                   </div>
@@ -408,7 +414,7 @@ export function ReviewModerationTab({
                         {calculatedHumanScore}
                       </strong>
                       <span className="text-xs text-[#2f638c]">/100</span>
-                      {calculatedHumanScore !== selectedItem.aiScore && (
+                      {selectedItem.aiScore != null && calculatedHumanScore !== selectedItem.aiScore && (
                         <span
                           className={classNames(
                             "text-xs font-bold",

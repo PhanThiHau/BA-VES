@@ -63,7 +63,8 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const handleToggleVoice = () => {
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
-      setDraft((prev) => prev ? `${prev} Tôi muốn tìm hiểu kỹ hơn về thời điểm đối soát số lượng tồn kho.` : "Tôi muốn tìm hiểu quy trình đối soát số lượng tồn kho giữa WMS và ERP được thực hiện vào thời điểm nào trong ca làm việc?");
+      setStatusMessage("Trình duyệt chưa hỗ trợ nhập giọng nói (Speech Recognition). Vui lòng nhập câu hỏi trực tiếp.");
+      setTimeout(() => setStatusMessage(null), 4000);
       return;
     }
     if (isRecording) {
@@ -101,6 +102,8 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const [sessionEvents, setSessionEvents] = useState<SessionEventDto[]>([]);
   const [eventCatalog, setEventCatalog] = useState<ScenarioEventAvailabilityDto[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [triggeringEventId, setTriggeringEventId] = useState<number | null>(null);
+  const [eventError, setEventError] = useState<string | null>(null);
 
   // Session Lifecycle & History state
   const [isCompleting, setIsCompleting] = useState(false);
@@ -222,6 +225,22 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     }
   };
 
+  const handleTriggerSessionEvent = async (eventId: number) => {
+    if (!currentSessionId) return;
+    setTriggeringEventId(eventId);
+    setEventError(null);
+    try {
+      const res = await simulationService.triggerSessionEvent(currentSessionId, eventId);
+      setStatusMessage(`Đã kích hoạt sự kiện "${res.eventTitle}" vào phiên #${currentSessionId}!`);
+      setTimeout(() => setStatusMessage(null), 4000);
+      await loadSessionEventsData(currentSessionId);
+    } catch (err: any) {
+      setEventError(err?.message || "Không thể kích hoạt sự kiện cho phiên hiện tại.");
+    } finally {
+      setTriggeringEventId(null);
+    }
+  };
+
   const handleSelectStakeholder = (person: { id: string }) => {
     setActiveStakeholderId(person.id);
   };
@@ -337,11 +356,13 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               </span>
               <Badge tone="green">Đang phỏng vấn</Badge>
               <span className="font-mono text-xs text-mist">
-                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014"}
+                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "Chưa khởi tạo phiên"}
               </span>
             </div>
             <h1 className="mt-1 truncate text-base font-bold text-white sm:text-lg">
-              Mô phỏng khơi gợi yêu cầu: Quản lý tồn kho VinaSupply
+              {currentSessionId
+                ? `Phòng phỏng vấn Stakeholder AI · Phiên #${currentSessionId}`
+                : "Phòng phỏng vấn Stakeholder AI"}
             </h1>
           </div>
 
@@ -357,16 +378,20 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
 
             <span className="flex items-center gap-1.5 rounded-lg bg-navy/80 px-2.5 py-1.5 text-xs font-semibold text-mist">
               <Clock3 size={15} className="text-brass" />
-              56:24
+              {activeAgents.length} Stakeholder · {messages.length} tin nhắn
             </span>
 
             <Button
               variant="secondary"
-              onClick={() => setEventOpen(true)}
+              onClick={() => {
+                setEventError(null);
+                setEventOpen(true);
+                if (currentSessionId) loadSessionEventsData(currentSessionId);
+              }}
               className="border-amber-400/30 bg-amber-500/10 text-xs font-semibold text-amber-300 hover:bg-amber-500/20"
             >
               <AlertTriangle size={15} className="text-amber-400" />
-              Sự kiện khẩn cấp
+              Sự kiện kịch bản ({eventCatalog.length})
             </Button>
 
             {/* Hoàn thành phiên */}
@@ -857,7 +882,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
         </div>
       </div>
 
-      {/* Dynamic Emergency Event Modal */}
+      {/* Dynamic Scenario Event Modal (Connected to Event Catalog & Trigger API) */}
       {eventOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-navy-deep/60 p-4 backdrop-blur-sm">
           <Card className="w-full max-w-2xl overflow-hidden border-amber-400/30 shadow-2xl">
@@ -867,9 +892,9 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                   <AlertTriangle size={22} />
                 </span>
                 <div>
-                  <Badge tone="amber">Sự kiện động · Khẩn cấp</Badge>
+                  <Badge tone="amber">Sự kiện kịch bản · Real-time API</Badge>
                   <h2 className="mt-2 text-xl font-bold text-navy">
-                    Nhà cung cấp chính giao hàng trễ 5 ngày
+                    Danh mục Biến cố & Sự kiện Thay đổi
                   </h2>
                 </div>
               </div>
@@ -881,42 +906,85 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               </button>
             </div>
 
-            <div className="p-6">
-              <p className="leading-7 text-slate text-sm">
-                Lô hàng sữa tươi tiệt trùng MILK-01 dự kiến nhập kho ngày 18/09 bị hoãn 5 ngày do sự cố vận chuyển từ nhà máy. Kho miền Nam sẽ cạn sạch tồn kho trong 3 ngày tới, trong khi chương trình khuyến mãi toàn hệ thống sẽ bắt đầu trong 7 ngày nữa.
-              </p>
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {eventError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                  {eventError}
+                </div>
+              )}
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                {[
-                  ["Phạm vi ảnh hưởng", "Bổ sung tồn kho"],
-                  ["Mức độ tác động", "Rất cao"],
-                  ["Thời hạn phản hồi", "20 phút"],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-mist/30 p-3">
-                    <span className="text-xs text-slate">{label}</span>
-                    <strong className="mt-1 block text-sm text-navy">{value}</strong>
-                  </div>
-                ))}
-              </div>
+              {!currentSessionId ? (
+                <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
+                  Vui lòng khởi tạo một phiên thực hành từ Thư viện kịch bản để tải danh sách sự kiện.
+                </div>
+              ) : isLoadingEvents ? (
+                <div className="py-8 text-center text-xs text-slate">
+                  <RefreshCw size={20} className="mx-auto mb-2 animate-spin text-navy" />
+                  Đang tải danh mục sự kiện từ máy chủ...
+                </div>
+              ) : eventCatalog.length === 0 && sessionEvents.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
+                  Kịch bản này chưa cấu hình biến cố bổ sung nào trên hệ thống.
+                </div>
+              ) : (
+                <>
+                  {eventCatalog.length > 0 && (
+                    <div className="space-y-3">
+                      {eventCatalog.map((evt) => (
+                        <div key={evt.id} className="rounded-xl border border-slate/15 bg-white p-4 shadow-xs">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <strong className="text-sm font-bold text-navy">{evt.title}</strong>
+                                <Badge tone={evt.isTriggered ? "green" : "amber"}>
+                                  {evt.isTriggered ? "Đã kích hoạt" : evt.triggerType}
+                                </Badge>
+                              </div>
+                              <p className="mt-1.5 text-xs leading-5 text-slate">{evt.description}</p>
+                              {evt.triggeredAt && (
+                                <p className="mt-1 text-[11px] text-emerald-700">
+                                  Kích hoạt lúc: {new Date(evt.triggeredAt).toLocaleString("vi-VN")}
+                                </p>
+                              )}
+                            </div>
+                            {!evt.isTriggered && (
+                              <Button
+                                size="sm"
+                                disabled={triggeringEventId === evt.id}
+                                onClick={() => handleTriggerSessionEvent(evt.id)}
+                                className="text-xs bg-amber-600 text-white hover:bg-amber-700 shrink-0"
+                              >
+                                {triggeringEventId === evt.id ? "Đang kích hoạt..." : "Kích hoạt sự kiện"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-              <h3 className="mt-6 text-sm font-bold text-navy">Hành động BA cần thực hiện ngay:</h3>
-              <div className="mt-3 space-y-2">
-                {[
-                  "Xác định các Stakeholder cần tham vấn khẩn (Planner, Finance, Trưởng kho)",
-                  "Đánh giá các yêu cầu nghiệp vụ bị ảnh hưởng (FR-08, BR-01)",
-                  "So sánh phương án: Điều chuyển tồn kho nội bộ vs Mua ngoài khẩn cấp",
-                  "Cập nhật sổ ghi chép quyết định (Decision Log) và Nhật ký rủi ro",
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-xs font-medium text-slate">
-                    <ChevronRight size={14} className="text-navy" />
-                    {item}
-                  </div>
-                ))}
-              </div>
+                  {sessionEvents.length > 0 && (
+                    <div className="border-t border-slate/15 pt-4 space-y-2.5">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate">
+                        Lịch sử sự kiện đã xảy ra trong phiên ({sessionEvents.length})
+                      </h3>
+                      {sessionEvents.map((se) => (
+                        <div key={se.id} className="rounded-xl border border-amber-300/50 bg-amber-50/40 p-3 text-xs">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-amber-900">Biến cố #{se.sequenceNo}</strong>
+                            <Badge tone="amber">{se.triggerSource}</Badge>
+                          </div>
+                          <p className="mt-1 text-navy/90 leading-5">{se.eventContentSnapshot}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
 
-              <div className="mt-7 flex justify-end gap-3 border-t border-slate/10 pt-4">
+              <div className="mt-6 flex justify-end gap-3 border-t border-slate/10 pt-4">
                 <Button variant="secondary" onClick={() => setEventOpen(false)}>
-                  Để sau
+                  Đóng
                 </Button>
                 <Button
                   onClick={() => {
