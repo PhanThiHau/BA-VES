@@ -18,90 +18,6 @@ import {
   UpdateArtifactTemplatePayload,
 } from "../../../services/artifactService";
 
-const DEFAULT_MOCK_TEMPLATES: ArtifactTemplateDto[] = [
-  {
-    id: 1,
-    name: "Tài liệu Yêu cầu Nghiệp vụ chuẩn (BRD Template v2)",
-    artifactType: "BRD",
-    description: "Khung mẫu tài liệu Business Requirements Document gồm 5 mục cốt lõi chuẩn BABOK",
-    status: "Published",
-    sections: [
-      {
-        id: 1,
-        artifactTemplateId: 1,
-        sectionKey: "context",
-        title: "1. Bối cảnh & Vấn đề kinh doanh",
-        instructions: "Trình bày hiện trạng, các bên liên quan và thách thức cần giải quyết.",
-        displayOrder: 1,
-        isRequired: true,
-      },
-      {
-        id: 2,
-        artifactTemplateId: 1,
-        sectionKey: "objectives",
-        title: "2. Mục tiêu dự án & Phạm vi (Scope)",
-        instructions: "Xác định rõ những gì thuộc phạm vi (In-Scope) và ngoài phạm vi (Out-of-Scope).",
-        displayOrder: 2,
-        isRequired: true,
-      },
-      {
-        id: 3,
-        artifactTemplateId: 1,
-        sectionKey: "functional_requirements",
-        title: "3. Yêu cầu chức năng (FR)",
-        instructions: "Liệt kê các ca sử dụng (Use Cases) hoặc User Stories kèm tiêu chí nghiệm thu.",
-        displayOrder: 3,
-        isRequired: true,
-      },
-      {
-        id: 4,
-        artifactTemplateId: 1,
-        sectionKey: "business_rules",
-        title: "4. Quy tắc nghiệp vụ (Business Rules)",
-        instructions: "Đặc tả các điều kiện rẽ nhánh và công thức tính toán nghiệp vụ.",
-        displayOrder: 4,
-        isRequired: true,
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Biên bản Phỏng vấn & Xác thực Yêu cầu (Meeting Minutes Template)",
-    artifactType: "MeetingMinutes",
-    description: "Mẫu ghi nhận kết quả các phiên làm việc và phỏng vấn trực tiếp với nhân vật AI",
-    status: "Draft",
-    sections: [
-      {
-        id: 5,
-        artifactTemplateId: 2,
-        sectionKey: "participants",
-        title: "1. Thành phần tham dự & Thời gian",
-        instructions: "Ghi nhận vai trò của các stakeholder tham gia phỏng vấn.",
-        displayOrder: 1,
-        isRequired: true,
-      },
-      {
-        id: 6,
-        artifactTemplateId: 2,
-        sectionKey: "key_findings",
-        title: "2. Những phát hiện mấu chốt",
-        instructions: "Các điểm nghẽn nghiệp vụ và mong đợi của người dùng.",
-        displayOrder: 2,
-        isRequired: true,
-      },
-      {
-        id: 7,
-        artifactTemplateId: 2,
-        sectionKey: "action_items",
-        title: "3. Các việc cần làm tiếp theo",
-        instructions: "Phân công người phụ trách và thời hạn hoàn thành.",
-        displayOrder: 3,
-        isRequired: false,
-      },
-    ],
-  },
-];
-
 export function AuthoringTemplatesManager() {
   const [templates, setTemplates] = useState<ArtifactTemplateDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -127,14 +43,10 @@ export function AuthoringTemplatesManager() {
     setLoading(true);
     try {
       const data = await artifactService.getTemplates();
-      if (data && data.length > 0) {
-        setTemplates(data);
-      } else {
-        setTemplates(DEFAULT_MOCK_TEMPLATES);
-      }
+      setTemplates(data || []);
     } catch (err) {
-      console.warn("Could not fetch templates from API, using fallback data:", err);
-      setTemplates(DEFAULT_MOCK_TEMPLATES);
+      console.warn("Could not fetch templates from API:", err);
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
@@ -206,30 +118,7 @@ export function AuthoringTemplatesManager() {
       setTemplates((prev) => prev.map((item) => (item.id === editingTemplate.id ? res : item)));
       setEditingTemplate(null);
     } catch (err: any) {
-      console.warn("API call failed, updating template locally:", err);
-      setTemplates((prev) =>
-        prev.map((item) =>
-          item.id === editingTemplate.id
-            ? {
-                ...item,
-                name: templateName,
-                artifactType: templateType,
-                description: templateDesc,
-                sections: sections.map((s, i) => ({
-                  id: i + 1,
-                  artifactTemplateId: editingTemplate.id,
-                  sectionKey: s.sectionKey,
-                  title: s.title,
-                  instructions: s.instructions || null,
-                  displayOrder: s.displayOrder,
-                  isRequired: s.isRequired,
-                })),
-              }
-            : item
-        )
-      );
-      showToast(`Đã lưu thay đổi cho mẫu tài liệu "${templateName}"!`);
-      setEditingTemplate(null);
+      alert(`Lỗi khi cập nhật mẫu tài liệu: ${err?.message || "Không xác định"}`);
     } finally {
       setSubmitting(false);
     }
@@ -237,13 +126,11 @@ export function AuthoringTemplatesManager() {
 
   const handlePublishTemplate = async (id: number) => {
     try {
-      const res = await artifactService.publishTemplate(id);
+      await artifactService.publishTemplate(id);
       showToast(`Đã ban hành mẫu tài liệu #${id} (POST /api/artifact-templates/${id}/publish)!`);
       setTemplates((prev) => prev.map((item) => (item.id === id ? { ...item, status: "Published" } : item)));
-    } catch (err) {
-      console.warn("Publish template API failed, updating locally:", err);
-      setTemplates((prev) => prev.map((item) => (item.id === id ? { ...item, status: "Published" } : item)));
-      showToast(`Đã ban hành mẫu tài liệu #${id}!`);
+    } catch (err: any) {
+      alert(`Lỗi khi ban hành mẫu tài liệu: ${err?.message || "Không xác định"}`);
     }
   };
 
@@ -274,6 +161,10 @@ export function AuthoringTemplatesManager() {
           <Loader2 size={24} className="animate-spin text-[#2f638c]" />
           <span>Đang tải danh sách mẫu tài liệu...</span>
         </div>
+      ) : templates.length === 0 ? (
+        <Card className="p-8 text-center border-dashed border-[#d9e4ec] text-xs text-[#667d93]">
+          Chưa có mẫu tài liệu nào được cấu hình trên máy chủ.
+        </Card>
       ) : (
         <div className="space-y-6">
           {templates.map((tpl) => {

@@ -1,7 +1,4 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { stakeholders } from "../constants/scenario";
-import { evidenceRegister, initialInterviewMessages } from "../constants/trainingScenario";
-import { sendStakeholderMessage } from "../services/mockApi";
 import { authService, type UserProfile } from "../services/authService";
 import { getStoredTokens } from "../services/apiClient";
 import { simulationService, type SessionAgentDto } from "../services/simulationService";
@@ -65,7 +62,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isReplying, setIsReplying] = useState(false);
   const [instructorTab, setInstructorTab] = useState("overview");
   const [adminTab, setAdminTab] = useState("overview");
-  const [allMessages, setAllMessages] = useState<ChatMessage[]>(initialInterviewMessages);
+  const [allMessages, setAllMessages] = useState<ChatMessage[]>([]);
 
   // Load current user profile if token is present
   const refreshUser = async () => {
@@ -119,6 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Find active agent ID from backend agent list
       const agent = activeAgents.find(
         (a) =>
+          String(a.id) === activeStakeholderId ||
           a.stakeholderRole?.toLowerCase().includes(activeStakeholderId.toLowerCase()) ||
           a.name?.toLowerCase().includes(activeStakeholderId.toLowerCase())
       ) || activeAgents[0];
@@ -142,15 +140,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return;
         }
       }
-    } catch (err) {
-      console.warn("Backend chat message API unavailable or errored, falling back to local simulation:", err);
-    }
 
-    // Fallback to local simulation when offline
-    const stakeholder = stakeholders.find((item) => item.id === activeStakeholderId) ?? stakeholders[2];
-    const reply = await sendStakeholderMessage(stakeholder, text, messages.length);
-    setAllMessages((current) => [...current, reply]);
-    setIsReplying(false);
+      const systemNotice: ChatMessage = {
+        id: Date.now() + 1,
+        stakeholderId: activeStakeholderId,
+        sender: "agent",
+        text: "Chưa có phiên thực hành hoặc nhân vật AI đang hoạt động. Vui lòng chọn kịch bản và nhấn 'Bắt đầu phiên thực hành'.",
+        time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+      };
+      setAllMessages((current) => [...current, systemNotice]);
+    } catch (err: any) {
+      const errorNotice: ChatMessage = {
+        id: Date.now() + 1,
+        stakeholderId: activeStakeholderId,
+        sender: "agent",
+        text: `Không thể nhận phản hồi từ máy chủ AI: ${err?.message || "Vui lòng kiểm tra cấu hình BYOK API Key hoặc kết nối Backend."}`,
+        time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
+      };
+      setAllMessages((current) => [...current, errorNotice]);
+    } finally {
+      setIsReplying(false);
+    }
   };
 
   // API 14: GET /api/sessions/{sessionId}/agents/{agentId}/messages
@@ -182,8 +192,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
     );
 
-  const evidenceCount =
-    evidenceRegister.length + allMessages.filter((message) => message.evidence && message.id > 1000).length;
+  const evidenceCount = allMessages.filter((message) => message.evidence).length;
 
   const value = useMemo(
     () => ({

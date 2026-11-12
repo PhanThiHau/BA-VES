@@ -23,15 +23,13 @@ import {
 } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import { userService } from "../../services/userService";
+import { catalogService } from "../../services/catalogService";
+import { assessmentService } from "../../services/assessmentService";
 import type { UserProfile } from "../../services/authService";
 import {
   initialAdminStats,
-  initialUserAccounts,
-  initialMasterDomains,
-  initialBabokAreas,
   initialAiModels,
   initialAuditLogs,
-  type UserAccount,
   type MasterDomain,
   type AiModelConfig,
 } from "./adminData";
@@ -41,8 +39,12 @@ export function AdminPage() {
   const currentTab = adminTab || "overview";
 
   // State quản trị
-  const [users, setUsers] = useState<UserAccount[]>(initialUserAccounts);
-  const [domains, setDomains] = useState<MasterDomain[]>(initialMasterDomains);
+  const [domains, setDomains] = useState<MasterDomain[]>([]);
+  const [isLoadingDomains, setIsLoadingDomains] = useState(false);
+  const [babokAreas, setBabokAreas] = useState<
+    { code: string; name: string; tasksCount: number; rubricCriteriaCount: number; weight: number }[]
+  >([]);
+  const [isLoadingBabok, setIsLoadingBabok] = useState(false);
   const [aiModels, setAiModels] = useState<AiModelConfig[]>(initialAiModels);
   const [searchUser, setSearchUser] = useState("");
   const [filterRole, setFilterRole] = useState<string>("ALL");
@@ -68,16 +70,90 @@ export function AdminPage() {
       });
       setApiUsers(res || []);
     } catch (err: any) {
-      console.warn("Backend users API failed, fallback to mock data:", err);
+      console.warn("Backend users API failed:", err);
+      setApiUsers([]);
       setUserError(err?.message || "Không thể tải danh sách tài khoản từ server.");
     } finally {
       setIsLoadingUsers(false);
     }
   };
 
+  // Load domains (Industries + Applications + Scenarios) from backend API
+  const loadDomains = async () => {
+    setIsLoadingDomains(true);
+    try {
+      const [inds, apps, scens] = await Promise.all([
+        catalogService.getIndustries(),
+        catalogService.getApplications(),
+        catalogService.getScenarios(),
+      ]);
+      const mapped: MasterDomain[] = (inds || []).map((ind) => {
+        const indApps = (apps || []).filter((a) => a.industry?.id === ind.id);
+        const indScens = (scens || []).filter((s) =>
+          indApps.some((a) => a.id === s.applicationId || a.id === s.application?.id)
+        );
+        return {
+          id: String(ind.id),
+          code: ind.code,
+          name: ind.name,
+          description: ind.description || "Danh mục ngành mô phỏng nghiệp vụ.",
+          applicationsCount: indApps.length,
+          scenariosCount: indScens.length,
+          status: String(ind.status).toLowerCase() === "active" || ind.status === 1 ? "ACTIVE" : "DRAFT",
+        };
+      });
+      setDomains(mapped);
+    } catch (err) {
+      console.warn("Could not load domains from catalogService:", err);
+      setDomains([]);
+    } finally {
+      setIsLoadingDomains(false);
+    }
+  };
+
+  // Load BABOK knowledge areas & tasks from backend API
+  const loadBabok = async () => {
+    setIsLoadingBabok(true);
+    try {
+      const tasks = await assessmentService.getBabokTasks();
+      const map = new Map<string, { code: string; name: string; tasksCount: number }>();
+      for (const t of tasks || []) {
+        const key = t.knowledgeAreaCode || "KA";
+        const prev = map.get(key);
+        if (prev) {
+          prev.tasksCount += 1;
+        } else {
+          map.set(key, {
+            code: key,
+            name: t.knowledgeAreaName || key,
+            tasksCount: 1,
+          });
+        }
+      }
+      const list = Array.from(map.values());
+      const weightPerArea = list.length > 0 ? Math.round(100 / list.length) : 0;
+      setBabokAreas(
+        list.map((item) => ({
+          ...item,
+          rubricCriteriaCount: item.tasksCount,
+          weight: weightPerArea,
+        }))
+      );
+    } catch (err) {
+      console.warn("Could not load BABOK tasks from assessmentService:", err);
+      setBabokAreas([]);
+    } finally {
+      setIsLoadingBabok(false);
+    }
+  };
+
   useEffect(() => {
     if (currentTab === "users") {
       loadUsers();
+    } else if (currentTab === "domains") {
+      loadDomains();
+    } else if (currentTab === "babok") {
+      loadBabok();
     }
   }, [currentTab, searchUser, filterRole]);
 
@@ -122,24 +198,6 @@ export function AdminPage() {
       setIsUpdatingRoles(false);
     }
   };
-
-  // Xử lý khóa / mở khóa tài khoản mock (fallback)
-  const handleToggleUserStatus = (id: string) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id ? { ...u, status: u.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE" } : u
-      )
-    );
-  };
-
-  // Lọc tài khoản mock (fallback)
-  const filteredUsers = users.filter((u) => {
-    const matchSearch =
-      u.fullName.toLowerCase().includes(searchUser.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchUser.toLowerCase());
-    const matchRole = filterRole === "ALL" || u.role === filterRole;
-    return matchSearch && matchRole;
-  });
 
   return (
     <div className="mx-auto max-w-[1540px] space-y-6 p-4 sm:p-6 lg:p-8 font-sans">
@@ -391,8 +449,8 @@ export function AdminPage() {
           </div>
 
           {userError && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              Lưu ý: {userError} (Đang hiển thị danh sách bộ nhớ mẫu)
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+              Lỗi kết nối: {userError}
             </div>
           )}
 
@@ -497,53 +555,11 @@ export function AdminPage() {
                     );
                   })
                 ) : (
-                  filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-offwhite/50 transition">
-                      <td className="px-4 py-3.5 font-bold text-navy">{u.fullName}</td>
-                      <td className="px-4 py-3.5 text-slate">{u.email}</td>
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                            u.role === "ADMIN"
-                              ? "bg-purple-100 text-purple-700"
-                              : u.role === "INSTRUCTOR"
-                              ? "bg-blue-100 text-blue-700"
-                              : u.role === "BAEXPERT"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-slate/15 text-slate"
-                          }`}
-                        >
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-slate">{u.cohort || "—"}</td>
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            u.status === "ACTIVE"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-rose-100 text-rose-700"
-                          }`}
-                        >
-                          {u.status === "ACTIVE" ? <UserCheck size={11} /> : <UserX size={11} />}
-                          {u.status === "ACTIVE" ? "Hoạt động" : "Bị khóa"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-slate">{u.lastActive}</td>
-                      <td className="px-4 py-3.5 text-right">
-                        <button
-                          onClick={() => handleToggleUserStatus(u.id)}
-                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
-                            u.status === "ACTIVE"
-                              ? "border border-rose-300 text-rose-600 hover:bg-rose-50"
-                              : "border border-emerald-300 text-emerald-600 hover:bg-emerald-50"
-                          }`}
-                        >
-                          {u.status === "ACTIVE" ? "Khóa" : "Mở khóa"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-xs text-slate">
+                      Không tìm thấy tài khoản nào phù hợp trên máy chủ.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -560,40 +576,51 @@ export function AdminPage() {
               <p className="text-xs text-slate">Quản trị danh mục ContentDbContext (Industries & Applications)</p>
             </div>
             <button
-              onClick={() => alert("Thêm lĩnh vực mới")}
-              className="flex items-center gap-1.5 rounded-xl bg-navy px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-navy-deep transition"
+              onClick={() => loadDomains()}
+              className="flex items-center gap-1.5 rounded-xl border border-slate/20 bg-white px-3.5 py-2 text-xs font-bold text-navy shadow-sm hover:bg-offwhite transition"
             >
-              <Plus size={14} />
-              Thêm lĩnh vực
+              <RefreshCw size={14} className={isLoadingDomains ? "animate-spin" : ""} />
+              Làm mới dữ liệu
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {domains.map((dom) => (
-              <div key={dom.id} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="rounded-md bg-brass/15 px-2 py-0.5 text-[10px] font-bold text-brass uppercase">
-                      {dom.code}
+          {isLoadingDomains ? (
+            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-slate/15">
+              <RefreshCw size={18} className="mx-auto mb-2 animate-spin text-navy" />
+              Đang tải danh mục ngành nghề từ server...
+            </div>
+          ) : domains.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-dashed border-slate/20">
+              Chưa có danh mục ngành nghề nào trên máy chủ.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {domains.map((dom) => (
+                <div key={dom.id} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="rounded-md bg-brass/15 px-2 py-0.5 text-[10px] font-bold text-brass uppercase">
+                        {dom.code}
+                      </span>
+                      <h4 className="mt-1 font-display text-base font-extrabold text-navy">{dom.name}</h4>
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        dom.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate/15 text-slate"
+                      }`}
+                    >
+                      {dom.status === "ACTIVE" ? "Đang áp dụng" : "Bản nháp"}
                     </span>
-                    <h4 className="mt-1 font-display text-base font-extrabold text-navy">{dom.name}</h4>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      dom.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate/15 text-slate"
-                    }`}
-                  >
-                    {dom.status === "ACTIVE" ? "Đang áp dụng" : "Bản nháp"}
-                  </span>
+                  <p className="text-xs text-slate leading-relaxed">{dom.description}</p>
+                  <div className="flex items-center gap-6 border-t border-slate/10 pt-3 text-xs text-slate">
+                    <span><strong>{dom.applicationsCount}</strong> Ứng dụng nghiệp vụ</span>
+                    <span><strong>{dom.scenariosCount}</strong> Kịch bản đào tạo</span>
+                  </div>
                 </div>
-                <p className="text-xs text-slate leading-relaxed">{dom.description}</p>
-                <div className="flex items-center gap-6 border-t border-slate/10 pt-3 text-xs text-slate">
-                  <span><strong>{dom.applicationsCount}</strong> Ứng dụng nghiệp vụ</span>
-                  <span><strong>{dom.scenariosCount}</strong> Kịch bản đào tạo</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -609,23 +636,34 @@ export function AdminPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {initialBabokAreas.map((area) => (
-              <div key={area.code} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="rounded-md bg-navy px-2 py-0.5 text-[10px] font-bold text-white font-mono">
-                    {area.code}
-                  </span>
-                  <span className="font-bold text-xs text-brass">Trọng số: {area.weight}%</span>
+          {isLoadingBabok ? (
+            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-slate/15">
+              <RefreshCw size={18} className="mx-auto mb-2 animate-spin text-navy" />
+              Đang tải dữ liệu BABOK® v3 từ server...
+            </div>
+          ) : babokAreas.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-dashed border-slate/20">
+              Chưa có dữ liệu vùng tri thức BABOK trên máy chủ.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {babokAreas.map((area) => (
+                <div key={area.code} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-md bg-navy px-2 py-0.5 text-[10px] font-bold text-white font-mono">
+                      {area.code}
+                    </span>
+                    <span className="font-bold text-xs text-brass">Trọng số tham chiếu: ~{area.weight}%</span>
+                  </div>
+                  <h4 className="font-display text-sm font-extrabold text-navy">{area.name}</h4>
+                  <div className="flex items-center justify-between text-xs text-slate border-t border-slate/10 pt-3">
+                    <span>{area.tasksCount} Tasks nghiệp vụ chuẩn</span>
+                    <span>{area.rubricCriteriaCount} Tiêu chí liên kết</span>
+                  </div>
                 </div>
-                <h4 className="font-display text-sm font-extrabold text-navy">{area.name}</h4>
-                <div className="flex items-center justify-between text-xs text-slate border-t border-slate/10 pt-3">
-                  <span>{area.tasksCount} Tasks nghiệp vụ chuẩn</span>
-                  <span>{area.rubricCriteriaCount} Tiêu chí rubric AI thẩm định</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

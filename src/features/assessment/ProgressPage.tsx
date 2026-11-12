@@ -1,6 +1,15 @@
-import { ArrowRight, Award, CalendarDays, CheckCircle2, MessageSquareText, Sparkles, TrendingUp, BookOpen, Loader2, PhoneCall } from "lucide-react";
-import { useState, useEffect } from "react";
-import { babokScores } from "../../constants/scenario";
+import {
+  ArrowRight,
+  Award,
+  CalendarDays,
+  MessageSquareText,
+  Sparkles,
+  TrendingUp,
+  BookOpen,
+  Loader2,
+  PhoneCall,
+} from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -13,27 +22,17 @@ import {
   type BabokTaskDto,
   type FinalSubmissionReportDto,
 } from "../../services/assessmentService";
+import {
+  simulationService,
+  type SessionHistoryItemDto,
+} from "../../services/simulationService";
 import { ConsultationModal } from "../../components/common/ConsultationModal";
 
-const observedBehaviors = [
-  ["Tư duy phân tích (Analytical Thinking)", 78, "+9", "Phân biệt Fact vs Assumption · Phân tích xung đột"],
-  ["Kỹ năng giao tiếp (Communication)", 81, "+12", "Câu hỏi mở · Đào sâu · Tóm lược Playback"],
-  ["Kỹ năng tương tác (Interaction Skills)", 76, "+8", "Điều phối phiên họp · Đàm phán"],
-  ["Kiến thức nghiệp vụ (Business Knowledge)", 70, "+10", "Quản lý tồn kho · Điều chuyển · Kiểm soát tài chính"],
-  ["Phẩm chất hành vi (Behavioral)", 74, "+6", "Tính thích ứng · Đạo đức nghề nghiệp · Trách nhiệm"],
-  ["Công cụ & Công nghệ (Tools & Tech)", 68, "+14", "Ma trận RTM · Mô hình hóa BPMN · Phân tích dữ liệu"],
-];
-
-const history = [
-  ["INV-2026-014", "Quản lý tồn kho & Điều phối chuỗi cung ứng", "Đang hoàn tất Debrief", "72", "Phỏng vấn · Phân tích quyết định · Mô hình hóa BPMN"],
-  ["INV-2026-009", "Sai lệch kiểm kê tại chuỗi cửa hàng", "Đã hoàn thành", "67", "Quan sát thực địa · Biểu đồ xương cá Ishikawa"],
-  ["INV-2026-003", "Bổ sung hàng khuyến mãi chuỗi bán lẻ", "Đã hoàn thành", "61", "Phân tích dữ liệu · Quy tắc nghiệp vụ"],
-];
-
 export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId } = useApp();
+  const { currentSessionId, currentSubmissionId, setCurrentSessionId, setCurrentScenarioVersionId } = useApp();
   const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
   const [babokTasks, setBabokTasks] = useState<BabokTaskDto[]>([]);
+  const [mySessions, setMySessions] = useState<SessionHistoryItemDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [showConsultationModal, setShowConsultationModal] = useState(false);
 
@@ -41,12 +40,14 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
     async function loadAssessmentProgress() {
       setLoading(true);
       try {
-        const [rep, tasks] = await Promise.allSettled([
-          assessmentService.getFinalReport(1),
+        const [rep, tasks, sessions] = await Promise.allSettled([
+          currentSubmissionId ? assessmentService.getFinalReport(currentSubmissionId) : Promise.resolve(null),
           assessmentService.getBabokTasks(),
+          simulationService.getMySessions(),
         ]);
-        if (rep.status === "fulfilled") setReport(rep.value);
-        if (tasks.status === "fulfilled" && tasks.value.length > 0) setBabokTasks(tasks.value);
+        if (rep.status === "fulfilled" && rep.value) setReport(rep.value);
+        if (tasks.status === "fulfilled" && Array.isArray(tasks.value)) setBabokTasks(tasks.value);
+        if (sessions.status === "fulfilled" && Array.isArray(sessions.value)) setMySessions(sessions.value);
       } catch (err) {
         console.warn("Chưa tải được dữ liệu tiến độ:", err);
       } finally {
@@ -54,23 +55,45 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
       }
     }
     loadAssessmentProgress();
-  }, [currentSessionId]);
+  }, [currentSessionId, currentSubmissionId]);
 
-  const latestScore = report?.finalScore != null
-    ? Math.round(Number(report.finalScore))
-    : (report?.aiFeedback?.suggestedScore != null
-        ? Math.round(Number(report.aiFeedback.suggestedScore))
-        : 72);
+  const knowledgeAreas = useMemo(() => {
+    const map = new Map<string, { code: string; name: string; tasksCount: number }>();
+    for (const t of babokTasks) {
+      const code = t.knowledgeAreaCode || "BABOK";
+      const prev = map.get(code);
+      if (prev) prev.tasksCount += 1;
+      else map.set(code, { code, name: t.knowledgeAreaName || code, tasksCount: 1 });
+    }
+    return Array.from(map.values());
+  }, [babokTasks]);
+
+  const criteriaScores =
+    report?.expertReview?.criterionScores && report.expertReview.criterionScores.length > 0
+      ? report.expertReview.criterionScores
+      : report?.aiFeedback?.criterionScores || [];
+
+  const latestScore =
+    report?.finalScore != null
+      ? Math.round(Number(report.finalScore))
+      : report?.aiFeedback?.suggestedScore != null
+      ? Math.round(Number(report.aiFeedback.suggestedScore))
+      : null;
+
+  const completedCount = mySessions.filter(
+    (s) => String(s.status).toLowerCase() === "completed" || String(s.status).toLowerCase() === "submitted"
+  ).length;
+
   return (
     <>
       <PageHeader
         eyebrow="Hồ sơ năng lực thực chiến · BABOK® v3"
         title="Hồ sơ phát triển Năng lực Thực hành"
-        description="Theo dõi sự tiến bộ và tích lũy bằng chứng năng lực qua các kịch bản mô phỏng doanh nghiệp ảo đa dạng."
+        description="Theo dõi sự tiến bộ và tích lũy bằng chứng năng lực qua các kịch bản mô phỏng doanh nghiệp ảo từ hệ thống."
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brass/30 bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">
-              <Sparkles size={14} /> Tích lũy 3 phiên thực hành
+              <Sparkles size={14} /> {mySessions.length} phiên thực hành
             </span>
             <Button
               variant="secondary"
@@ -93,9 +116,9 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
       {/* KPI Counters */}
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          [TrendingUp, "+11%", "Tăng trưởng qua 3 phiên thực chiến", "text-emerald-700 bg-emerald-500/10"],
-          [Award, `${latestScore}/100`, "Mức độ hoàn thành gần nhất", "text-navy bg-navy/10"],
-          [CalendarDays, "6.4 giờ", "Tổng thời lượng thực hành", "text-brass bg-brass/10"],
+          [TrendingUp, `${completedCount}/${mySessions.length}`, "Phiên đã hoàn thành / Tổng phiên", "text-emerald-700 bg-emerald-500/10"],
+          [Award, latestScore !== null ? `${latestScore}/100` : "--", "Điểm bài nộp gần nhất", "text-navy bg-navy/10"],
+          [CalendarDays, `${knowledgeAreas.length} vùng`, "Chuẩn tri thức BABOK® v3 tích hợp", "text-brass bg-brass/10"],
         ].map(([Icon, value, label, tone]) => (
           <Card key={String(label)} className="flex items-center gap-4 p-5 border-slate/15">
             <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${tone}`}>
@@ -112,46 +135,67 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
       {/* 2 Main Columns */}
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <Card className="p-6 border-slate/15">
-          <h2 className="text-base font-bold text-navy">Ứng dụng 6 Vùng tri thức BABOK® v3</h2>
-          <p className="mt-0.5 text-xs text-slate">Điểm số tổng hợp từ bằng chứng thu thập và tài liệu hoàn thành qua các kịch bản.</p>
-          <div className="mt-5 space-y-4">
-            {babokScores.map((skill) => (
-              <div key={skill.short} className="rounded-xl border border-slate/10 bg-white p-4 shadow-xs">
-                <div className="mb-2.5 flex justify-between items-start">
-                  <div>
-                    <strong className="text-xs font-bold text-navy">{skill.name}</strong>
-                    <span className="mt-0.5 block font-mono text-[11px] text-slate">{skill.short}</span>
-                  </div>
-                  <strong className="font-mono text-base font-bold text-navy">{skill.score}%</strong>
-                </div>
-                <ProgressBar value={skill.score} color="#102a43" />
-              </div>
-            ))}
+          <div className="flex items-center gap-2">
+            <BookOpen size={18} className="text-navy" />
+            <h2 className="text-base font-bold text-navy">Khung Tri thức BABOK® v3 từ Hệ thống</h2>
           </div>
+          <p className="mt-0.5 text-xs text-slate">Các vùng tri thức và tác vụ nghiệp vụ được đồng bộ từ Backend Assessment module.</p>
+
+          {loading ? (
+            <div className="py-10 text-center text-xs text-slate">
+              <Loader2 size={20} className="mx-auto mb-2 animate-spin text-navy" />
+              Đang tải dữ liệu BABOK...
+            </div>
+          ) : knowledgeAreas.length === 0 ? (
+            <div className="mt-4 rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
+              Chưa có dữ liệu BABOK Knowledge Areas trên máy chủ.
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {knowledgeAreas.map((ka) => (
+                <div key={ka.code} className="rounded-xl border border-slate/10 bg-white p-4 shadow-xs flex items-center justify-between">
+                  <div>
+                    <strong className="text-xs font-bold text-navy">{ka.name}</strong>
+                    <span className="mt-0.5 block font-mono text-[11px] text-slate">{ka.code}</span>
+                  </div>
+                  <Badge tone="navy">{ka.tasksCount} Tasks</Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card className="p-6 border-slate/15">
-          <h2 className="text-base font-bold text-navy">6 Nhóm Năng lực Cốt lõi (Underlying Competencies)</h2>
-          <p className="mt-0.5 text-xs text-slate">Hành vi được ghi nhận tự động qua các phiên đối thoại và phân tích tình huống.</p>
-          <div className="mt-5 space-y-4">
-            {observedBehaviors.map(([name, score, trend, evidence]) => (
-              <div key={String(name)} className="rounded-xl border border-slate/10 bg-white p-4 shadow-xs">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <strong className="text-xs font-bold text-navy">{String(name)}</strong>
-                    <span className="mt-0.5 block text-[11px] text-slate">{String(evidence)}</span>
+          <h2 className="text-base font-bold text-navy">Kết quả Đánh giá theo Tiêu chí (Rubric Criteria)</h2>
+          <p className="mt-0.5 text-xs text-slate">Điểm số chi tiết từ lần chấm bài gần nhất của bạn.</p>
+          {criteriaScores.length === 0 ? (
+            <div className="mt-5 rounded-xl border border-dashed border-slate/20 p-8 text-center text-xs text-slate">
+              Chưa có kết quả chấm điểm chi tiết cho bài nộp hiện tại.
+            </div>
+          ) : (
+            <div className="mt-5 space-y-4">
+              {criteriaScores.map((crit) => {
+                const max = crit.maxScore || 100;
+                const pct = Math.round((Number(crit.score) / max) * 100);
+                return (
+                  <div key={crit.rubricCriterionId} className="rounded-xl border border-slate/10 bg-white p-4 shadow-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <strong className="text-xs font-bold text-navy">{crit.criterionName || crit.criterionCode}</strong>
+                        {crit.comment && <span className="mt-0.5 block text-[11px] text-slate">{crit.comment}</span>}
+                      </div>
+                      <strong className="font-mono text-base font-bold text-navy">
+                        {Math.round(Number(crit.score))}/{max}
+                      </strong>
+                    </div>
+                    <div className="mt-2.5">
+                      <ProgressBar value={pct} color="#c58b52" />
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <strong className="block font-mono text-base font-bold text-navy">{String(score)}%</strong>
-                    <span className="text-[11px] font-bold text-emerald-700">{String(trend)} đ</span>
-                  </div>
-                </div>
-                <div className="mt-2.5">
-                  <ProgressBar value={Number(score)} color="#c58b52" />
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
 
@@ -160,48 +204,63 @@ export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void
         <div className="flex items-center gap-3 border-b border-slate/10 p-5">
           <MessageSquareText className="text-navy" size={20} />
           <div>
-            <h2 className="text-base font-bold text-navy">Lịch sử các phiên mô phỏng doanh nghiệp</h2>
-            <p className="text-xs text-slate">Mỗi dòng ghi nhận một bài toán kinh doanh, kỹ thuật BABOK đã áp dụng và điểm số đạt được.</p>
+            <h2 className="text-base font-bold text-navy">Lịch sử các phiên mô phỏng doanh nghiệp của bạn</h2>
+            <p className="text-xs text-slate">Dữ liệu thực tế từ hệ thống GET /api/sessions.</p>
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-xs">
+          <table className="w-full min-w-[780px] text-left text-xs">
             <thead className="bg-mist/30 text-[11px] uppercase tracking-wider text-slate">
               <tr>
                 <th className="px-5 py-3.5">Mã phiên</th>
-                <th className="px-5 py-3.5">Kịch bản doanh nghiệp</th>
-                <th className="px-5 py-3.5">Kỹ thuật BABOK đã áp dụng</th>
+                <th className="px-5 py-3.5">Phiên bản kịch bản</th>
+                <th className="px-5 py-3.5">Tương tác</th>
                 <th className="px-5 py-3.5">Trạng thái</th>
-                <th className="px-5 py-3.5">Điểm năng lực</th>
+                <th className="px-5 py-3.5">Bắt đầu lúc</th>
                 <th className="px-5 py-3.5 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate/10">
-              {history.map(([id, name, status, score, techniques]) => (
-                <tr key={id} className="hover:bg-mist/10">
-                  <td className="px-5 py-4 font-mono font-bold text-navy">{id}</td>
-                  <td className="px-5 py-4 font-bold text-navy">{name}</td>
-                  <td className="px-5 py-4 text-slate">{techniques}</td>
-                  <td className="px-5 py-4">
-                    <Badge tone={status === "Đã hoàn thành" ? "green" : "amber"}>{status}</Badge>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className="inline-flex items-center gap-1.5 font-mono font-bold text-navy">
-                      <CheckCircle2 size={14} className="text-emerald-700" />
-                      {score}/100
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    <Button
-                      variant="secondary"
-                      onClick={() => navigate(status === "Đang hoàn tất Debrief" ? "assessment" : "simulation")}
-                      className="border-slate/20 text-[11px] py-1 px-2.5 font-semibold text-navy hover:bg-white"
-                    >
-                      {status === "Đang hoàn tất Debrief" ? "Xem báo cáo" : "Thực hành lại"}
-                    </Button>
+              {mySessions.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-xs text-slate">
+                    Bạn chưa tham gia phiên thực hành mô phỏng nào.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                mySessions.map((ses) => {
+                  const st = String(ses.status);
+                  const isDone = st.toLowerCase() === "completed" || st.toLowerCase() === "submitted";
+                  return (
+                    <tr key={ses.id} className="hover:bg-mist/10">
+                      <td className="px-5 py-4 font-mono font-bold text-navy">SES-{ses.id} (Lần {ses.attemptNo})</td>
+                      <td className="px-5 py-4 font-bold text-navy">Version #{ses.scenarioVersionId}</td>
+                      <td className="px-5 py-4 text-slate">
+                        {ses.agentCount} AI Stakeholders · {ses.messageCount} tin nhắn
+                      </td>
+                      <td className="px-5 py-4">
+                        <Badge tone={isDone ? "green" : "amber"}>{st}</Badge>
+                      </td>
+                      <td className="px-5 py-4 text-slate">
+                        {new Date(ses.startedAt).toLocaleString("vi-VN")}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setCurrentSessionId(ses.id);
+                            setCurrentScenarioVersionId(ses.scenarioVersionId);
+                            navigate(isDone ? "assessment" : "simulation");
+                          }}
+                          className="border-slate/20 text-[11px] py-1 px-2.5 font-semibold text-navy hover:bg-white"
+                        >
+                          {isDone ? "Xem báo cáo" : "Tiếp tục phiên"}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

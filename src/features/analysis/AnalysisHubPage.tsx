@@ -4,8 +4,6 @@ import { PageHeader } from "../../components/common/PageHeader";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
-import { stakeholders, requirements } from "../../constants/scenario";
-import { confirmations, conflicts, decisions, evidenceRegister, findings, openQuestions, risks, traceabilityRows } from "../../constants/trainingScenario";
 import { useApp } from "../../contexts/AppContext";
 import { getStoredByokConfig } from "../../services/apiClient";
 import {
@@ -23,6 +21,7 @@ import {
   analysisItemTypeLabels,
   evidenceRelationshipLabels,
 } from "../../services/analysisService";
+import { simulationService } from "../../services/simulationService";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
 
@@ -47,7 +46,7 @@ const statusBadge = (status: string) => {
 };
 
 export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId, activeAgents, messages } = useApp();
+  const { currentSessionId, activeAgents, setActiveAgents, messages } = useApp();
   const [tab, setTab] = useState<Tab>("Tổng quan phiên");
   const [apiAnalysisItems, setApiAnalysisItems] = useState<AnalysisItemDto[]>([]);
   const [loadingItems, setLoadingItems] = useState<boolean>(false);
@@ -307,6 +306,38 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
     loadItems();
   }, [loadItems]);
 
+  useEffect(() => {
+    if (!currentSessionId || activeAgents.length > 0) return;
+    simulationService
+      .getSessionAgents(currentSessionId)
+      .then((agents) => {
+        if (agents && agents.length > 0) {
+          setActiveAgents(agents);
+        }
+      })
+      .catch(() => {});
+  }, [currentSessionId, activeAgents.length, setActiveAgents]);
+
+  const savedEvidenceCount = messages.filter((m) => m.evidence).length;
+  const findingsCount = apiAnalysisItems.filter((i) => Number(i.itemType) === AnalysisItemType.Finding).length;
+  const assumptionsCount = apiAnalysisItems.filter((i) => Number(i.itemType) === AnalysisItemType.Assumption).length;
+  const requirementsCount = apiAnalysisItems.filter(
+    (i) =>
+      Number(i.itemType) === AnalysisItemType.Requirement ||
+      Number(i.itemType) === AnalysisItemType.BusinessRule ||
+      Number(i.itemType) === AnalysisItemType.Constraint
+  ).length;
+  const unresolvedIssues = apiAnalysisItems.filter(
+    (i) =>
+      (Number(i.itemType) === AnalysisItemType.Conflict ||
+        Number(i.itemType) === AnalysisItemType.Risk ||
+        Number(i.itemType) === AnalysisItemType.OpenQuestion) &&
+      Number(i.status) === AnalysisItemStatus.Draft
+  );
+  const confirmedItemsCount = apiAnalysisItems.filter(
+    (i) => Number(i.status) === AnalysisItemStatus.Confirmed || Number(i.status) === AnalysisItemStatus.Resolved
+  ).length;
+
   return (
     <>
       <PageHeader
@@ -328,12 +359,12 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       {/* Metrics Ribbon */}
       <Card className="mb-5 flex divide-x divide-slate/15 overflow-x-auto border-slate/15">
         {[
-          ["6/6", "Stakeholder đã phỏng vấn", "bg-navy/10 text-navy"],
-          ["9/12", "Bằng chứng đã đối soát", "bg-emerald-500/10 text-emerald-800"],
-          ["4", "Phát hiện nghiệp vụ", "bg-purple-500/10 text-purple-800"],
-          ["4", "Giả định cần kiểm chứng", "bg-amber-500/10 text-amber-800"],
-          ["5", "Yêu cầu đã đặc tả", "bg-sky-500/10 text-sky-800"],
-          ["1", "Điểm nghẽn cần giải quyết", "bg-rose-500/10 text-rose-800"],
+          [String(activeAgents.length), "Stakeholder trong phiên", "bg-navy/10 text-navy"],
+          [String(savedEvidenceCount), "Bằng chứng đã lưu", "bg-emerald-500/10 text-emerald-800"],
+          [String(findingsCount), "Phát hiện nghiệp vụ", "bg-purple-500/10 text-purple-800"],
+          [String(assumptionsCount), "Giả định cần kiểm chứng", "bg-amber-500/10 text-amber-800"],
+          [String(requirementsCount), "Yêu cầu đã đặc tả", "bg-sky-500/10 text-sky-800"],
+          [String(unresolvedIssues.length), "Điểm nghẽn cần giải quyết", "bg-rose-500/10 text-rose-800"],
         ].map(([value, label, tone]) => (
           <div key={label} className="flex min-w-[170px] flex-1 items-center gap-3 px-4 py-3">
             <span className={classNames("grid h-9 min-w-9 place-items-center rounded-xl px-2 text-sm font-black", tone)}>
@@ -371,49 +402,36 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
               <p className="mt-1 text-xs text-slate">Mỗi cuộc phỏng vấn có kỹ thuật áp dụng, phạm vi thông tin thu thập và kết quả cụ thể.</p>
             </div>
             <div className="divide-y divide-slate/10">
-              {stakeholders.map((person, index) => (
-                <div key={person.id} className="grid gap-4 p-5 md:grid-cols-[220px_1fr_auto] md:items-center">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-xl text-xs font-bold text-navy shadow-xs" style={{ backgroundColor: person.color }}>
-                      {person.initials}
-                    </span>
-                    <div>
-                      <strong className="block text-sm font-bold text-navy">{person.name}</strong>
-                      <span className="text-xs text-slate">{person.role}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-navy/90">
-                      {[
-                        "Quy trình kho, hàng trả về & đối soát số lượng tồn thực tế",
-                        "Phạm vi thời gian, ngân sách dự án & mục tiêu MVP cơ bản",
-                        "Chỉ số KPI đáp ứng đơn hàng & quy định kiểm tra tồn kho",
-                        "Dự báo nhu cầu 8 tuần & định mức tồn kho tối thiểu (Min-Max)",
-                        "Thao tác quét mã vạch và xử lý ghi sổ tạm thời",
-                        "Quy định phân quyền ký duyệt và kiểm soát sai lệch số liệu",
-                      ][index]}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {([
-                        ["Quy trình", "Điểm đau", "Dữ liệu"],
-                        ["Ràng buộc", "Phạm vi", "Quản trị"],
-                        ["KPI", "Phạm vi", "Quyết định"],
-                        ["Quy tắc", "Dữ liệu", "Ngoại lệ"],
-                        ["Quan sát", "Điểm đau", "Phi chức năng"],
-                        ["Quy tắc", "Kiểm soát", "Kiểm toán"],
-                      ][index]).map((item) => (
-                        <span key={item} className="rounded-md bg-mist/50 px-2 py-0.5 text-[10px] font-semibold text-navy/70">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <Badge tone="green">Đã phỏng vấn</Badge>
-                    <p className="mt-1.5 text-[11px] text-slate">Phỏng vấn + Đối soát</p>
-                  </div>
+              {activeAgents.length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate">
+                  Chưa có dữ liệu phiên phỏng vấn. Hãy chọn kịch bản và bắt đầu phỏng vấn AI Stakeholder.
                 </div>
-              ))}
+              ) : (
+                activeAgents.map((agent) => {
+                  const initials = (agent.name || "AI").slice(0, 2).toUpperCase();
+                  return (
+                    <div key={agent.id} className="grid gap-4 p-5 md:grid-cols-[240px_1fr_auto] md:items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-10 w-10 place-items-center rounded-xl bg-navy/10 text-xs font-bold text-navy shadow-xs">
+                          {initials}
+                        </span>
+                        <div>
+                          <strong className="block text-sm font-bold text-navy">{agent.name}</strong>
+                          <span className="text-xs text-slate">{agent.stakeholderRole}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-navy/90">
+                          Độ tin cậy: {agent.trustLevel}/100 · Mức hợp tác: {agent.cooperationLevel}/100 · Kiên nhẫn: {agent.patienceLevel}/100
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Badge tone="green">Đã kết nối</Badge>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </Card>
 
@@ -425,11 +443,11 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
               </div>
               <div className="mt-4 space-y-3">
                 {[
-                  ["Nguồn gốc và thời điểm cho từng bằng chứng", true],
-                  ["Phân biệt rõ sự thật (fact) và nhận định chủ quan", true],
-                  ["Xung đột có người chịu trách nhiệm giải quyết", true],
-                  ["Stakeholder xác nhận tính chính xác của phát hiện", false],
-                  ["Yêu cầu có tiêu chí chấp nhận đo lường được", true],
+                  ["Đã kết nối và phỏng vấn AI Stakeholder", activeAgents.length > 0],
+                  ["Đã thu thập bằng chứng từ hội thoại phỏng vấn", savedEvidenceCount > 0],
+                  ["Đã ghi nhận phát hiện / yêu cầu phân tích", apiAnalysisItems.length > 0],
+                  ["Có mục phân tích đã được Stakeholder xác nhận", confirmedItemsCount > 0],
+                  ["Không còn xung đột / rủi ro chưa xử lý", apiAnalysisItems.length > 0 && unresolvedIssues.length === 0],
                 ].map(([label, done]) => (
                   <div key={String(label)} className="flex items-start gap-2.5 text-xs">
                     <span className={classNames("mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full", done ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
@@ -445,12 +463,18 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
               <div className="flex gap-3">
                 <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={18} />
                 <div>
-                  <h3 className="text-xs font-bold text-amber-900 uppercase">Điểm nghẽn cần giải quyết (FND-04)</h3>
+                  <h3 className="text-xs font-bold text-amber-900 uppercase">
+                    {unresolvedIssues.length > 0
+                      ? `Điểm nghẽn cần giải quyết (${unresolvedIssues.length})`
+                      : "Trạng thái điểm nghẽn"}
+                  </h3>
                   <p className="mt-1.5 text-xs leading-5 text-amber-900/80">
-                    Phát hiện FND-04 chưa được nhân viên kho xác thực vì máy quét cũ không hiển thị hàng đợi giao dịch đang chờ đồng bộ dữ liệu.
+                    {unresolvedIssues.length > 0
+                      ? `${unresolvedIssues[0].code || `#${unresolvedIssues[0].id}`}: ${unresolvedIssues[0].title}`
+                      : "Chưa có xung đột, rủi ro hoặc câu hỏi mở nào đang ở trạng thái bản nháp."}
                   </p>
                   <button onClick={() => setTab("Xung đột & Câu hỏi mở")} className="mt-3 text-xs font-bold text-amber-800 hover:underline">
-                    Xem câu hỏi tồn đọng →
+                    Xem xung đột & câu hỏi mở →
                   </button>
                 </div>
               </div>
@@ -480,7 +504,7 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                     ? "Đang đồng bộ dữ liệu từ máy chủ..."
                     : apiAnalysisItems.length > 0
                     ? `Đã tải ${apiAnalysisItems.length} mục phân tích trực tiếp từ Backend`
-                    : "Chưa có mục phân tích trong DB phiên này (Đang hiển thị bản mẫu kịch bản)"}
+                    : "Chưa có mục phân tích nào trong phiên này."}
                 </p>
               </div>
             </div>
@@ -605,70 +629,47 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
             </div>
           )}
 
-          {/* Dữ liệu mẫu tham chiếu */}
-          <div>
-            {apiAnalysisItems.length > 0 && (
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate/80 mb-3 mt-6">
-                Phát hiện mẫu tham chiếu chuẩn kịch bản
-              </h3>
-            )}
-            <div className="grid gap-4 lg:grid-cols-2">
-              {findings.map((finding) => (
-                <Card key={finding.id} className="p-5 border-slate/15">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex gap-3">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy/10 font-mono text-xs font-bold text-navy">
-                        {finding.id.replace("FND-", "")}
-                      </span>
-                      <div>
-                        <p className="text-xs font-bold text-slate">{finding.id} · Phụ trách: {finding.owner}</p>
-                        <h3 className="mt-1 text-sm font-bold text-navy">{finding.title}</h3>
-                      </div>
-                    </div>
-                    {statusBadge(finding.status)}
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate">{finding.interpretation}</p>
-                  <div className="mt-4 flex items-center gap-2 border-t border-slate/10 pt-3 text-xs font-semibold text-navy">
-                    <Link2 size={13} className="text-brass" /> Bằng chứng liên kết: {finding.evidenceIds.join(" · ")}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-
           <Card className="overflow-hidden border-slate/15">
             <div className="flex items-center gap-3 border-b border-slate/10 p-5">
               <MessageSquareQuote className="text-navy" size={20} />
               <div>
                 <h2 className="text-base font-bold text-navy">Kho lưu trữ bằng chứng phỏng vấn (Evidence Register)</h2>
-                <p className="text-xs text-slate">Dữ liệu gốc giữ nguyên ngữ cảnh, người cung cấp, mức độ tin cậy và liên kết tới yêu cầu.</p>
+                <p className="text-xs text-slate">Các câu trả lời bạn đã bấm &quot;Lưu bằng chứng&quot; từ buổi phỏng vấn AI Stakeholder.</p>
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] text-left text-xs">
+              <table className="w-full min-w-[780px] text-left text-xs">
                 <thead className="bg-mist/30 text-[11px] uppercase tracking-wider text-slate">
                   <tr>
                     <th className="px-5 py-3.5">Mã ID</th>
                     <th className="px-5 py-3.5">Trích dẫn bằng chứng</th>
-                    <th className="px-5 py-3.5">Nguồn cung cấp</th>
-                    <th className="px-5 py-3.5">Phân loại</th>
-                    <th className="px-5 py-3.5">Độ tin cậy</th>
+                    <th className="px-5 py-3.5">Stakeholder</th>
+                    <th className="px-5 py-3.5">Thời điểm</th>
                     <th className="px-5 py-3.5">Trạng thái</th>
-                    <th className="px-5 py-3.5">Yêu cầu liên kết</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate/10">
-                  {evidenceRegister.map((item) => (
-                    <tr key={item.id} className="hover:bg-mist/10">
-                      <td className="px-5 py-4 font-mono font-bold text-navy">{item.id}</td>
-                      <td className="max-w-md px-5 py-4 font-medium leading-5 text-navy/90">“{item.quote}”</td>
-                      <td className="px-5 py-4 text-slate">{item.source}</td>
-                      <td className="px-5 py-4"><Badge tone="navy">{item.category}</Badge></td>
-                      <td className="px-5 py-4 text-slate">{item.confidence}</td>
-                      <td className="px-5 py-4">{statusBadge(item.status)}</td>
-                      <td className="px-5 py-4 font-mono font-semibold text-navy">{item.linkedRequirements.join(", ")}</td>
+                  {messages.filter((m) => m.evidence).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-8 text-center text-xs text-slate">
+                        Chưa có bằng chứng nào được lưu. Hãy bấm &quot;Lưu bằng chứng&quot; trong phòng phỏng vấn AI để đưa dữ liệu về đây.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    messages
+                      .filter((m) => m.evidence)
+                      .map((item) => (
+                        <tr key={item.id} className="hover:bg-mist/10">
+                          <td className="px-5 py-4 font-mono font-bold text-navy">EV-{item.id}</td>
+                          <td className="max-w-md px-5 py-4 font-medium leading-5 text-navy/90">“{item.text}”</td>
+                          <td className="px-5 py-4 text-slate">{item.stakeholderId}</td>
+                          <td className="px-5 py-4 text-slate">{item.time}</td>
+                          <td className="px-5 py-4">
+                            <Badge tone="green">Đã lưu bằng chứng</Badge>
+                          </td>
+                        </tr>
+                      ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -680,33 +681,29 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       {tab === "Xung đột & Câu hỏi mở" && (
         <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
           <div className="space-y-5">
-            {conflicts.map((conflict) => (
-              <Card key={conflict.id} className="p-6 border-slate/15">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-mono text-xs font-bold text-slate">{conflict.id}</p>
-                    <h2 className="mt-1 text-base font-bold text-navy">{conflict.topic}</h2>
-                  </div>
-                  {statusBadge(conflict.status)}
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {conflict.positions.map((item) => (
-                    <div key={item.stakeholder} className="rounded-xl border border-slate/10 bg-mist/20 p-3.5">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-navy">{item.stakeholder}</p>
-                      <p className="mt-1.5 text-xs leading-5 text-slate">{item.position}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3.5 rounded-xl border border-amber-400/20 bg-amber-500/5 p-3.5">
-                  <strong className="text-xs font-bold text-amber-800">Tác động nếu không xử lý</strong>
-                  <p className="mt-1 text-xs leading-5 text-amber-900/80">{conflict.impact}</p>
-                </div>
-                <div className="mt-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5">
-                  <strong className="text-xs font-bold text-emerald-800">Giải pháp / Hướng quyết định</strong>
-                  <p className="mt-1 text-xs leading-5 text-emerald-900/80">{conflict.resolution}</p>
-                </div>
+            {apiAnalysisItems.filter((i) => Number(i.itemType) === AnalysisItemType.Conflict).length === 0 ? (
+              <Card className="p-8 text-center border-dashed border-slate/20 text-xs text-slate">
+                Chưa có xung đột (Conflict) nào được ghi nhận trong phiên này. Hãy bấm &quot;+ Thêm mục phân tích&quot; để tạo.
               </Card>
-            ))}
+            ) : (
+              apiAnalysisItems
+                .filter((i) => Number(i.itemType) === AnalysisItemType.Conflict)
+                .map((conflict) => {
+                  const stLabel = analysisItemStatusLabels[conflict.status as AnalysisItemStatus] || { text: "Bản nháp", tone: "amber" as const };
+                  return (
+                    <Card key={conflict.id} className="p-6 border-slate/15">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-mono text-xs font-bold text-slate">{conflict.code || `CF-${conflict.id}`}</p>
+                          <h2 className="mt-1 text-base font-bold text-navy">{conflict.title}</h2>
+                        </div>
+                        <Badge tone={stLabel.tone}>{stLabel.text}</Badge>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-slate whitespace-pre-line">{conflict.description}</p>
+                    </Card>
+                  );
+                })
+            )}
           </div>
 
           <Card className="h-fit p-5 border-slate/15">
@@ -715,16 +712,22 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
               <h2 className="text-sm font-bold text-navy">Sổ theo dõi câu hỏi mở</h2>
             </div>
             <div className="mt-4 space-y-3">
-              {openQuestions.map((item) => (
-                <div key={item.id} className="rounded-xl border border-slate/10 p-3.5">
-                  <div className="flex items-center justify-between">
-                    <Badge tone="amber">{item.id}</Badge>
-                    <span className="text-[11px] text-slate">Hạn: {item.due}</span>
-                  </div>
-                  <p className="mt-2 text-xs font-semibold leading-5 text-navy">{item.question}</p>
-                  <p className="mt-2 text-[11px] text-slate">Phụ trách: {item.owner} · {item.relatedTo}</p>
-                </div>
-              ))}
+              {apiAnalysisItems.filter((i) => Number(i.itemType) === AnalysisItemType.OpenQuestion).length === 0 ? (
+                <p className="text-xs text-slate italic">Chưa có câu hỏi mở nào được lưu.</p>
+              ) : (
+                apiAnalysisItems
+                  .filter((i) => Number(i.itemType) === AnalysisItemType.OpenQuestion)
+                  .map((item) => (
+                    <div key={item.id} className="rounded-xl border border-slate/10 p-3.5">
+                      <div className="flex items-center justify-between">
+                        <Badge tone="amber">{item.code || `OQ-${item.id}`}</Badge>
+                        <span className="text-[11px] text-slate">{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold leading-5 text-navy">{item.title}</p>
+                      <p className="mt-1 text-[11px] text-slate">{item.description}</p>
+                    </div>
+                  ))
+              )}
             </div>
           </Card>
         </div>
@@ -733,30 +736,36 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       {/* Tab: Confirmation */}
       {tab === "Thẩm định Stakeholder" && (
         <div className="grid gap-5 lg:grid-cols-2">
-          {confirmations.map((item) => {
-            const finding = findings.find((entry) => entry.id === item.findingId);
-            return (
-              <Card key={item.id} className="p-6 border-slate/15">
-                <div className="flex items-start justify-between gap-4">
+          {apiAnalysisItems.length === 0 ? (
+            <Card className="p-8 text-center border-dashed border-slate/20 text-xs text-slate lg:col-span-2">
+              Chưa có mục phân tích nào để gửi Stakeholder AI thẩm định.
+            </Card>
+          ) : (
+            apiAnalysisItems.map((item) => {
+              const stLabel = analysisItemStatusLabels[item.status as AnalysisItemStatus] || { text: "Bản nháp", tone: "amber" as const };
+              return (
+                <Card key={item.id} className="p-6 border-slate/15 flex flex-col justify-between gap-4">
                   <div>
-                    <p className="font-mono text-xs font-bold text-slate">{item.id} · {item.findingId}</p>
-                    <h2 className="mt-1 text-sm font-bold text-navy">{finding?.title}</h2>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-mono text-xs font-bold text-slate">
+                          {item.code || `ITEM-${item.id}`} · {analysisItemTypeLabels[item.itemType as AnalysisItemType] || "Phát hiện"}
+                        </p>
+                        <h2 className="mt-1 text-sm font-bold text-navy">{item.title}</h2>
+                      </div>
+                      <Badge tone={stLabel.tone}>{stLabel.text}</Badge>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate">{item.description}</p>
                   </div>
-                  {statusBadge(item.status)}
-                </div>
-                <div className="mt-4 flex gap-3 rounded-xl bg-mist/30 p-4">
-                  <Users className="mt-0.5 shrink-0 text-navy" size={18} />
-                  <div>
-                    <strong className="text-xs font-bold text-navy">{item.stakeholder}</strong>
-                    <p className="mt-1.5 text-xs leading-5 text-slate italic">“{item.response}”</p>
-                    {item.confirmedAt && (
-                      <p className="mt-2 text-[11px] text-slate/80">Phản hồi lúc: {item.confirmedAt}</p>
-                    )}
+                  <div className="border-t border-slate/10 pt-3 flex justify-end">
+                    <Button size="sm" variant="secondary" onClick={() => handleOpenConfirm(item)} className="text-xs gap-1.5">
+                      <Sparkles size={13} className="text-brass" /> Gửi Stakeholder AI thẩm định
+                    </Button>
                   </div>
-                </div>
-              </Card>
-            );
-          })}
+                </Card>
+              );
+            })
+          )}
         </div>
       )}
 
@@ -766,30 +775,47 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
           <div className="flex items-center gap-3 border-b border-slate/10 p-5">
             <GitMerge className="text-navy" size={20} />
             <div>
-              <h2 className="text-base font-bold text-navy">Chuỗi truy vết: Mục tiêu → Phát hiện → Bằng chứng → Yêu cầu → Tiêu chí nghiệm thu</h2>
-              <p className="text-xs text-slate">Đảm bảo từng yêu cầu phần mềm đều bắt nguồn từ nhu cầu kinh doanh và có thể kiểm thử được.</p>
+              <h2 className="text-base font-bold text-navy">Ma trận truy vết yêu cầu (Requirements Traceability Matrix)</h2>
+              <p className="text-xs text-slate">Tổng hợp toàn bộ mục phân tích và trạng thái kiểm chứng trong phiên hiện tại.</p>
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] text-left text-xs">
+            <table className="w-full min-w-[820px] text-left text-xs">
               <thead className="bg-mist/30 text-[11px] uppercase tracking-wider text-slate">
                 <tr>
-                  {["Mục tiêu kinh doanh", "Phát hiện", "Bằng chứng", "Yêu cầu hệ thống", "Tiêu chí nghiệm thu", "Độ phủ"].map((h) => (
+                  {["Mã", "Phân loại", "Nội dung phân tích", "Độ ưu tiên", "Trạng thái"].map((h) => (
                     <th key={h} className="px-5 py-3.5">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate/10">
-                {traceabilityRows.map((row, index) => (
-                  <tr key={index} className="align-top hover:bg-mist/10">
-                    <td className="px-5 py-4 font-semibold text-navy">{row.objective}</td>
-                    <td className="px-5 py-4 font-mono font-bold text-navy">{row.finding}</td>
-                    <td className="px-5 py-4 text-slate">{row.evidence}</td>
-                    <td className="px-5 py-4 font-mono font-bold text-navy">{row.requirement}</td>
-                    <td className="max-w-sm px-5 py-4 leading-5 text-slate">{row.acceptance}</td>
-                    <td className="px-5 py-4">{statusBadge(row.status)}</td>
+                {apiAnalysisItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center text-xs text-slate">
+                      Chưa có dữ liệu truy vết trong phiên này.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  apiAnalysisItems.map((row) => {
+                    const stLabel = analysisItemStatusLabels[row.status as AnalysisItemStatus] || { text: "Bản nháp", tone: "amber" as const };
+                    return (
+                      <tr key={row.id} className="align-top hover:bg-mist/10">
+                        <td className="px-5 py-4 font-mono font-bold text-navy">{row.code || `#${row.id}`}</td>
+                        <td className="px-5 py-4">
+                          <Badge tone="navy">{analysisItemTypeLabels[row.itemType as AnalysisItemType] || "Khác"}</Badge>
+                        </td>
+                        <td className="px-5 py-4">
+                          <strong className="text-navy block">{row.title}</strong>
+                          <span className="text-slate">{row.description}</span>
+                        </td>
+                        <td className="px-5 py-4 text-slate">Level {row.priority ?? 1}</td>
+                        <td className="px-5 py-4">
+                          <Badge tone={stLabel.tone}>{stLabel.text}</Badge>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -805,44 +831,45 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
               <h2 className="text-base font-bold text-navy">Nhật ký rủi ro (Risk Register)</h2>
             </div>
             <div className="divide-y divide-slate/10">
-              {risks.map((risk) => (
-                <div key={risk.id} className="p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <span className="font-mono text-xs font-bold text-slate">{risk.id}</span>
+              {apiAnalysisItems.filter((i) => Number(i.itemType) === AnalysisItemType.Risk).length === 0 ? (
+                <div className="p-6 text-center text-xs text-slate">Chưa có rủi ro nào được tạo.</div>
+              ) : (
+                apiAnalysisItems
+                  .filter((i) => Number(i.itemType) === AnalysisItemType.Risk)
+                  .map((risk) => (
+                    <div key={risk.id} className="p-5">
+                      <span className="font-mono text-xs font-bold text-slate">{risk.code || `RSK-${risk.id}`}</span>
                       <h3 className="mt-0.5 text-sm font-bold text-navy">{risk.title}</h3>
+                      <p className="mt-2 text-xs leading-5 text-slate">{risk.description}</p>
                     </div>
-                    <div className="flex gap-1.5">
-                      <Badge tone={risk.probability === "High" ? "red" : "amber"}>Xác suất: {risk.probability}</Badge>
-                      <Badge tone={risk.impact === "High" ? "red" : "amber"}>Tác động: {risk.impact}</Badge>
-                    </div>
-                  </div>
-                  <p className="mt-2.5 text-xs leading-5 text-slate">
-                    <strong className="text-navy">Biện pháp ứng phó:</strong> {risk.response}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate">Phụ trách: {risk.owner}</p>
-                </div>
-              ))}
+                  ))
+              )}
             </div>
           </Card>
 
           <Card className="h-fit p-5 border-slate/15">
             <div className="flex items-center gap-3">
               <FileSearch className="text-navy" size={20} />
-              <h2 className="text-base font-bold text-navy">Sổ ghi chép quyết định (Decision Log)</h2>
+              <h2 className="text-base font-bold text-navy">Quy tắc & Ràng buộc (Business Rules & Constraints)</h2>
             </div>
             <div className="mt-4 space-y-3.5">
-              {decisions.map((decision) => (
-                <div key={decision.id} className="rounded-xl border border-slate/10 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-slate">{decision.id}</span>
-                    {statusBadge(decision.status)}
-                  </div>
-                  <h3 className="mt-2 text-sm font-bold text-navy">{decision.title}</h3>
-                  <p className="mt-1.5 text-xs leading-5 text-slate">{decision.rationale}</p>
-                  <p className="mt-2 text-[11px] text-slate/80">{decision.decidedBy} · {decision.date}</p>
-                </div>
-              ))}
+              {apiAnalysisItems.filter(
+                (i) => Number(i.itemType) === AnalysisItemType.BusinessRule || Number(i.itemType) === AnalysisItemType.Constraint
+              ).length === 0 ? (
+                <p className="text-xs text-slate italic">Chưa có quy tắc nghiệp vụ hoặc ràng buộc nào.</p>
+              ) : (
+                apiAnalysisItems
+                  .filter(
+                    (i) => Number(i.itemType) === AnalysisItemType.BusinessRule || Number(i.itemType) === AnalysisItemType.Constraint
+                  )
+                  .map((rule) => (
+                    <div key={rule.id} className="rounded-xl border border-slate/10 p-4">
+                      <span className="font-mono text-xs font-bold text-slate">{rule.code || `#${rule.id}`}</span>
+                      <h3 className="mt-1 text-sm font-bold text-navy">{rule.title}</h3>
+                      <p className="mt-1.5 text-xs leading-5 text-slate">{rule.description}</p>
+                    </div>
+                  ))
+              )}
             </div>
           </Card>
         </div>
@@ -852,10 +879,10 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
       {tab === "Tác động thay đổi" && <ChangeImpactSection />}
 
       {/* Tab: Assumptions & Gaps */}
-      {tab === "Giả định & Lỗ hổng" && <AssumptionsAndGapsSection />}
+      {tab === "Giả định & Lỗ hổng" && <AssumptionsAndGapsSection items={apiAnalysisItems} />}
 
       {/* Tab: Requirements */}
-      {tab === "Đặc tả yêu cầu" && <RequirementAnalysisSection />}
+      {tab === "Đặc tả yêu cầu" && <RequirementAnalysisSection items={apiAnalysisItems} onCreate={() => setShowCreateModal(true)} />}
 
       {/* Modal API #2: POST /api/sessions/{sessionId}/analysis-items */}
       {showCreateModal && (
@@ -1318,16 +1345,9 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                       ))}
                     </select>
                   ) : (
-                    <select
-                      value={confirmAgentId}
-                      onChange={(e) => setConfirmAgentId(e.target.value)}
-                      className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
-                    >
-                      <option value="1">Nguyễn Văn An (Trưởng kho vận)</option>
-                      <option value="2">Trần Thị Bình (Chuyên viên Kế hoạch)</option>
-                      <option value="3">Lê Hoàng Nam (Kế toán trưởng)</option>
-                      <option value="4">Phạm Minh Đức (Giám đốc Chuỗi cung ứng)</option>
-                    </select>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      Chưa tải được danh sách Stakeholder AI từ phiên làm việc. Vui lòng khởi tạo hoặc mở một phiên phỏng vấn trước.
+                    </div>
                   )}
                 </div>
 
@@ -1358,8 +1378,8 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
                   <Button
                     type="submit"
                     size="sm"
-                    disabled={isConfirming}
-                    className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light"
+                    disabled={isConfirming || !activeAgents || activeAgents.length === 0}
+                    className="bg-navy text-white text-xs gap-1.5 hover:bg-navy-light disabled:opacity-50"
                   >
                     {isConfirming ? (
                       <>
@@ -1433,45 +1453,9 @@ export function AnalysisHubPage({ navigate }: { navigate: (route: RouteKey) => v
   );
 }
 
-function AssumptionsAndGapsSection() {
-  const assumptions = [
-    {
-      id: "ASM-01",
-      statement: "Độ trễ truyền tin của POS là nguyên nhân chính gây đứt gãy tồn kho.",
-      basis: "Báo cáo vận hành Quý 3",
-      impact: "Giải pháp có thể sai hướng nếu nguyên nhân thực sự nằm ở khâu phân bổ hoặc khu cách ly.",
-      owner: "Giám đốc Chuỗi cung ứng",
-      status: "needs-clarification",
-      linked: "FND-01 · RSK-01",
-    },
-    {
-      id: "ASM-02",
-      statement: "Tất cả các kho đều dùng chung mã SKU và đơn vị tính (UOM).",
-      basis: "Hồ sơ dự án (Project Brief)",
-      impact: "Nếu sai, quy tắc ưu tiên chuyển kho sẽ gây sai lệch tồn kho vật lý.",
-      owner: "Trưởng nhóm Dữ liệu chủ",
-      status: "confirmed",
-      linked: "FR-08 · DATA-02",
-    },
-    {
-      id: "ASM-03",
-      statement: "Điều chuyển tồn kho nội bộ luôn có chi phí rẻ hơn tạo đơn mua hàng mới.",
-      basis: "Ý kiến ban đầu của Chuyên viên Kế hoạch",
-      impact: "Chi phí có thể đội lên nếu cung đường chuyển kho quá xa hoặc nhà cung cấp có chiết khấu cao.",
-      owner: "Kế toán trưởng",
-      status: "needs-clarification",
-      linked: "CF-02 · DEC-01",
-    },
-    {
-      id: "ASM-04",
-      statement: "Máy quét mã vạch hiện tại hỗ trợ lưu hàng đợi offline và sinh mã giao dịch duy nhất.",
-      basis: "Tài liệu kỹ thuật thiết bị chưa được kiểm chứng",
-      impact: "Thiết kế nghiệp vụ offline có thể không khả thi trên thiết bị hiện có.",
-      owner: "Bộ phận IT Kho vận",
-      status: "unconfirmed",
-      linked: "FND-04 · NFR-03",
-    },
-  ];
+function AssumptionsAndGapsSection({ items }: { items: AnalysisItemDto[] }) {
+  const assumptions = items.filter((i) => Number(i.itemType) === AnalysisItemType.Assumption);
+  const openQ = items.filter((i) => Number(i.itemType) === AnalysisItemType.OpenQuestion);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -1480,35 +1464,31 @@ function AssumptionsAndGapsSection() {
           <FileQuestion className="text-navy" size={20} />
           <div>
             <h2 className="text-base font-bold text-navy">Sổ ghi nhận giả định (Assumption Register)</h2>
-            <p className="text-xs text-slate">Những điều học viên đang ngầm định là đúng nhưng cần kiểm chứng trước khi đưa vào thiết kế hệ thống.</p>
+            <p className="text-xs text-slate">Những giả định bạn đã ghi nhận trong phiên và cần kiểm chứng với Stakeholder.</p>
           </div>
         </div>
         <div className="divide-y divide-slate/10">
-          {assumptions.map((item) => (
-            <div key={item.id} className="p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-mono text-xs font-bold text-slate">{item.id}</p>
-                  <h3 className="mt-0.5 text-sm font-bold text-navy">{item.statement}</h3>
-                </div>
-                {statusBadge(item.status)}
-              </div>
-              <div className="mt-3.5 grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl bg-mist/30 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate">Cơ sở giả định</p>
-                  <p className="mt-1 text-xs leading-5 text-navy">{item.basis}</p>
-                </div>
-                <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Rủi ro nếu sai</p>
-                  <p className="mt-1 text-xs leading-5 text-amber-900/80">{item.impact}</p>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-slate">Xác minh với: <strong className="text-navy">{item.owner}</strong></span>
-                <span className="font-mono text-[11px] font-bold text-navy">Liên kết: {item.linked}</span>
-              </div>
+          {assumptions.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate">
+              Chưa có giả định (Assumption) nào được tạo trong phiên này.
             </div>
-          ))}
+          ) : (
+            assumptions.map((item) => {
+              const stLabel = analysisItemStatusLabels[item.status as AnalysisItemStatus] || { text: "Bản nháp", tone: "amber" as const };
+              return (
+                <div key={item.id} className="p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-xs font-bold text-slate">{item.code || `ASM-${item.id}`}</p>
+                      <h3 className="mt-0.5 text-sm font-bold text-navy">{item.title}</h3>
+                    </div>
+                    <Badge tone={stLabel.tone}>{stLabel.text}</Badge>
+                  </div>
+                  <p className="mt-2.5 text-xs leading-5 text-slate">{item.description}</p>
+                </div>
+              );
+            })
+          )}
         </div>
       </Card>
 
@@ -1519,16 +1499,20 @@ function AssumptionsAndGapsSection() {
             <h2 className="text-sm font-bold text-navy">Lỗ hổng thông tin & Câu hỏi mở</h2>
           </div>
           <div className="mt-4 space-y-3">
-            {openQuestions.map((item) => (
-              <div key={item.id} className="rounded-xl border border-slate/10 p-3.5">
-                <div className="flex items-center justify-between">
-                  <Badge tone="amber">{item.id}</Badge>
-                  <span className="text-[11px] text-slate">Hạn: {item.due}</span>
+            {openQ.length === 0 ? (
+              <p className="text-xs text-slate italic">Chưa có câu hỏi mở nào được ghi nhận.</p>
+            ) : (
+              openQ.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate/10 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <Badge tone="amber">{item.code || `OQ-${item.id}`}</Badge>
+                    <span className="text-[11px] text-slate">{new Date(item.createdAt).toLocaleDateString("vi-VN")}</span>
+                  </div>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-navy">{item.title}</p>
+                  <p className="mt-1 text-[11px] text-slate">{item.description}</p>
                 </div>
-                <p className="mt-2 text-xs font-semibold leading-5 text-navy">{item.question}</p>
-                <p className="mt-2 text-[11px] text-slate">Phụ trách: {item.owner} · {item.relatedTo}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
 
@@ -1546,35 +1530,17 @@ function AssumptionsAndGapsSection() {
   );
 }
 
-function RequirementAnalysisSection() {
-  const details: Record<string, { rationale: string; acceptance: string; trace: string; gap?: string }> = {
-    "BR-01": {
-      rationale: "Bảo vệ mục tiêu giảm đứt hàng (stockout) và tỷ lệ đáp ứng (fill rate) trong phạm vi thử nghiệm.",
-      acceptance: "Tỷ lệ đứt hàng < 5% và tỷ lệ đáp ứng >= 96% sau 8 tuần thử nghiệm.",
-      trace: "OBJ-01 · EV-03 · FND-02",
-    },
-    "SR-04": {
-      rationale: "Chuyên viên Kế hoạch phải đối soát kho dư thừa trong toàn mạng lưới trước khi mua mới.",
-      acceptance: "Mọi gợi ý nhập hàng phải tự động kiểm tra lượng hàng khả chuyển trước khi cho phép tạo PO.",
-      trace: "EV-03 · EV-04 · FND-02",
-    },
-    "FR-08": {
-      rationale: "Cắt giảm mua mới khi các kho vùng khác đang có tồn kho dư thừa.",
-      acceptance: "Kiểm tra tồn dư thừa trước khi tạo PO mua hàng; hiển thị số lượng, ETA, chi phí vận chuyển và lý do nếu người dùng ghi đè.",
-      trace: "OBJ-01 · EV-03 · EV-04 · FND-02",
-    },
-    "NFR-03": {
-      rationale: "Kho phải tiếp tục ghi nhận xuất nhập tồn ngay cả khi kết nối mạng chập chờn.",
-      acceptance: "Mỗi giao dịch có ID duy nhất; đồng bộ lại không sinh bản ghi trùng; màn hình hiển thị hàng đợi đang chờ.",
-      trace: "EV-08 · FND-04",
-      gap: "Khả năng lưu trữ của thiết bị và ngưỡng thời gian thử lại chưa được kiểm định.",
-    },
-    "TR-02": {
-      rationale: "Đảm bảo số liệu tồn ban đầu chính xác tuyệt đối trước khi golive hệ thống thử nghiệm.",
-      acceptance: "100% SKU thử nghiệm được đối soát và Kế toán ký biên bản nghiệm thu trước khi chuyển giao.",
-      trace: "RSK-04 · Xác nhận từ Kế toán trưởng",
-    },
-  };
+function RequirementAnalysisSection({ items, onCreate }: { items: AnalysisItemDto[]; onCreate: () => void }) {
+  const reqItems = items.filter(
+    (i) =>
+      Number(i.itemType) === AnalysisItemType.Requirement ||
+      Number(i.itemType) === AnalysisItemType.BusinessRule ||
+      Number(i.itemType) === AnalysisItemType.Constraint
+  );
+
+  const confirmedCount = reqItems.filter(
+    (i) => Number(i.status) === AnalysisItemStatus.Confirmed || Number(i.status) === AnalysisItemStatus.Resolved
+  ).length;
 
   return (
     <div className="space-y-5">
@@ -1584,67 +1550,57 @@ function RequirementAnalysisSection() {
             <ClipboardList className="text-navy" size={20} />
             <div>
               <h2 className="text-base font-bold text-navy">Sổ đặc tả yêu cầu nghiệp vụ sơ bộ</h2>
-              <p className="text-xs text-slate">Các yêu cầu do học viên phân tích từ dữ liệu thu thập; làm cơ sở cho BRD và RTM.</p>
+              <p className="text-xs text-slate">Các yêu cầu bạn đã phân tích từ dữ liệu thu thập; làm cơ sở cho BRD và RTM.</p>
             </div>
           </div>
-          <Button variant="secondary" className="border-slate/20 text-xs">+ Thêm yêu cầu</Button>
+          <Button variant="secondary" onClick={onCreate} className="border-slate/20 text-xs">
+            + Thêm yêu cầu
+          </Button>
         </div>
         <div className="divide-y divide-slate/10">
-          {requirements.map((item) => {
-            const detail = details[item.id];
-            return (
-              <div key={item.id} className="p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex gap-3">
-                    <span className="grid h-10 min-w-10 place-items-center rounded-xl bg-navy/10 px-2 font-mono text-xs font-black text-navy">
-                      {item.id}
-                    </span>
-                    <div>
-                      <div className="flex flex-wrap gap-1.5">
-                        <Badge tone="gray">{item.type}</Badge>
-                        <Badge tone={item.priority === "Must" ? "red" : "amber"}>{item.priority}</Badge>
+          {reqItems.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate">
+              Chưa có yêu cầu hoặc quy tắc nghiệp vụ nào được lưu trong phiên này.
+            </div>
+          ) : (
+            reqItems.map((item) => {
+              const stLabel = analysisItemStatusLabels[item.status as AnalysisItemStatus] || { text: "Bản nháp", tone: "amber" as const };
+              return (
+                <div key={item.id} className="p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <span className="grid h-10 min-w-10 place-items-center rounded-xl bg-navy/10 px-2 font-mono text-xs font-black text-navy">
+                        {item.code || `REQ-${item.id}`}
+                      </span>
+                      <div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge tone="gray">{analysisItemTypeLabels[item.itemType as AnalysisItemType] || "Yêu cầu"}</Badge>
+                        </div>
+                        <h3 className="mt-1.5 text-sm font-bold text-navy">{item.title}</h3>
                       </div>
-                      <h3 className="mt-1.5 text-sm font-bold text-navy">{item.title}</h3>
                     </div>
+                    <Badge tone={stLabel.tone}>{stLabel.text}</Badge>
                   </div>
-                  {statusBadge(item.status)}
+                  <p className="mt-3 text-xs leading-5 text-slate">{item.description}</p>
                 </div>
-                <div className="mt-3.5 grid gap-3 lg:grid-cols-3">
-                  <div className="rounded-xl bg-mist/30 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate">Lý do nghiệp vụ (Rationale)</p>
-                    <p className="mt-1 text-xs leading-5 text-slate">{detail?.rationale}</p>
-                  </div>
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Tiêu chí chấp nhận (Acceptance Criteria)</p>
-                    <p className="mt-1 text-xs leading-5 text-emerald-900/80">{detail?.acceptance}</p>
-                  </div>
-                  <div className="rounded-xl bg-mist/20 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-navy">Nguồn & Truy vết (Trace)</p>
-                    <p className="mt-1 font-mono text-xs font-semibold text-navy">{detail?.trace}</p>
-                  </div>
-                </div>
-                {detail?.gap && (
-                  <div className="mt-3 flex gap-2 rounded-xl border border-amber-400/20 bg-amber-500/5 p-3 text-xs text-amber-900">
-                    <AlertTriangle className="mt-0.5 shrink-0 text-amber-700" size={15} />
-                    {detail.gap}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-5 border-slate/15">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate">Độ phủ nguồn gốc</p>
-          <strong className="mt-2 block text-3xl font-bold text-navy">4/5</strong>
-          <p className="mt-1.5 text-xs text-slate">Yêu cầu có đủ chứng cứ và phát hiện liên kết.</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate">Tổng số yêu cầu đã tạo</p>
+          <strong className="mt-2 block text-3xl font-bold text-navy">{reqItems.length}</strong>
+          <p className="mt-1.5 text-xs text-slate">Bao gồm Requirement, Business Rule và Constraint.</p>
         </Card>
         <Card className="p-5 border-slate/15">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate">Tiêu chí đo lường được</p>
-          <strong className="mt-2 block text-3xl font-bold text-navy">80%</strong>
-          <p className="mt-1.5 text-xs text-slate">Yêu cầu NFR-03 vẫn thiếu ngưỡng thời gian cụ thể.</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate">Đã được xác nhận</p>
+          <strong className="mt-2 block text-3xl font-bold text-navy">
+            {reqItems.length > 0 ? Math.round((confirmedCount / reqItems.length) * 100) : 0}%
+          </strong>
+          <p className="mt-1.5 text-xs text-slate">{confirmedCount}/{reqItems.length} yêu cầu đạt trạng thái Confirmed/Resolved.</p>
         </Card>
         <Card className="p-5 border-slate/15">
           <p className="text-xs font-bold uppercase tracking-wider text-slate">Tiêu chuẩn chấm điểm AI</p>

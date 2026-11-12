@@ -7,7 +7,7 @@ import { SubscriptionModal } from "../common/SubscriptionModal";
 import { commerceService, type CreditBalanceSummaryDto } from "../../services/commerceService";
 
 export function Header({ onMenu }: { onMenu: () => void }) {
-  const { role, user, logout, byokModalOpen, setByokModalOpen } = useApp();
+  const { role, user, logout, byokModalOpen, setByokModalOpen, currentSessionId, currentScenarioVersionId } = useApp();
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [credits, setCredits] = useState<CreditBalanceSummaryDto | null>(null);
@@ -54,7 +54,7 @@ export function Header({ onMenu }: { onMenu: () => void }) {
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate">
                 <Sparkles size={11} className="text-brass" />
                 {role === "learner"
-                  ? "Doanh nghiệp: VinaSupply Retail"
+                  ? "Không gian Thực hành BA-VES"
                   : role === "admin"
                   ? "Cấu hình & Giám sát Hệ thống"
                   : "Hệ thống quản trị Đào tạo BA-VES"}
@@ -65,7 +65,11 @@ export function Header({ onMenu }: { onMenu: () => void }) {
             </div>
             <p className="font-display text-sm font-extrabold tracking-tight text-navy">
               {role === "learner"
-                ? "Kịch bản Quản lý kho & Đứt hàng (INV-2026-014)"
+                ? currentSessionId
+                  ? `Phiên mô phỏng #${currentSessionId}`
+                  : currentScenarioVersionId
+                  ? `Kịch bản thực hành #${currentScenarioVersionId}`
+                  : "Mô phỏng Phân tích Nghiệp vụ Thực chiến"
                 : role === "admin"
                 ? "Trung tâm Quản trị Hệ thống (Admin Portal)"
                 : "Trung tâm điều hành Giảng viên"}
@@ -135,13 +139,13 @@ export function Header({ onMenu }: { onMenu: () => void }) {
                 />
               ) : (
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-navy font-display text-xs font-bold text-white shadow-sm">
-                  {user ? getInitials(user.fullName) : (role === "learner" ? "HV" : "GV")}
+                  {user ? getInitials(user.fullName) : role === "admin" ? "AD" : role === "learner" ? "HV" : "GV"}
                 </span>
               )}
 
               <div className="hidden sm:block text-left">
                 <strong className="block text-xs font-bold text-navy leading-none">
-                  {user?.fullName || (role === "learner" ? "Học viên Minh" : "Giảng viên Phương")}
+                  {user?.fullName || (role === "admin" ? "Quản trị viên" : role === "learner" ? "Học viên" : "Giảng viên")}
                 </strong>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="inline-block rounded bg-offwhite px-1.5 py-0.2 text-[10px] font-semibold text-brass">

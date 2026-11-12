@@ -4,27 +4,18 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Badge } from "../../components/ui/Badge";
-import { scenarioObjectives } from "../../constants/trainingScenario";
 import { useApp } from "../../contexts/AppContext";
-import { planningService, type PlannedQuestionDto } from "../../services/planningService";
+import { planningService } from "../../services/planningService";
+import { simulationService, type SessionAgentDto } from "../../services/simulationService";
 import type { RouteKey } from "../../types/models";
 
-const defaultQuestions = [
-  { id: 1, topic: "Process", question: "Please describe each step from demand identification to goods issue.", priority: "High", status: "Planned" },
-  { id: 2, topic: "Pain point", question: "At which step do discrepancies usually occur, and what are the consequences?", priority: "Critical", status: "Planned" },
-  { id: 3, topic: "Rule", question: "Which data or thresholds trigger a transfer instead of a purchase order?", priority: "Medium", status: "Planned" },
-  { id: 4, topic: "Exception", question: "How is the process handled when the network is unavailable or the accounting period is locked?", priority: "High", status: "Planned" },
-  { id: 5, topic: "Confirmation", question: "My understanding is… Is that correct?", priority: "Low", status: "Planned" },
-];
-
 export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId } = useApp();
+  const { currentSessionId, activeAgents } = useApp();
 
-  const [objective, setObjective] = useState(
-    "Identify the causes of stockouts and design a replenishment process that prioritizes internal transfers before creating new purchase orders without increasing inventory-control risk."
-  );
-  const [approach, setApproach] = useState("Direct interview with key stakeholders, document analysis and process flow mapping.");
-  const [questions, setQuestions] = useState<any[]>(defaultQuestions);
+  const [objective, setObjective] = useState("");
+  const [approach, setApproach] = useState("");
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [sessionAgents, setSessionAgents] = useState<SessionAgentDto[]>(activeAgents || []);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -35,53 +26,58 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
   const [newPriority, setNewPriority] = useState<"Low" | "Medium" | "High" | "Critical">("High");
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // API 8: Load plan when session exists
+  // API 8: Load plan and agents when session exists
   useEffect(() => {
     if (!currentSessionId) return;
-    const fetchPlan = async () => {
+    const fetchPlanAndAgents = async () => {
       setIsLoading(true);
       try {
-        const plan = await planningService.getPlan(currentSessionId);
-        if (plan) {
+        const [planRes, agentsRes] = await Promise.allSettled([
+          planningService.getPlan(currentSessionId),
+          simulationService.getSessionAgents(currentSessionId),
+        ]);
+        if (planRes.status === "fulfilled" && planRes.value) {
+          const plan = planRes.value;
           if (plan.objective) setObjective(plan.objective);
           if (plan.approach) setApproach(plan.approach);
-          if (plan.questions && plan.questions.length > 0) {
-            setQuestions(plan.questions);
-          }
+          setQuestions(plan.questions || []);
           setSaveStatus("Đã đồng bộ kế hoạch từ máy chủ");
         }
+        if (agentsRes.status === "fulfilled" && agentsRes.value) {
+          setSessionAgents(agentsRes.value);
+        }
       } catch (err) {
-        console.warn("Backend Plan not yet created for session, using local draft:", err);
+        console.warn("Could not fetch plan from backend:", err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchPlan();
+    fetchPlanAndAgents();
   }, [currentSessionId]);
 
   // API 9: Upsert Plan
   const handleSavePlan = async () => {
+    if (!currentSessionId) {
+      setSaveStatus("Vui lòng bắt đầu phiên thực hành từ Thư viện kịch bản trước khi lưu kế hoạch.");
+      return;
+    }
     setIsSaving(true);
     setSaveStatus(null);
     try {
-      if (currentSessionId) {
-        await planningService.upsertPlan(currentSessionId, {
-          objective,
-          approach,
-          questions: questions.map((q, idx) => ({
-            topic: q.topic,
-            question: q.question,
-            priority: q.priority,
-            displayOrder: idx + 1,
-            stakeholderPersonaId: q.stakeholderPersonaId || null,
-          })),
-        });
-        setSaveStatus("Lưu kế hoạch lên Backend thành công (PUT /api/sessions/{id}/plan)!");
-      } else {
-        setSaveStatus("Đã lưu kế hoạch vào bộ nhớ cục bộ.");
-      }
+      await planningService.upsertPlan(currentSessionId, {
+        objective,
+        approach,
+        questions: questions.map((q, idx) => ({
+          topic: q.topic,
+          question: q.question,
+          priority: q.priority,
+          displayOrder: idx + 1,
+          stakeholderPersonaId: q.stakeholderPersonaId || null,
+        })),
+      });
+      setSaveStatus("Lưu kế hoạch lên Backend thành công (PUT /api/sessions/{id}/plan)!");
     } catch (err: any) {
-      setSaveStatus(`Lưu kế hoạch: ${err.message || "Thao tác thành công trên bộ nhớ"}`);
+      setSaveStatus(`Lỗi khi lưu kế hoạch: ${err?.message || "Không xác định"}`);
     } finally {
       setIsSaving(false);
     }
@@ -90,58 +86,37 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
   // API 10: Add single question
   const handleAddQuestion = async () => {
     if (!newQuestionText.trim()) return;
-
-    if (currentSessionId) {
-      try {
-        const added = await planningService.addPlannedQuestion(currentSessionId, {
-          topic: newTopic,
-          question: newQuestionText.trim(),
-          priority: newPriority,
-        });
-        setQuestions((prev) => [...prev, added]);
-        setSaveStatus("Đã thêm câu hỏi vào Backend (POST /api/sessions/{id}/plan/questions)!");
-        setNewQuestionText("");
-        setShowAddForm(false);
-        return;
-      } catch (err) {
-        console.warn("Failed to add question via direct API, saving locally:", err);
-      }
+    if (!currentSessionId) {
+      setSaveStatus("Vui lòng bắt đầu phiên thực hành trước khi thêm câu hỏi.");
+      return;
     }
 
-    // Local fallback
-    const localNew = {
-      id: Date.now(),
-      topic: newTopic,
-      question: newQuestionText.trim(),
-      priority: newPriority,
-      status: "Planned",
-    };
-    setQuestions((prev) => [...prev, localNew]);
-    setNewQuestionText("");
-    setShowAddForm(false);
+    try {
+      const added = await planningService.addPlannedQuestion(currentSessionId, {
+        topic: newTopic,
+        question: newQuestionText.trim(),
+        priority: newPriority,
+      });
+      setQuestions((prev) => [...prev, added]);
+      setSaveStatus("Đã thêm câu hỏi vào Backend (POST /api/sessions/{id}/plan/questions)!");
+      setNewQuestionText("");
+      setShowAddForm(false);
+    } catch (err: any) {
+      setSaveStatus(`Lỗi khi thêm câu hỏi: ${err?.message || "Không xác định"}`);
+    }
   };
 
   // API 12: Delete single question
   const handleDeleteQuestion = async (qId: number) => {
-    if (currentSessionId) {
-      try {
-        await planningService.deletePlannedQuestion(qId);
-        setSaveStatus("Đã xóa câu hỏi trên Backend (DELETE /api/planned-questions/{id})!");
-      } catch (err) {
-        console.warn("Delete API returned error, removing from local state:", err);
-      }
+    if (!currentSessionId) return;
+    try {
+      await planningService.deletePlannedQuestion(qId);
+      setQuestions((prev) => prev.filter((item) => item.id !== qId));
+      setSaveStatus("Đã xóa câu hỏi trên Backend (DELETE /api/planned-questions/{id})!");
+    } catch (err: any) {
+      setSaveStatus(`Lỗi khi xóa câu hỏi: ${err?.message || "Không xác định"}`);
     }
-    setQuestions((prev) => prev.filter((item) => item.id !== qId));
   };
-
-  const sessions = [
-    ["Warehouse Manager", "Interview + playback", "As-Is receiving, picking, returns, inventory status, and exceptions", "Process map · pain points · evidence"],
-    ["Inventory Planner", "Decision analysis", "Forecast, min-max, transfer vs. PO, and promotions", "Decision table · business rules"],
-    ["Finance Manager", "Rules workshop", "Approval thresholds, audit trail, and period lock", "Rule catalog · control requirements"],
-    ["Supply Chain Director", "KPI elicitation", "Targets, pilot scope, and override authority", "Objectives · scope · acceptance"],
-    ["Warehouse Operator", "Observation", "Offline scanning, devices, and workarounds", "Task steps · usability/NFR"],
-    ["Project Sponsor", "Interview", "Budget, timeline, out-of-scope items, and governance", "Constraints · decision rights"],
-  ];
 
   return (
     <>
@@ -207,21 +182,22 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
 
             <textarea
               className="mt-5 min-h-20 w-full rounded-xl border border-[#d9e3ec] bg-[#fafcfd] p-4 text-sm leading-6 text-[#304966] outline-none transition focus:border-navy"
+              placeholder="Mô tả mục tiêu kinh doanh (Business Objectives) và các chỉ số đo lường thành công..."
               value={objective}
               onChange={(e) => setObjective(e.target.value)}
             />
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {scenarioObjectives.map((item) => (
-                <div key={item.label} className="rounded-xl border border-[#dfe7ee] p-3">
-                  <p className="text-xs font-bold text-[#71869b]">{item.label}</p>
-                  <p className="mt-2 text-sm text-[#8291a0]">
-                    <span className="line-through">{item.baseline}</span> <ArrowRight className="inline" size={13} />{" "}
-                    <strong className="text-[#2c664f]">{item.target}</strong>
-                  </p>
-                  <p className="mt-2 text-[11px] text-[#8a98a6]">Owner: {item.owner}</p>
-                </div>
-              ))}
+            <div className="mt-4">
+              <label className="block text-xs font-bold text-[#71869b] mb-1.5">
+                Phương pháp tiếp cận (BA Approach)
+              </label>
+              <input
+                type="text"
+                value={approach}
+                onChange={(e) => setApproach(e.target.value)}
+                placeholder="VD: Phỏng vấn trực tiếp các bên liên quan, phân tích tài liệu và mô hình hóa quy trình..."
+                className="w-full rounded-xl border border-[#d9e3ec] bg-[#fafcfd] px-4 py-2.5 text-sm text-[#304966] outline-none focus:border-navy"
+              />
             </div>
           </Card>
 
@@ -233,28 +209,38 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
               </span>
               <div>
                 <h2 className="font-bold text-[#203b59]">Stakeholder elicitation plan</h2>
-                <p className="text-sm text-[#7d8d9e]">Mỗi phiên phỏng vấn phải có mục tiêu và kết quả đầu ra rõ ràng.</p>
+                <p className="text-sm text-[#7d8d9e]">Danh sách các nhân vật AI (Stakeholders) thuộc phiên thực hành hiện tại.</p>
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left text-sm">
+              <table className="w-full min-w-[680px] text-left text-sm">
                 <thead className="bg-[#f5f8fa] text-xs uppercase text-[#7b8da0]">
                   <tr>
                     <th className="px-5 py-3">Stakeholder</th>
-                    <th className="px-5 py-3">Technique</th>
-                    <th className="px-5 py-3">Information to collect</th>
-                    <th className="px-5 py-3">Output</th>
+                    <th className="px-5 py-3">Vai trò</th>
+                    <th className="px-5 py-3">Độ tin cậy ban đầu</th>
+                    <th className="px-5 py-3">Mức độ hợp tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e5ecf1]">
-                  {sessions.map((row) => (
-                    <tr key={row[0]}>
-                      <td className="px-5 py-4 font-bold text-[#39536d]">{row[0]}</td>
-                      <td className="px-5 py-4 text-[#4c7397]">{row[1]}</td>
-                      <td className="px-5 py-4 text-[#5e7388]">{row[2]}</td>
-                      <td className="px-5 py-4 text-[#5e7388]">{row[3]}</td>
+                  {sessionAgents.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-6 text-center text-xs text-[#7d8d9e]">
+                        {currentSessionId
+                          ? "Chưa tải được danh sách Stakeholder cho phiên này."
+                          : "Vui lòng chọn kịch bản và nhấn 'Bắt đầu phiên thực hành' để tải danh sách nhân vật AI."}
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    sessionAgents.map((agent) => (
+                      <tr key={agent.id}>
+                        <td className="px-5 py-4 font-bold text-[#39536d]">{agent.name}</td>
+                        <td className="px-5 py-4 text-[#4c7397]">{agent.stakeholderRole}</td>
+                        <td className="px-5 py-4 text-[#5e7388] font-mono">{agent.trustLevel}/100</td>
+                        <td className="px-5 py-4 text-[#5e7388] font-mono">{agent.cooperationLevel}/100</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

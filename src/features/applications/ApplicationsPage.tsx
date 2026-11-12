@@ -1,72 +1,86 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Boxes, BriefcaseBusiness, Building2, Check, Clock3, Factory, FolderKanban, Landmark, Search, SlidersHorizontal, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Boxes,
+  Building2,
+  Loader2,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
-import { learningApplications, learningDomains } from "../../constants/learningCatalog";
+import {
+  catalogService,
+  type ApplicationItem,
+  type IndustryItem,
+  type ScenarioItem,
+} from "../../services/catalogService";
 import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 
-const domainIcons = {
-  boxes: Boxes,
-  sales: BriefcaseBusiness,
-  finance: Landmark,
-  factory: Factory,
-  people: Users,
-  project: FolderKanban,
-};
-
-const domainNamesVi: Record<string, string> = {
-  retail: "Bán lẻ",
-  "supply-chain": "Chuỗi cung ứng",
-  finance: "Tài chính",
-};
-
-const statusLabel = {
-  available: { text: "Khả dụng", tone: "green" as const },
-  beta: { text: "Thử nghiệm", tone: "amber" as const },
-  "coming-soon": { text: "Sắp ra mắt", tone: "gray" as const },
-};
-
-const levelLabelsVi: Record<string, string> = {
-  Beginner: "Cơ bản",
-  Intermediate: "Trung cấp",
-  Advanced: "Nâng cao",
-};
-
+const accentColors = ["#102a43", "#1e3a5f", "#2f638c", "#0f766e", "#8b6a35"];
 const pageSize = 9;
 
 export function ApplicationsPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { selectedDomainId, setSelectedDomainId } = useApp();
+  const [industries, setIndustries] = useState<IndustryItem[]>([]);
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [scenarios, setScenarios] = useState<ScenarioItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [interestedApps, setInterestedApps] = useState<string[]>(["inventory"]);
   const [page, setPage] = useState(1);
-  const selectedDomain = learningDomains.find((domain) => domain.id === selectedDomainId);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    Promise.all([
+      catalogService.getIndustries().catch(() => []),
+      catalogService.getApplications().catch(() => []),
+      catalogService.getScenarios().catch(() => []),
+    ])
+      .then(([indData, appData, scenData]) => {
+        if (!isMounted) return;
+        setIndustries(indData || []);
+        setApplications(appData || []);
+        setScenarios(scenData || []);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const selectedIndustry = industries.find(
+    (ind) =>
+      String(ind.id) === selectedDomainId ||
+      ind.code.toLowerCase() === selectedDomainId.toLowerCase()
+  );
 
   const visibleApps = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("en");
-    return learningApplications.filter((application) => {
-      const domain = learningDomains.find((item) => item.id === application.domainId);
-      const matchesDomain = selectedDomainId === "all" || application.domainId === selectedDomainId;
-      const domainVi = domainNamesVi[application.domainId] || "";
+    return applications.filter((app) => {
+      const matchesDomain =
+        selectedDomainId === "all" ||
+        String(app.industry?.id) === selectedDomainId ||
+        app.industry?.code?.toLowerCase() === selectedDomainId.toLowerCase();
+
       const matchesQuery =
         !normalized ||
-        `${application.name} ${application.description} ${domain?.name ?? ""} ${domainVi}`
+        `${app.name} ${app.code} ${app.description || ""} ${app.industry?.name || ""}`
           .toLocaleLowerCase("en")
           .includes(normalized);
       return matchesDomain && matchesQuery;
     });
-  }, [query, selectedDomainId]);
+  }, [applications, query, selectedDomainId]);
 
   const pageCount = Math.max(1, Math.ceil(visibleApps.length / pageSize));
   const pagedApps = visibleApps.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => setPage(1), [query, selectedDomainId]);
-
-  const toggleInterest = (id: string) =>
-    setInterestedApps((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
-    );
 
   return (
     <div className="space-y-6 font-sans pb-8">
@@ -82,15 +96,13 @@ export function ApplicationsPage({ navigate }: { navigate: (route: RouteKey) => 
           </button>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brass">
             <SlidersHorizontal size={14} />
-            Danh mục ứng dụng nghiệp vụ · 12 Phân hệ · 3 Ngành trọng điểm
+            Danh mục ứng dụng nghiệp vụ · {applications.length} Phân hệ · {industries.length} Ngành trọng điểm
           </div>
           <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
-            {selectedDomain
-              ? domainNamesVi[selectedDomain.id] || selectedDomain.name
-              : "Tất cả ứng dụng nghiệp vụ"}
+            {selectedIndustry ? selectedIndustry.name : "Tất cả ứng dụng nghiệp vụ"}
           </h1>
           <p className="mt-1 text-xs text-slate">
-            Khám phá các phân hệ nghiệp vụ để thực hành phân tích yêu cầu và bàn giao hồ sơ chuẩn BABOK® v3.
+            Khám phá các phân hệ nghiệp vụ thực tế từ hệ thống để thực hành phân tích yêu cầu và bàn giao hồ sơ chuẩn BABOK® v3.
           </p>
         </div>
 
@@ -115,21 +127,23 @@ export function ApplicationsPage({ navigate }: { navigate: (route: RouteKey) => 
               : "border-slate/20 bg-white text-slate hover:border-slate/40 hover:text-navy"
           }`}
         >
-          Tất cả (24)
+          Tất cả ({applications.length})
         </button>
-        {learningDomains.map((domain) => {
-          const active = selectedDomainId === domain.id;
+        {industries.map((ind) => {
+          const active =
+            selectedDomainId === String(ind.id) ||
+            selectedDomainId.toLowerCase() === ind.code.toLowerCase();
           return (
             <button
-              key={domain.id}
-              onClick={() => setSelectedDomainId(domain.id)}
+              key={ind.id}
+              onClick={() => setSelectedDomainId(String(ind.id))}
               className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all duration-200 ${
                 active
                   ? "border-navy bg-navy text-white shadow-sm"
                   : "border-slate/20 bg-white text-slate hover:border-slate/40 hover:text-navy"
               }`}
             >
-              {domainNamesVi[domain.id] || domain.name}
+              {ind.name}
             </button>
           );
         })}
@@ -139,39 +153,49 @@ export function ApplicationsPage({ navigate }: { navigate: (route: RouteKey) => 
       </div>
 
       {/* Applications Grid */}
-      {visibleApps.length > 0 ? (
+      {loading ? (
+        <div className="grid min-h-56 place-items-center p-8 text-slate">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 size={28} className="animate-spin text-navy" />
+            <span className="text-xs">Đang tải danh mục ứng dụng từ Backend API...</span>
+          </div>
+        </div>
+      ) : visibleApps.length > 0 ? (
         <>
           <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
-            {pagedApps.map((application) => {
-              const domain = learningDomains.find((item) => item.id === application.domainId)!;
-              const Icon = domainIcons[domain.icon];
-              const selected = interestedApps.includes(application.id);
-              const state = statusLabel[application.status];
+            {pagedApps.map((app, index) => {
+              const scenarioCount = scenarios.filter(
+                (s) => s.applicationId === app.id || s.application?.id === app.id
+              ).length;
+              const isActive = String(app.status).toLowerCase() === "active" || app.status === 1;
+              const accent = accentColors[index % accentColors.length];
 
               return (
                 <Card
-                  key={application.id}
-                  className="reveal-up group relative flex min-h-[270px] flex-col justify-between overflow-hidden rounded-[24px] border border-slate/15 bg-white p-5 shadow-[0_4px_20px_rgba(16,42,67,0.03)] transition-all duration-300 hover:-translate-y-1 hover:border-navy/30 hover:shadow-[0_16px_36px_rgba(16,42,67,0.08)]"
+                  key={app.id}
+                  className="reveal-up group relative flex min-h-[250px] flex-col justify-between overflow-hidden rounded-[24px] border border-slate/15 bg-white p-5 shadow-[0_4px_20px_rgba(16,42,67,0.03)] transition-all duration-300 hover:-translate-y-1 hover:border-navy/30 hover:shadow-[0_16px_36px_rgba(16,42,67,0.08)]"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-4">
                       <span
                         className="grid h-11 w-11 place-items-center rounded-2xl text-white shadow-sm transition-transform duration-300 group-hover:scale-105"
-                        style={{ backgroundColor: application.accent }}
+                        style={{ backgroundColor: accent }}
                       >
-                        <Icon size={20} />
+                        <Boxes size={20} />
                       </span>
-                      <Badge tone={state.tone}>{state.text}</Badge>
+                      <Badge tone={isActive ? "green" : "amber"}>
+                        {isActive ? "Khả dụng" : String(app.status)}
+                      </Badge>
                     </div>
 
                     <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-slate/75">
-                      {domainNamesVi[domain.id] || domain.name}
+                      {app.industry?.name || "Nghiệp vụ doanh nghiệp"} · {app.code}
                     </p>
                     <h2 className="mt-0.5 font-display text-base font-bold text-navy group-hover:text-brass transition-colors">
-                      {application.name}
+                      {app.name}
                     </h2>
-                    <p className="mt-2 text-xs leading-relaxed text-slate">
-                      {application.description}
+                    <p className="mt-2 text-xs leading-relaxed text-slate line-clamp-3">
+                      {app.description || "Phân hệ nghiệp vụ thực hành phân tích yêu cầu và mô hình hóa quy trình."}
                     </p>
                   </div>
 
@@ -179,46 +203,18 @@ export function ApplicationsPage({ navigate }: { navigate: (route: RouteKey) => 
                     <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-slate/10 pt-3 text-[11px] font-medium text-slate">
                       <span className="flex items-center gap-1.5">
                         <Building2 size={13} className="text-brass" />
-                        {application.scenarioCount} kịch bản
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Clock3 size={13} className="text-brass" />
-                        {application.duration}
-                      </span>
-                      <span className="rounded bg-offwhite px-1.5 py-0.2 font-semibold text-navy">
-                        {levelLabelsVi[application.level] || application.level}
+                        {scenarioCount} kịch bản thực hành
                       </span>
                     </div>
 
                     <div className="mt-4">
-                      {application.id === "inventory" ? (
-                        <button
-                          className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-navy px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-navy-deep hover:-translate-y-0.5"
-                          onClick={() => navigate("scenarios")}
-                        >
-                          Vào lộ trình đào tạo
-                          <ArrowRight size={14} />
-                        </button>
-                      ) : (
-                        <button
-                          className={`flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border text-xs font-bold transition-all ${
-                            selected
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-slate/20 bg-white text-navy hover:bg-offwhite"
-                          }`}
-                          onClick={() => toggleInterest(application.id)}
-                        >
-                          {selected ? (
-                            <>
-                              <Check size={14} /> Đã lưu vào lộ trình
-                            </>
-                          ) : application.status === "coming-soon" ? (
-                            "Nhận thông báo khi mở"
-                          ) : (
-                            "Khám phá phân hệ"
-                          )}
-                        </button>
-                      )}
+                      <button
+                        className="flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-navy px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-navy-deep hover:-translate-y-0.5"
+                        onClick={() => navigate("scenarios")}
+                      >
+                        Xem các kịch bản đào tạo
+                        <ArrowRight size={14} />
+                      </button>
                     </div>
                   </div>
                 </Card>

@@ -33,8 +33,8 @@ import { commerceService, type CreditBalanceSummaryDto } from "../../services/co
 interface ConsultationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  reviewRequestId?: number;
-  submissionId?: number;
+  reviewRequestId?: number | null;
+  submissionId?: number | null;
   initialBookingId?: number | null;
   isExpertMode?: boolean;
 }
@@ -42,8 +42,8 @@ interface ConsultationModalProps {
 export function ConsultationModal({
   isOpen,
   onClose,
-  reviewRequestId = 1,
-  submissionId = 1,
+  reviewRequestId = null,
+  submissionId: _submissionId = null,
   initialBookingId = null,
   isExpertMode = false,
 }: ConsultationModalProps) {
@@ -121,13 +121,7 @@ export function ConsultationModal({
       const res = await commerceService.getMyCreditsSummary();
       setCredits(res);
     } catch {
-      setCredits({
-        userId: 1,
-        reviewCredits: 3,
-        consultationCredits: 2,
-        lastUpdated: new Date().toISOString(),
-        recentLedgers: [],
-      });
+      setCredits(null);
     }
   };
 
@@ -161,6 +155,10 @@ export function ConsultationModal({
 
   const handleCreateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!reviewRequestId) {
+      showToast("Bạn cần gửi yêu cầu Chuyên gia thẩm định bài nộp trước khi đặt lịch trao đổi 1-on-1.");
+      return;
+    }
     if (!scheduledDate || !scheduledTime) {
       alert("Vui lòng chọn ngày và giờ hẹn.");
       return;
@@ -201,8 +199,7 @@ export function ConsultationModal({
     try {
       const sentMsg = await bookingService.sendMessage(
         selectedBooking.id,
-        textToSend,
-        isExpertMode ? "Instructor" : "Learner"
+        textToSend
       );
       setMessages((prev) => [...prev, sentMsg]);
     } catch (err: any) {
@@ -526,6 +523,12 @@ export function ConsultationModal({
                     </ul>
                   </div>
 
+                  {!reviewRequestId && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-900">
+                      Chưa tìm thấy <strong>Yêu cầu thẩm định (Review Request)</strong> gắn với phiên bài nộp hiện tại. Vui lòng vào trang <strong>Đánh giá</strong> để gửi bài cho Chuyên gia thẩm định trước khi đặt lịch tư vấn 1-on-1.
+                    </div>
+                  )}
+
                   <div className="pt-2 flex items-center justify-end gap-3">
                     <Button
                       type="button"
@@ -537,7 +540,7 @@ export function ConsultationModal({
                     </Button>
                     <Button
                       type="submit"
-                      disabled={isSubmittingBooking}
+                      disabled={isSubmittingBooking || !reviewRequestId}
                       className="gap-2 bg-navy text-xs font-bold text-white hover:bg-navy-light shadow-sm"
                     >
                       {isSubmittingBooking ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}

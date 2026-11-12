@@ -1,17 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Users } from "lucide-react";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { useApp } from "../../contexts/AppContext";
+import { catalogService } from "../../services/catalogService";
+import { cohortService } from "../../services/cohortService";
+import { assignmentService } from "../../services/assignmentService";
+import { assessmentService } from "../../services/assessmentService";
 import {
-  initialScenarios,
-  initialPersonas,
-  initialKnowledgeItems,
   initialScenarioEvents,
   initialLiveSessions,
-  initialReviewItems,
-  initialCohorts,
-  initialAssignments,
   type ScenarioVersion,
   type StakeholderPersona,
   type AgentKnowledgeItem,
@@ -37,15 +35,109 @@ export function InstructorPage() {
   const activeTab = (instructorTab as TabId) || "overview";
   const setActiveTab = (tab: TabId) => setInstructorTab(tab);
 
-  // Quản lý trạng thái dữ liệu tương tác
-  const [scenarios, setScenarios] = useState<ScenarioVersion[]>(initialScenarios);
-  const [personas, setPersonas] = useState<StakeholderPersona[]>(initialPersonas);
-  const [knowledgeItems, setKnowledgeItems] = useState<AgentKnowledgeItem[]>(initialKnowledgeItems);
-  const [events, setEvents] = useState<ScenarioEventConfig[]>(initialScenarioEvents);
+  // Quản lý trạng thái dữ liệu từ Backend API (chỉ giữ initialLiveSessions/initialScenarioEvents cho LiveSessionsTab vì chưa có API live-sessions toàn hệ thống)
+  const [scenarios, setScenarios] = useState<ScenarioVersion[]>([]);
+  const [personas, setPersonas] = useState<StakeholderPersona[]>([]);
+  const [knowledgeItems, setKnowledgeItems] = useState<AgentKnowledgeItem[]>([]);
+  const [events, setEvents] = useState<ScenarioEventConfig[]>([]);
   const [liveSessions, setLiveSessions] = useState<LiveSessionItem[]>(initialLiveSessions);
-  const [reviewItems, setReviewItems] = useState<ReviewItem[]>(initialReviewItems);
-  const [cohorts, setCohorts] = useState<CohortItem[]>(initialCohorts);
-  const [assignments, setAssignments] = useState<AssignmentItem[]>(initialAssignments);
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
+  const [cohorts, setCohorts] = useState<CohortItem[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.allSettled([
+      catalogService.getScenarios(undefined, null),
+      cohortService.getCohorts(),
+      assignmentService.getAssignments(),
+      assessmentService.getReviewRequests(),
+    ]).then(([scenRes, cohRes, asgRes, revRes]) => {
+      if (!isMounted) return;
+
+      if (scenRes.status === "fulfilled" && Array.isArray(scenRes.value)) {
+        const mappedScens: ScenarioVersion[] = scenRes.value.map((s) => ({
+          id: String(s.id),
+          versionNumber: s.hasPublishedVersion ? "v1.0" : "Draft",
+          scenarioId: s.code,
+          scenarioTitle: s.title,
+          domain: (s.application?.name as any) || "Chuỗi cung ứng",
+          status: s.hasPublishedVersion ? "Đã ban hành" : "Bản nháp",
+          baselineProblem: s.description || "Kịch bản mô phỏng phân tích nghiệp vụ.",
+          groundTruth: "",
+          stakeholdersCount: 0,
+          eventsCount: 0,
+          evidenceCount: 0,
+          rubricCriteriaCount: 0,
+          updatedAt: "Đã đồng bộ",
+        }));
+        setScenarios(mappedScens);
+      }
+
+      if (cohRes.status === "fulfilled" && Array.isArray(cohRes.value)) {
+        const mappedCohs: CohortItem[] = cohRes.value.map((c) => ({
+          id: `coh-${c.id}`,
+          code: c.code,
+          name: c.name,
+          instructorName: "Giảng viên phụ trách",
+          studentsCount: c.activeMemberCount,
+          activeAssignmentsCount: c.assignmentCount,
+          completionRate: 0,
+          averageScore: 0,
+          domain: "Phân tích Nghiệp vụ",
+          status: c.status === "Active" || c.status === 1 ? "active" : "archived",
+        }));
+        setCohorts(mappedCohs);
+      }
+
+      if (asgRes.status === "fulfilled" && Array.isArray(asgRes.value)) {
+        const mappedAsgs: AssignmentItem[] = asgRes.value.map((a) => ({
+          id: `asg-${a.id}`,
+          title: a.title,
+          cohortId: `coh-${a.cohortId ?? 1}`,
+          cohortName: a.cohortCode ?? "Lớp BA",
+          scenarioVersionId: `scen-${a.scenarioVersionId}`,
+          scenarioTitle: `Kịch bản #${a.scenarioVersionId}`,
+          deadline: a.dueAt ? new Date(a.dueAt).toLocaleDateString("vi-VN") : "Chưa đặt hạn",
+          attemptLimit: a.maxAttempts ?? 2,
+          submissionsCount: 0,
+          totalStudents: 0,
+          status: a.status === "Active" || a.status === 2 ? "active" : "closed",
+        }));
+        setAssignments(mappedAsgs);
+      }
+
+      if (revRes.status === "fulfilled" && Array.isArray(revRes.value)) {
+        const mappedRevs: ReviewItem[] = revRes.value.map((r) => {
+          const isCompleted = String(r.status).toLowerCase() === "completed";
+          return {
+            id: `REV-${r.id}`,
+            learner: `Học viên #${r.learnerId}`,
+            cohort: `Submission #${r.submissionId}`,
+            scenarioId: `SUB-${r.submissionId}`,
+            scenarioTitle: `Yêu cầu thẩm định bài nộp #${r.submissionId}`,
+            stage: isCompleted ? "Đã duyệt & chốt điểm" : "Chờ giảng viên thẩm định",
+            submittedAt: r.requestedAt ? new Date(r.requestedAt).toLocaleString("vi-VN") : "Vừa xong",
+            due: "Theo lịch thẩm định",
+            aiScore: null,
+            aiConfidence: null,
+            humanScore: null,
+            status: isCompleted ? "calibrated" : "pending",
+            tone: isCompleted ? "green" : "amber",
+            issueSummary: r.requestNote || "Học viên gửi yêu cầu chuyên gia thẩm định bài nộp.",
+            deliverablesSubmitted: [`Submission #${r.submissionId}`],
+            moderatorNotes: "",
+            criteria: [],
+          };
+        });
+        setReviewItems(mappedRevs);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Xử lý thêm kịch bản mới
   const handleAddScenario = (newSc: ScenarioVersion) => {
@@ -242,6 +334,7 @@ export function InstructorPage() {
       {activeTab === "overview" && (
         <OverviewTab
           scenarios={scenarios}
+          cohorts={cohorts}
           liveSessions={liveSessions}
           reviewItems={reviewItems}
           onSelectTab={(tabId) => setActiveTab(tabId as TabId)}
@@ -271,7 +364,7 @@ export function InstructorPage() {
       {activeTab === "live" && (
         <LiveSessionsTab
           sessions={liveSessions}
-          availableEvents={events}
+          availableEvents={events.length > 0 ? events : initialScenarioEvents}
           onTriggerEventToSession={handleTriggerEventToSession}
           onSendCoachHint={handleSendCoachHint}
         />

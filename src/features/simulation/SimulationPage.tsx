@@ -24,8 +24,6 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { ProgressBar } from "../../components/ui/ProgressBar";
-import { stakeholders } from "../../constants/scenario";
-import { coachPrompts, evidenceRegister } from "../../constants/trainingScenario";
 import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
@@ -35,54 +33,9 @@ import {
   type SessionEventDto,
   type ScenarioEventAvailabilityDto,
   type SessionHistoryItemDto,
-  type SessionDto,
 } from "../../services/simulationService";
 
-const notesByStakeholder: Record<string, string> = {
-  warehouse:
-    "• Lấy hàng theo đợt (Wave picking): 8h, 13h, 17h\n• Hàng trả về nằm tại khu cách ly (quarantine), chỉ cập nhật số lượng cuối ca\n• Khu vực B thường xuyên mất kết nối Wi-Fi; máy quét gửi trễ dễ tạo bản ghi trùng lặp\n\nCâu hỏi mở: Cam kết SLA kiểm định chất lượng (QC) cho hàng trả là bao lâu?",
-  planner:
-    "• Dự báo nhu cầu 8 tuần và định mức min-max hiện lập trên file Excel cá nhân\n• Có quy tắc ngầm: Kiểm tra kho dư thừa trước khi tạo PO mua sắm mới\n• Chưa có công thức tính safety stock cho giai đoạn khuyến mãi lớn\n\nCâu hỏi mở: Cách tính safety stock khi có khuyến mãi chuỗi?",
-  finance:
-    "• Yêu cầu kiểm toán khắt khe: Lưu rõ người thực hiện, người duyệt, thời gian, lý do, số lượng trước/sau\n• Phân quyền duyệt: < 10tr hệ thống tự động; 10–50tr Trưởng kho; > 50tr Giám đốc Tài chính\n\nCâu hỏi mở: Xử lý thế nào với điều chỉnh tồn kho khi đã khóa sổ kế toán tháng?",
-  supply:
-    "• Thử nghiệm tại 3 kho miền Nam trong vòng 3 tháng\n• Chỉ tiêu KPI: Tỷ lệ đứt hàng (stockout) < 5%; Tỷ lệ đáp ứng (fill rate) >= 96%\n• Mức tăng chi phí lưu kho không vượt quá 8%\n\nCâu hỏi mở: Ai có thẩm quyền ghi đè (override) quyết định chuyển kho?",
-  operator:
-    "• Khi mất mạng Wifi: Ghi giấy tạm → nhập bổ sung sau ca gây trễ dữ liệu\n• Màn hình máy quét cũ không hiển thị danh sách giao dịch đang chờ đồng bộ\n\nCâu hỏi mở: Model thiết bị quét mã vạch hiện tại và tần suất rớt mạng?",
-  sponsor:
-    "• Thời gian triển khai MVP 6 tháng / Ngân sách tối đa 4 tỷ VNĐ\n• Cam kết không thay đổi hệ thống POS cửa hàng và không làm gián đoạn vận hành kho\n\nCâu hỏi mở: Tiêu chí dừng dự án (stop criteria) là gì?",
-};
-
-const suggestedQuickPrompts: Record<string, string[]> = {
-  warehouse: [
-    "Khu vực cách ly (quarantine) mất bao lâu để kiểm định hàng trả về?",
-    "Khi máy quét rớt Wi-Fi, nhân viên xử lý đơn giao dịch thế nào?",
-    "Số liệu tồn khả dụng (ATP) tại kho được cập nhật tức thời hay theo lô?",
-  ],
-  planner: [
-    "Quy tắc ưu tiên điều chuyển tồn kho nội bộ trước khi tạo PO mua mới là gì?",
-    "File Excel dự báo hiện lấy dữ liệu từ những nguồn nào?",
-    "Làm sao anh cân bằng giữa chi phí vận chuyển liên kho và chi phí mua mới?",
-  ],
-  finance: [
-    "Hạn mức duyệt sai lệch tồn kho được quy định cụ thể như thế nào?",
-    "Nếu điều chỉnh tồn kho rơi vào kỳ đã khóa sổ kế toán thì xử lý ra sao?",
-    "Yêu cầu về bằng chứng kiểm toán (audit trail) bắt buộc những trường nào?",
-  ],
-  supply: [
-    "Tiêu chí thành công chính của giai đoạn thử nghiệm (Pilot) là gì?",
-    "Trường hợp có mâu thuẫn về điều chuyển hàng, ai là người quyết định cuối?",
-    "Kế hoạch đo lường mức độ ảnh hưởng đến chi phí lưu kho sau triển khai?",
-  ],
-  operator: [
-    "Màn hình máy quét có cảnh báo khi đơn hàng chưa đồng bộ lên WMS không?",
-    "Quy trình ghi chép sổ giấy khi mất mạng có dễ gây nhầm lẫn số lượng không?",
-  ],
-  sponsor: [
-    "Ràng buộc về ngân sách và thời gian triển khai có thể linh hoạt không?",
-    "Tiêu chí nghiệm thu quan trọng nhất đối với Ban Giám đốc là gì?",
-  ],
-};
+const avatarPalette = ["#dbeafe", "#fef3c7", "#d1fae5", "#fae8ff", "#ffe4e6", "#e0e7ff"];
 
 export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const {
@@ -94,11 +47,14 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     setEventOpen,
     isReplying,
     activeAgents,
+    setActiveAgents,
     currentSessionId,
     setCurrentSessionId,
     loadAgentMessages,
     toggleEvidence,
   } = useApp();
+
+  const [notesMap, setNotesMap] = useState<Record<string, string>>({});
 
   const [draft, setDraft] = useState("");
   // Voice Speech-to-Text state
@@ -107,7 +63,8 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const handleToggleVoice = () => {
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
-      setDraft((prev) => prev ? `${prev} Tôi muốn tìm hiểu kỹ hơn về thời điểm đối soát số lượng tồn kho.` : "Tôi muốn tìm hiểu quy trình đối soát số lượng tồn kho giữa WMS và ERP được thực hiện vào thời điểm nào trong ca làm việc?");
+      setStatusMessage("Trình duyệt chưa hỗ trợ nhập giọng nói (Speech Recognition). Vui lòng nhập câu hỏi trực tiếp.");
+      setTimeout(() => setStatusMessage(null), 4000);
       return;
     }
     if (isRecording) {
@@ -145,6 +102,8 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const [sessionEvents, setSessionEvents] = useState<SessionEventDto[]>([]);
   const [eventCatalog, setEventCatalog] = useState<ScenarioEventAvailabilityDto[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [triggeringEventId, setTriggeringEventId] = useState<number | null>(null);
+  const [eventError, setEventError] = useState<string | null>(null);
 
   // Session Lifecycle & History state
   const [isCompleting, setIsCompleting] = useState(false);
@@ -154,10 +113,65 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const active = stakeholders.find((person) => person.id === activeStakeholderId) ?? stakeholders[0];
-  const activeEvidence = evidenceRegister.filter((item) => item.stakeholderId === active.id);
-  const prompts = coachPrompts[active.id] ?? [];
-  const quickPrompts = suggestedQuickPrompts[active.id] ?? [];
+  const displayStakeholders = activeAgents.map((agent, idx) => {
+    const parts = (agent.name || "AI").trim().split(" ");
+    const initials =
+      parts.length >= 2
+        ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+        : (agent.name || "AI").slice(0, 2).toUpperCase();
+    return {
+      id: String(agent.id),
+      agentId: agent.id,
+      name: agent.name,
+      role: agent.stakeholderRole,
+      focus: `Tin cậy: ${agent.trustLevel}/100 · Hợp tác: ${agent.cooperationLevel}/100`,
+      initials,
+      color: avatarPalette[idx % avatarPalette.length],
+      status: "available" as const,
+    };
+  });
+
+  const active = displayStakeholders.find(
+    (person) =>
+      person.id === activeStakeholderId ||
+      person.role.toLowerCase().includes(activeStakeholderId.toLowerCase()) ||
+      person.name.toLowerCase().includes(activeStakeholderId.toLowerCase())
+  ) ||
+    displayStakeholders[0] || {
+      id: "none",
+      agentId: 0,
+      name: "Chưa có nhân vật AI",
+      role: "Chưa bắt đầu phiên",
+      focus: "Vui lòng chọn kịch bản từ thư viện để khởi tạo phòng phỏng vấn",
+      initials: "AI",
+      color: "#e2e8f0",
+      status: "unavailable" as const,
+    };
+
+  const activeEvidence = messages
+    .filter((m) => m.evidence)
+    .map((m) => ({
+      id: `EV-${m.id}`,
+      quote: m.text,
+      category: "Phỏng vấn AI",
+      source: `${active.name} (${m.time})`,
+      confidence: "Cao",
+    }));
+
+  // Tải danh sách agents nếu có session mà activeAgents rỗng
+  useEffect(() => {
+    if (currentSessionId && activeAgents.length === 0) {
+      simulationService
+        .getSessionAgents(currentSessionId)
+        .then((agents) => {
+          if (agents && agents.length > 0) {
+            setActiveAgents(agents);
+            setActiveStakeholderId(String(agents[0].id));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [currentSessionId]);
 
   // Tải tin nhắn của agent đang chọn
   useEffect(() => {
@@ -165,6 +179,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
       const agent =
         activeAgents.find(
           (a) =>
+            String(a.id) === activeStakeholderId ||
             a.stakeholderRole?.toLowerCase().includes(activeStakeholderId.toLowerCase()) ||
             a.name?.toLowerCase().includes(activeStakeholderId.toLowerCase())
         ) || activeAgents[0];
@@ -210,7 +225,23 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
     }
   };
 
-  const handleSelectStakeholder = (person: (typeof stakeholders)[0]) => {
+  const handleTriggerSessionEvent = async (eventId: number) => {
+    if (!currentSessionId) return;
+    setTriggeringEventId(eventId);
+    setEventError(null);
+    try {
+      const res = await simulationService.triggerSessionEvent(currentSessionId, eventId);
+      setStatusMessage(`Đã kích hoạt sự kiện "${res.eventTitle}" vào phiên #${currentSessionId}!`);
+      setTimeout(() => setStatusMessage(null), 4000);
+      await loadSessionEventsData(currentSessionId);
+    } catch (err: any) {
+      setEventError(err?.message || "Không thể kích hoạt sự kiện cho phiên hiện tại.");
+    } finally {
+      setTriggeringEventId(null);
+    }
+  };
+
+  const handleSelectStakeholder = (person: { id: string }) => {
     setActiveStakeholderId(person.id);
   };
 
@@ -325,11 +356,13 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               </span>
               <Badge tone="green">Đang phỏng vấn</Badge>
               <span className="font-mono text-xs text-mist">
-                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "INV-2026-014"}
+                {currentSessionId ? `Phiên thực hành #${currentSessionId} · Đang kết nối Agent` : "Chưa khởi tạo phiên"}
               </span>
             </div>
             <h1 className="mt-1 truncate text-base font-bold text-white sm:text-lg">
-              Mô phỏng khơi gợi yêu cầu: Quản lý tồn kho VinaSupply
+              {currentSessionId
+                ? `Phòng phỏng vấn Stakeholder AI · Phiên #${currentSessionId}`
+                : "Phòng phỏng vấn Stakeholder AI"}
             </h1>
           </div>
 
@@ -345,16 +378,20 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
 
             <span className="flex items-center gap-1.5 rounded-lg bg-navy/80 px-2.5 py-1.5 text-xs font-semibold text-mist">
               <Clock3 size={15} className="text-brass" />
-              56:24
+              {activeAgents.length} Stakeholder · {messages.length} tin nhắn
             </span>
 
             <Button
               variant="secondary"
-              onClick={() => setEventOpen(true)}
+              onClick={() => {
+                setEventError(null);
+                setEventOpen(true);
+                if (currentSessionId) loadSessionEventsData(currentSessionId);
+              }}
               className="border-amber-400/30 bg-amber-500/10 text-xs font-semibold text-amber-300 hover:bg-amber-500/20"
             >
               <AlertTriangle size={15} className="text-amber-400" />
-              Sự kiện khẩn cấp
+              Sự kiện kịch bản ({eventCatalog.length})
             </Button>
 
             {/* Hoàn thành phiên */}
@@ -406,40 +443,40 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1 xl:flex-col xl:overflow-visible">
-              {stakeholders.map((person) => (
-                <button
-                  key={person.id}
-                  onClick={() => handleSelectStakeholder(person)}
-                  className={classNames(
-                    "group relative flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
-                    person.id === active.id
-                      ? "border-navy bg-white shadow-sm ring-1 ring-navy/10"
-                      : "border-transparent hover:bg-white/80"
-                  )}
-                >
-                  <span
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-navy shadow-xs"
-                    style={{ backgroundColor: person.color }}
+              {displayStakeholders.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate/20 bg-white p-4 text-center text-xs text-slate">
+                  Chưa có nhân vật AI trong phiên này. Hãy chọn kịch bản từ thư viện để khởi tạo.
+                </div>
+              ) : (
+                displayStakeholders.map((person) => (
+                  <button
+                    key={person.id}
+                    onClick={() => handleSelectStakeholder(person)}
+                    className={classNames(
+                      "group relative flex min-w-[180px] items-center gap-2.5 rounded-xl border p-2.5 text-left transition xl:min-w-0",
+                      person.id === active.id
+                        ? "border-navy bg-white shadow-sm ring-1 ring-navy/10"
+                        : "border-transparent hover:bg-white/80"
+                    )}
                   >
-                    {person.initials}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-xs font-bold text-navy">
-                      {person.name}
-                    </strong>
-                    <small className="block truncate text-[11px] text-slate">
-                      {person.role}
-                    </small>
-                  </span>
-                  {person.status === "interviewed" ? (
-                    <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-100 text-emerald-700">
-                      <Check size={11} />
+                    <span
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-navy shadow-xs"
+                      style={{ backgroundColor: person.color }}
+                    >
+                      {person.initials}
                     </span>
-                  ) : (
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  )}
-                </button>
-              ))}
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-xs font-bold text-navy">
+                        {person.name}
+                      </strong>
+                      <small className="block truncate text-[11px] text-slate">
+                        {person.role}
+                      </small>
+                    </span>
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  </button>
+                ))
+              )}
             </div>
 
             {/* Mission Progress Checklist */}
@@ -450,11 +487,11 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               <div className="mt-3 space-y-2">
                 <div>
                   <div className="flex justify-between text-xs text-slate">
-                    <span>Số stakeholder đã hỏi:</span>
-                    <strong className="text-navy">{activeAgents.length || 6} người</strong>
+                    <span>Tổng số nhân vật AI:</span>
+                    <strong className="text-navy">{activeAgents.length} người</strong>
                   </div>
                   <div className="mt-1.5">
-                    <ProgressBar value={75} />
+                    <ProgressBar value={activeAgents.length > 0 ? Math.min(100, messages.length * 10) : 0} />
                   </div>
                 </div>
                 <div className="pt-2 text-[11px] text-slate">
@@ -546,24 +583,6 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               )}
             </div>
 
-            {/* Quick Prompts Chips */}
-            {quickPrompts.length > 0 && (
-              <div className="border-t border-slate/10 bg-white/80 px-3 py-1.5">
-                <div className="flex items-center gap-2 overflow-x-auto text-[11px]">
-                  <span className="shrink-0 font-bold text-slate">Gợi ý câu hỏi:</span>
-                  {quickPrompts.map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => setDraft(q)}
-                      className="shrink-0 rounded-full border border-slate/20 bg-mist/20 px-2.5 py-1 text-slate transition hover:border-navy hover:bg-white hover:text-navy"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Text Input Area */}
             <div className="shrink-0 border-t border-slate/15 bg-white p-3">
               <div className="flex items-end gap-2 rounded-xl border border-slate/20 bg-[#fafcfd] p-1.5 focus-within:border-navy focus-within:ring-1 focus-within:ring-navy/20">
@@ -649,8 +668,10 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                 <>
                   <textarea
                     key={active.id}
+                    value={notesMap[active.id] || ""}
+                    onChange={(e) => setNotesMap((prev) => ({ ...prev, [active.id]: e.target.value }))}
+                    placeholder={`Ghi chú nhanh nội dung phỏng vấn với ${active.name}...`}
                     className="min-h-32 w-full rounded-xl border border-slate/20 bg-white p-3 text-xs leading-5 text-navy outline-none focus:border-navy"
-                    defaultValue={notesByStakeholder[active.id]}
                   />
 
                   {/* AI Coach Feedback Section */}
@@ -746,45 +767,9 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                         </div>
                       </div>
                     ) : (
-                      // Fallback hiển thị mẫu trước khi bấm xin nhận xét
-                      <div className="space-y-2">
-                        {prompts.map((prompt) => (
-                          <div
-                            key={prompt.type}
-                            className={classNames(
-                              "rounded-xl p-3 border",
-                              prompt.type === "strength"
-                                ? "border-emerald-200 bg-emerald-50/50"
-                                : prompt.type === "gap"
-                                ? "border-amber-200 bg-amber-50/50"
-                                : "border-slate/15 bg-white"
-                            )}
-                          >
-                            <div className="flex gap-2">
-                              <Lightbulb
-                                size={14}
-                                className={classNames(
-                                  "mt-0.5 shrink-0",
-                                  prompt.type === "strength"
-                                    ? "text-emerald-700"
-                                    : prompt.type === "gap"
-                                    ? "text-amber-700"
-                                    : "text-navy"
-                                )}
-                              />
-                              <div>
-                                <p className="text-[10px] font-bold uppercase tracking-wide text-slate">
-                                  {prompt.type === "strength"
-                                    ? "Điểm mạnh phỏng vấn"
-                                    : prompt.type === "gap"
-                                    ? "Lỗ hổng phân tích"
-                                    : "Gợi ý đào sâu tiếp theo"}
-                                </p>
-                                <p className="mt-1 text-xs leading-5 text-navy/90">{prompt.text}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="rounded-xl border border-dashed border-slate/20 bg-white p-4 text-center text-xs text-slate">
+                        <Lightbulb size={18} className="mx-auto mb-1.5 text-amber-500/70" />
+                        Chưa có nhận xét từ AI Coach. Hãy bấm <strong>&quot;Xin nhận xét&quot;</strong> sau khi trao đổi vài câu hỏi với Stakeholder.
                       </div>
                     )}
                   </div>
@@ -897,7 +882,7 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
         </div>
       </div>
 
-      {/* Dynamic Emergency Event Modal */}
+      {/* Dynamic Scenario Event Modal (Connected to Event Catalog & Trigger API) */}
       {eventOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-navy-deep/60 p-4 backdrop-blur-sm">
           <Card className="w-full max-w-2xl overflow-hidden border-amber-400/30 shadow-2xl">
@@ -907,9 +892,9 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
                   <AlertTriangle size={22} />
                 </span>
                 <div>
-                  <Badge tone="amber">Sự kiện động · Khẩn cấp</Badge>
+                  <Badge tone="amber">Sự kiện kịch bản · Real-time API</Badge>
                   <h2 className="mt-2 text-xl font-bold text-navy">
-                    Nhà cung cấp chính giao hàng trễ 5 ngày
+                    Danh mục Biến cố & Sự kiện Thay đổi
                   </h2>
                 </div>
               </div>
@@ -921,42 +906,85 @@ export function SimulationPage({ navigate }: { navigate: (route: RouteKey) => vo
               </button>
             </div>
 
-            <div className="p-6">
-              <p className="leading-7 text-slate text-sm">
-                Lô hàng sữa tươi tiệt trùng MILK-01 dự kiến nhập kho ngày 18/09 bị hoãn 5 ngày do sự cố vận chuyển từ nhà máy. Kho miền Nam sẽ cạn sạch tồn kho trong 3 ngày tới, trong khi chương trình khuyến mãi toàn hệ thống sẽ bắt đầu trong 7 ngày nữa.
-              </p>
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {eventError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                  {eventError}
+                </div>
+              )}
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                {[
-                  ["Phạm vi ảnh hưởng", "Bổ sung tồn kho"],
-                  ["Mức độ tác động", "Rất cao"],
-                  ["Thời hạn phản hồi", "20 phút"],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-mist/30 p-3">
-                    <span className="text-xs text-slate">{label}</span>
-                    <strong className="mt-1 block text-sm text-navy">{value}</strong>
-                  </div>
-                ))}
-              </div>
+              {!currentSessionId ? (
+                <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
+                  Vui lòng khởi tạo một phiên thực hành từ Thư viện kịch bản để tải danh sách sự kiện.
+                </div>
+              ) : isLoadingEvents ? (
+                <div className="py-8 text-center text-xs text-slate">
+                  <RefreshCw size={20} className="mx-auto mb-2 animate-spin text-navy" />
+                  Đang tải danh mục sự kiện từ máy chủ...
+                </div>
+              ) : eventCatalog.length === 0 && sessionEvents.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
+                  Kịch bản này chưa cấu hình biến cố bổ sung nào trên hệ thống.
+                </div>
+              ) : (
+                <>
+                  {eventCatalog.length > 0 && (
+                    <div className="space-y-3">
+                      {eventCatalog.map((evt) => (
+                        <div key={evt.id} className="rounded-xl border border-slate/15 bg-white p-4 shadow-xs">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <strong className="text-sm font-bold text-navy">{evt.title}</strong>
+                                <Badge tone={evt.isTriggered ? "green" : "amber"}>
+                                  {evt.isTriggered ? "Đã kích hoạt" : evt.triggerType}
+                                </Badge>
+                              </div>
+                              <p className="mt-1.5 text-xs leading-5 text-slate">{evt.description}</p>
+                              {evt.triggeredAt && (
+                                <p className="mt-1 text-[11px] text-emerald-700">
+                                  Kích hoạt lúc: {new Date(evt.triggeredAt).toLocaleString("vi-VN")}
+                                </p>
+                              )}
+                            </div>
+                            {!evt.isTriggered && (
+                              <Button
+                                size="sm"
+                                disabled={triggeringEventId === evt.id}
+                                onClick={() => handleTriggerSessionEvent(evt.id)}
+                                className="text-xs bg-amber-600 text-white hover:bg-amber-700 shrink-0"
+                              >
+                                {triggeringEventId === evt.id ? "Đang kích hoạt..." : "Kích hoạt sự kiện"}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-              <h3 className="mt-6 text-sm font-bold text-navy">Hành động BA cần thực hiện ngay:</h3>
-              <div className="mt-3 space-y-2">
-                {[
-                  "Xác định các Stakeholder cần tham vấn khẩn (Planner, Finance, Trưởng kho)",
-                  "Đánh giá các yêu cầu nghiệp vụ bị ảnh hưởng (FR-08, BR-01)",
-                  "So sánh phương án: Điều chuyển tồn kho nội bộ vs Mua ngoài khẩn cấp",
-                  "Cập nhật sổ ghi chép quyết định (Decision Log) và Nhật ký rủi ro",
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-xs font-medium text-slate">
-                    <ChevronRight size={14} className="text-navy" />
-                    {item}
-                  </div>
-                ))}
-              </div>
+                  {sessionEvents.length > 0 && (
+                    <div className="border-t border-slate/15 pt-4 space-y-2.5">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate">
+                        Lịch sử sự kiện đã xảy ra trong phiên ({sessionEvents.length})
+                      </h3>
+                      {sessionEvents.map((se) => (
+                        <div key={se.id} className="rounded-xl border border-amber-300/50 bg-amber-50/40 p-3 text-xs">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-amber-900">Biến cố #{se.sequenceNo}</strong>
+                            <Badge tone="amber">{se.triggerSource}</Badge>
+                          </div>
+                          <p className="mt-1 text-navy/90 leading-5">{se.eventContentSnapshot}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
 
-              <div className="mt-7 flex justify-end gap-3 border-t border-slate/10 pt-4">
+              <div className="mt-6 flex justify-end gap-3 border-t border-slate/10 pt-4">
                 <Button variant="secondary" onClick={() => setEventOpen(false)}>
-                  Để sau
+                  Đóng
                 </Button>
                 <Button
                   onClick={() => {

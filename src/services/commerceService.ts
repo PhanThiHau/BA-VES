@@ -104,79 +104,16 @@ export interface CreditBalanceSummaryDto {
   }[];
 }
 
-export const fallbackPlans: PlanDto[] = [
-  {
-    id: 1,
-    code: "FREE",
-    name: "Gói Học viên Cơ bản",
-    description: "Trải nghiệm các kịch bản nền tảng và nhận xét AI cơ bản.",
-    planType: PlanType.Subscription,
-    price: 0,
-    currency: "VND",
-    durationDays: null,
-    sessionQuota: 5,
-    reviewCredits: 0,
-    consultationCredits: 0,
-    status: PlanStatus.Published,
-    displayOrder: 1,
-    scopes: [],
-  },
-  {
-    id: 2,
-    code: "PRO",
-    name: "Gói BA Thực chiến Pro",
-    description: "Mở khóa toàn bộ kịch bản đa ngành, sự kiện khẩn cấp và 1 lượt chuyên gia thẩm định.",
-    planType: PlanType.Subscription,
-    price: 199000,
-    currency: "VND",
-    durationDays: 30,
-    sessionQuota: null,
-    reviewCredits: 1,
-    consultationCredits: 1,
-    status: PlanStatus.Published,
-    displayOrder: 2,
-    scopes: [],
-  },
-  {
-    id: 3,
-    code: "ENTERPRISE",
-    name: "Gói Trường học / Doanh nghiệp",
-    description: "Dành cho trường đại học hoặc trung tâm đào tạo quản lý nhiều lớp sinh viên.",
-    planType: PlanType.Custom,
-    price: 990000,
-    currency: "VND",
-    durationDays: 90,
-    sessionQuota: null,
-    reviewCredits: 5,
-    consultationCredits: 3,
-    status: PlanStatus.Published,
-    displayOrder: 3,
-    scopes: [],
-  },
-];
-
 export const commerceService = {
   // 1. GET /api/plans: Lấy danh sách các gói cước đang mở bán
   async getPlans(): Promise<PlanDto[]> {
-    try {
-      const data = await apiClient.get<PlanDto[]>("/api/plans");
-      if (Array.isArray(data) && data.length > 0) {
-        return data;
-      }
-      return fallbackPlans;
-    } catch (e) {
-      console.warn("Không thể tải danh sách gói từ /api/plans, sử dụng danh sách mẫu:", e);
-      return fallbackPlans;
-    }
+    const data = await apiClient.get<PlanDto[]>("/api/plans");
+    return Array.isArray(data) ? data : [];
   },
 
   // 2. GET /api/plans/{id}: Xem chi tiết một gói theo ID
   async getPlanById(id: number): Promise<PlanDto> {
-    try {
-      return await apiClient.get<PlanDto>(`/api/plans/${id}`);
-    } catch {
-      return fallbackPlans.find((p) => p.id === id) || fallbackPlans[0];
-    }
+    return apiClient.get<PlanDto>(`/api/plans/${id}`);
   },
 
   // 3. POST /api/orders: Tạo đơn hàng mua gói và nhận link thanh toán PayOS / VietQR
@@ -191,12 +128,8 @@ export const commerceService = {
 
   // 5. GET /api/orders/me: Lịch sử đơn hàng của người dùng hiện tại
   async getMyOrders(): Promise<OrderDto[]> {
-    try {
-      return await apiClient.get<OrderDto[]>("/api/orders/me");
-    } catch (e) {
-      console.warn("Không thể tải lịch sử đơn hàng từ /api/orders/me:", e);
-      return [];
-    }
+    const data = await apiClient.get<OrderDto[]>("/api/orders/me");
+    return Array.isArray(data) ? data : [];
   },
 
   // 6. POST /api/orders/{id}/cancel: Hủy đơn hàng đang chờ thanh toán
@@ -206,12 +139,8 @@ export const commerceService = {
 
   // 7. GET /api/me/entitlements: Danh sách quyền truy cập kịch bản của người dùng hiện tại
   async getMyEntitlements(): Promise<EntitlementDto[]> {
-    try {
-      return await apiClient.get<EntitlementDto[]>("/api/me/entitlements");
-    } catch (e) {
-      console.warn("Không thể tải quyền truy cập từ /api/me/entitlements:", e);
-      return [];
-    }
+    const data = await apiClient.get<EntitlementDto[]>("/api/me/entitlements");
+    return Array.isArray(data) ? data : [];
   },
 
   // 8. GET /api/me/review-credits: Số dư credit gửi bài cho Chuyên gia chấm
@@ -226,12 +155,6 @@ export const commerceService = {
 
   // 10. GET /api/me/credits-summary: Tổng hợp toàn bộ số dư credit (Review và Consultation)
   async getMyCreditsSummary(): Promise<CreditBalanceSummaryDto | null> {
-    try {
-      return await apiClient.get<CreditBalanceSummaryDto>("/api/me/credits-summary");
-    } catch (e) {
-      console.warn("Không thể tải số dư credit từ /api/me/credits-summary:", e);
-      return null;
-    }
+    return apiClient.get<CreditBalanceSummaryDto>("/api/me/credits-summary");
   },
 };
-

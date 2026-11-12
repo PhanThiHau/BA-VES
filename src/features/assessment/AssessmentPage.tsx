@@ -1,6 +1,5 @@
-import { ArrowLeft, ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, Quote, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck, PhoneCall, MessagesSquare } from "lucide-react";
+import { ArrowLeft, ArrowRight, Award, BarChart3, CheckCircle2, Download, Lightbulb, MessageCircleMore, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck, PhoneCall, MessagesSquare } from "lucide-react";
 import { useState, useEffect } from "react";
-import { babokScores } from "../../constants/scenario";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -15,18 +14,9 @@ import {
 } from "../../services/assessmentService";
 import { ConsultationModal } from "../../components/common/ConsultationModal";
 
-const underlyingCompetencies = [
-  ["Tư duy phân tích & Giải quyết vấn đề", 78, "Phân biệt rõ ràng giữa sự thật và giả định, nhận diện mâu thuẫn chỉ số KPI giữa Kho và Kế toán"],
-  ["Kỹ năng giao tiếp & Lắng nghe", 81, "Sử dụng câu hỏi mở tự nhiên, đào sâu đúng trọng tâm và biết tóm lược lại thông tin (playback)"],
-  ["Kỹ năng tương tác & Đàm phán", 76, "Điều phối bất đồng giữa Trưởng kho và Kế toán dựa trên căn cứ số liệu thay vì cảm tính"],
-  ["Hiểu biết kinh doanh (Domain)", 70, "Nắm chắc nghiệp vụ xuất nhập tồn kho; cần hiểu sâu hơn về ảnh hưởng của việc khóa sổ kế toán"],
-  ["Phẩm chất hành vi nghề nghiệp", 74, "Chủ động theo dõi câu hỏi mở, giữ thái độ trung lập và tôn trọng mục tiêu các bên"],
-  ["Công cụ & Công nghệ phân tích", 68, "Áp dụng tốt ma trận RTM; cần làm rõ cơ chế lưu trữ offline và tính toàn vẹn dữ liệu máy quét"],
-];
-
 export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { currentSessionId, currentSubmissionId } = useApp();
-  const submissionId = currentSubmissionId ?? 1;
+  const submissionId = currentSubmissionId;
 
   const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
   const [aiFeedback, setAiFeedback] = useState<AIPracticeFeedbackDto | null>(null);
@@ -36,6 +26,11 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
   const [showConsultationModal, setShowConsultationModal] = useState(false);
 
   const loadAssessment = async () => {
+    if (!submissionId) {
+      setReport(null);
+      setAiFeedback(null);
+      return;
+    }
     setLoading(true);
     try {
       const rep = await assessmentService.getFinalReport(submissionId);
@@ -45,8 +40,8 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
       try {
         const fb = await assessmentService.getAiFeedback(submissionId);
         setAiFeedback(fb);
-      } catch (err) {
-        console.warn("Chưa có báo cáo chấm điểm trên backend, dùng mẫu.");
+      } catch {
+        // Chưa có kết quả đánh giá
       }
     } finally {
       setLoading(false);
@@ -58,23 +53,31 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
   }, [currentSessionId, currentSubmissionId]);
 
   const handleReEvaluate = async () => {
+    if (!submissionId) {
+      alert("Vui lòng nộp bài ở Bước 4 (Hồ sơ BA) trước khi yêu cầu AI chấm điểm.");
+      return;
+    }
     setIsEvaluating(true);
     try {
       const res = await assessmentService.evaluateSubmission(submissionId);
       setAiFeedback(res);
-      alert(`✨ AI đã chấm điểm thành công! Điểm đề xuất: ${res.suggestedScore ?? 75}/100.`);
+      alert(`✨ AI đã chấm điểm thành công! Điểm đề xuất: ${res.suggestedScore ?? "--"}/100.`);
     } catch (err: any) {
-      alert(`Đã kích hoạt AI đánh giá: ${err.message}`);
+      alert(`Lỗi khi AI đánh giá: ${err.message}`);
     } finally {
       setIsEvaluating(false);
     }
   };
 
-    const handleExportPdf = () => {
+  const handleExportPdf = () => {
     window.print();
   };
 
   const handleRequestHumanReview = async () => {
+    if (!submissionId) {
+      alert("Vui lòng nộp bài trước khi gửi yêu cầu Chuyên gia thẩm định.");
+      return;
+    }
     setIsRequestingReview(true);
     try {
       await assessmentService.requestReview(submissionId, "Học viên gửi yêu cầu chuyên gia chấm điểm và phản biện.");
@@ -86,9 +89,17 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
     }
   };
 
-  const currentScore = aiFeedback?.suggestedScore != null
-    ? Math.round(Number(aiFeedback.suggestedScore))
-    : (report?.finalScore != null ? Math.round(Number(report.finalScore)) : 72);
+  const currentScore =
+    report?.finalScore != null
+      ? Math.round(Number(report.finalScore))
+      : aiFeedback?.suggestedScore != null
+      ? Math.round(Number(aiFeedback.suggestedScore))
+      : null;
+
+  const criteriaList =
+    report?.expertReview?.criterionScores && report.expertReview.criterionScores.length > 0
+      ? report.expertReview.criterionScores
+      : aiFeedback?.criterionScores || [];
 
   return (
     <>
@@ -149,81 +160,85 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <Award size={28} />
           </span>
           <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate">Điểm năng lực tổng thể</p>
-          <strong className="mt-1 block text-6xl font-bold tracking-tight text-navy">{currentScore}</strong>
+          <strong className="mt-1 block text-6xl font-bold tracking-tight text-navy">
+            {loading ? "..." : currentScore !== null ? currentScore : "--"}
+          </strong>
           <div className="mt-2">
-            <Badge tone="green">Đạt yêu cầu doanh nghiệp</Badge>
+            {currentScore !== null ? (
+              <Badge tone={currentScore >= 70 ? "green" : "amber"}>
+                {currentScore >= 70 ? "Đạt yêu cầu doanh nghiệp" : "Cần cải thiện thêm"}
+              </Badge>
+            ) : (
+              <Badge tone="gray">Chưa chấm điểm</Badge>
+            )}
           </div>
           <p className="mt-4 text-xs leading-5 text-slate">
-            {aiFeedback?.overallFeedback ||
-              "Bạn xử lý tốt xung đột giữa các bên và thu thập bằng chứng đầy đủ. Điểm cần hoàn thiện là phân tích tác động thay đổi và đo lường giá trị MVP sau golive."}
+            {report?.expertReview?.overallFeedback ||
+              aiFeedback?.overallFeedback ||
+              (submissionId
+                ? "Bấm 'Chạy AI Chấm điểm' để AI Assessor phân tích và chấm điểm bài nộp của bạn."
+                : "Chưa có bài nộp nào được chọn. Hãy hoàn tất soạn thảo và nộp bài ở Bước 4.")}
           </p>
 
           <div className="mt-6 border-t border-slate/10 pt-4 text-left space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-slate">Điểm bằng chứng AI (Rubric):</span>
-              <strong className="text-navy font-mono font-bold">{currentScore}/100</strong>
+              <strong className="text-navy font-mono font-bold">
+                {aiFeedback?.suggestedScore != null ? `${Math.round(Number(aiFeedback.suggestedScore))}/100` : "--"}
+              </strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate">Giảng viên điều chỉnh:</span>
-              <strong className="text-navy font-mono font-bold">{report?.finalScore ? `${Math.round(Number(report.finalScore))}/100` : "73/100"}</strong>
+              <strong className="text-navy font-mono font-bold">
+                {report?.finalScore != null ? `${Math.round(Number(report.finalScore))}/100` : "Chưa thẩm định"}
+              </strong>
             </div>
           </div>
         </Card>
 
-        {/* 6 Knowledge Areas */}
+        {/* Rubric Criteria Breakdown */}
         <Card className="p-6 border-slate/15">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-navy">Ứng dụng qua 6 Vùng tri thức BABOK® v3</h2>
-              <p className="mt-0.5 text-xs text-slate">Đánh giá khả năng vận dụng tri thức vào giải quyết tình huống thực tế.</p>
+              <h2 className="text-base font-bold text-navy">Điểm chi tiết theo Tiêu chí Rubric BABOK® v3</h2>
+              <p className="mt-0.5 text-xs text-slate">Kết quả đánh giá từng tiêu chí dựa trên bằng chứng phỏng vấn và tài liệu bàn giao.</p>
             </div>
-            <span className="rounded-full bg-mist/40 px-2.5 py-1 text-[11px] font-bold text-navy">
-              Độ tin cậy: 0.86
-            </span>
+            {aiFeedback?.confidence != null && (
+              <span className="rounded-full bg-mist/40 px-2.5 py-1 text-[11px] font-bold text-navy">
+                Độ tin cậy: {Number(aiFeedback.confidence).toFixed(2)}
+              </span>
+            )}
           </div>
 
-          <div className="mt-6 grid gap-x-8 gap-y-5 md:grid-cols-2">
-            {babokScores.map((skill) => (
-              <div key={skill.short}>
-                <div className="mb-2 flex justify-between text-xs font-semibold">
-                  <span className="text-navy">{skill.name}</span>
-                  <strong className="font-mono text-navy">{skill.score}%</strong>
-                </div>
-                <ProgressBar
-                  value={skill.score}
-                  color={skill.score >= 70 ? "#102a43" : skill.score >= 60 ? "#4f779d" : "#c58b52"}
-                />
-              </div>
-            ))}
-          </div>
+          {criteriaList.length === 0 ? (
+            <div className="mt-8 rounded-xl border border-dashed border-slate/20 p-8 text-center text-xs text-slate">
+              Chưa có dữ liệu điểm chi tiết theo tiêu chí. Vui lòng nộp bài và bấm <strong>&quot;Chạy AI Chấm điểm&quot;</strong>.
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-x-8 gap-y-5 md:grid-cols-2">
+              {criteriaList.map((crit) => {
+                const max = crit.maxScore || 100;
+                const pct = Math.round((Number(crit.score) / max) * 100);
+                return (
+                  <div key={crit.rubricCriterionId}>
+                    <div className="mb-2 flex justify-between text-xs font-semibold">
+                      <span className="text-navy">{crit.criterionName || crit.criterionCode}</span>
+                      <strong className="font-mono text-navy">{Math.round(Number(crit.score))}/{max}</strong>
+                    </div>
+                    <ProgressBar
+                      value={pct}
+                      color={pct >= 70 ? "#102a43" : pct >= 60 ? "#4f779d" : "#c58b52"}
+                    />
+                    {crit.comment && (
+                      <p className="mt-1.5 text-[11px] text-slate leading-4">{crit.comment}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
-
-      {/* Observed Underlying Competencies */}
-      <Card className="mt-6 p-6 border-slate/15">
-        <div className="flex items-center gap-3">
-          <Eye className="text-navy" size={20} />
-          <div>
-            <h2 className="text-base font-bold text-navy">6 Nhóm Năng lực Cốt lõi (Underlying Competencies)</h2>
-            <p className="text-xs text-slate">Năng lực thể hiện qua hành vi đối thoại, tư duy và lập luận phản biện của học viên.</p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {underlyingCompetencies.map(([name, score, evidence]) => (
-            <div key={String(name)} className="rounded-xl border border-slate/15 bg-white p-4 shadow-xs">
-              <div className="flex items-start justify-between gap-3">
-                <strong className="text-xs font-bold text-navy leading-5">{String(name)}</strong>
-                <span className="font-mono text-base font-black text-navy">{String(score)}</span>
-              </div>
-              <div className="mt-3">
-                <ProgressBar value={Number(score)} />
-              </div>
-              <p className="mt-3 text-[11px] leading-4 text-slate">{String(evidence)}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       {/* Strengths & Improvement Opportunities */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -233,36 +248,18 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <h2 className="text-base font-bold text-navy">Điểm mạnh dựa trên bằng chứng</h2>
           </div>
           <div className="mt-4 space-y-3.5">
-            {aiFeedback?.strengths && aiFeedback.strengths.length > 0
-              ? aiFeedback.strengths.map((str, idx) => (
-                  <div key={idx} className="rounded-xl border border-emerald-400/20 bg-emerald-50/40 p-4">
-                    <strong className="text-xs font-bold text-emerald-900">Điểm mạnh từ AI Assessor #{idx + 1}</strong>
-                    <p className="mt-1 text-xs leading-5 text-emerald-950">{str}</p>
-                  </div>
-                ))
-              : null}
-            {[
-              [
-                "Chất lượng khơi gợi yêu cầu (Elicitation)",
-                "Bạn sử dụng khéo léo câu hỏi mở và đào sâu tiếp nối để phát hiện việc hàng đổi trả chỉ được nhập hệ thống vào cuối ca làm việc.",
-              ],
-              [
-                "Hòa giải xung đột mục tiêu",
-                "Bạn cân bằng xuất sắc giữa nhu cầu tốc độ soạn hàng của Kho với nguyên tắc phân tách nhiệm vụ kiểm toán của Kế toán.",
-              ],
-              [
-                "Tính truy vết yêu cầu (Traceability)",
-                "4/5 yêu cầu phần mềm được truy vết trực tiếp về biên bản phỏng vấn và mục tiêu kinh doanh ban đầu.",
-              ],
-            ].map(([title, copy]) => (
-              <div key={title} className="rounded-xl bg-mist/30 p-4">
-                <strong className="text-xs font-bold text-navy">{title}</strong>
-                <p className="mt-1.5 text-xs leading-5 text-slate">{copy}</p>
-                <button className="mt-2.5 flex items-center gap-1 text-[11px] font-semibold text-navy hover:underline">
-                  <Quote size={12} /> Xem bằng chứng trích dẫn
-                </button>
+            {aiFeedback?.strengths && aiFeedback.strengths.length > 0 ? (
+              aiFeedback.strengths.map((str, idx) => (
+                <div key={idx} className="rounded-xl border border-emerald-400/20 bg-emerald-50/40 p-4">
+                  <strong className="text-xs font-bold text-emerald-900">Điểm mạnh từ AI Assessor #{idx + 1}</strong>
+                  <p className="mt-1 text-xs leading-5 text-emerald-950">{str}</p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
+                Chưa có nhận xét điểm mạnh từ hệ thống chấm điểm.
               </div>
-            ))}
+            )}
           </div>
         </Card>
 
@@ -272,36 +269,18 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <h2 className="text-base font-bold text-navy">Cơ hội cải thiện chuyên môn</h2>
           </div>
           <div className="mt-4 space-y-3.5">
-            {aiFeedback?.weaknesses && aiFeedback.weaknesses.length > 0
-              ? aiFeedback.weaknesses.map((weak, idx) => (
-                  <div key={idx} className="rounded-xl border border-amber-400/20 bg-amber-50/40 p-4">
-                    <strong className="text-xs font-bold text-amber-900">Lỗ hổng phân tích từ AI #{idx + 1}</strong>
-                    <p className="mt-1 text-xs leading-5 text-amber-950">{weak}</p>
-                  </div>
-                ))
-              : null}
-            {[
-              [
-                "Đánh giá giải pháp (Solution Evaluation)",
-                "Chưa xác định mốc baseline ban đầu và bộ chỉ số đo lường hiệu quả MVP sau khi golive thực tế.",
-              ],
-              [
-                "Tiêu chí nghiệm thu định lượng",
-                "Hai yêu cầu còn sử dụng từ ngữ chung chung như “nhanh chóng” và “dễ sử dụng” mà không có ngưỡng giây hoặc phần trăm.",
-              ],
-              [
-                "Phân tích tác động sự kiện thay đổi",
-                "Sự cố nhà cung ứng giao hàng trễ chưa được cập nhật đồng bộ vào Nhật ký rủi ro và Danh mục yêu cầu.",
-              ],
-            ].map(([title, copy]) => (
-              <div key={title} className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-4">
-                <strong className="text-xs font-bold text-amber-900">{title}</strong>
-                <p className="mt-1.5 text-xs leading-5 text-amber-900/80">{copy}</p>
-                <button className="mt-2.5 flex items-center gap-1 text-[11px] font-semibold text-amber-800 hover:underline">
-                  Xem hướng dẫn khắc phục <ArrowUpRight size={13} />
-                </button>
+            {aiFeedback?.weaknesses && aiFeedback.weaknesses.length > 0 ? (
+              aiFeedback.weaknesses.map((weak, idx) => (
+                <div key={idx} className="rounded-xl border border-amber-400/20 bg-amber-50/40 p-4">
+                  <strong className="text-xs font-bold text-amber-900">Lỗ hổng phân tích từ AI #{idx + 1}</strong>
+                  <p className="mt-1 text-xs leading-5 text-amber-950">{weak}</p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
+                Chưa có ghi nhận lỗ hổng chuyên môn từ hệ thống chấm điểm.
               </div>
-            ))}
+            )}
           </div>
         </Card>
       </div>
@@ -406,8 +385,8 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
       <ConsultationModal
         isOpen={showConsultationModal}
         onClose={() => setShowConsultationModal(false)}
-        submissionId={submissionId}
-        reviewRequestId={report?.expertReview?.id || 1}
+        submissionId={submissionId ?? null}
+        reviewRequestId={report?.expertReview?.id ?? null}
       />
     </>
   );
