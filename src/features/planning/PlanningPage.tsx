@@ -1,21 +1,21 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ClipboardList, Database, FileQuestion, Lightbulb, Plus, Save, Target, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ClipboardList, Database, FileQuestion, Lightbulb, Loader2, Plus, Save, Target, Trash2, Users } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/common/PageHeader";
 import { Badge } from "../../components/ui/Badge";
 import { useApp } from "../../contexts/AppContext";
-import { planningService } from "../../services/planningService";
-import { simulationService, type SessionAgentDto } from "../../services/simulationService";
+import { planningService, type PlannedQuestionDto } from "../../services/planningService";
+import { catalogService, type ScenarioContextDto } from "../../services/catalogService";
 import type { RouteKey } from "../../types/models";
 
 export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId, activeAgents } = useApp();
+  const { currentSessionId, currentScenarioVersionId } = useApp();
 
   const [objective, setObjective] = useState("");
   const [approach, setApproach] = useState("");
   const [questions, setQuestions] = useState<any[]>([]);
-  const [sessionAgents, setSessionAgents] = useState<SessionAgentDto[]>(activeAgents || []);
+  const [scenarioContext, setScenarioContext] = useState<ScenarioContextDto | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -26,39 +26,47 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
   const [newPriority, setNewPriority] = useState<"Low" | "Medium" | "High" | "Critical">("High");
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // API 8: Load plan and agents when session exists
+  // Load Scenario Context for objectives guideline from DB
+  useEffect(() => {
+    if (!currentScenarioVersionId) return;
+    catalogService.getScenarioContext(currentScenarioVersionId).then((ctx) => {
+      if (ctx) {
+        setScenarioContext(ctx);
+        if (!objective && ctx.businessObjectives) {
+          setObjective(ctx.businessObjectives);
+        }
+      }
+    }).catch((err) => console.warn("Lỗi tải bối cảnh kịch bản:", err));
+  }, [currentScenarioVersionId]);
+
+  // API 8: Load plan when session exists
   useEffect(() => {
     if (!currentSessionId) return;
-    const fetchPlanAndAgents = async () => {
+    const fetchPlan = async () => {
       setIsLoading(true);
       try {
-        const [planRes, agentsRes] = await Promise.allSettled([
-          planningService.getPlan(currentSessionId),
-          simulationService.getSessionAgents(currentSessionId),
-        ]);
-        if (planRes.status === "fulfilled" && planRes.value) {
-          const plan = planRes.value;
+        const plan = await planningService.getPlan(currentSessionId);
+        if (plan) {
           if (plan.objective) setObjective(plan.objective);
           if (plan.approach) setApproach(plan.approach);
-          setQuestions(plan.questions || []);
-          setSaveStatus("Đã đồng bộ kế hoạch từ máy chủ");
-        }
-        if (agentsRes.status === "fulfilled" && agentsRes.value) {
-          setSessionAgents(agentsRes.value);
+          if (plan.questions) {
+            setQuestions(plan.questions);
+          }
+          setSaveStatus("Đã tải kế hoạch từ Database");
         }
       } catch (err) {
-        console.warn("Could not fetch plan from backend:", err);
+        console.warn("Phiên chưa có kế hoạch lưu trên server:", err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchPlanAndAgents();
+    fetchPlan();
   }, [currentSessionId]);
 
   // API 9: Upsert Plan
   const handleSavePlan = async () => {
     if (!currentSessionId) {
-      setSaveStatus("Vui lòng bắt đầu phiên thực hành từ Thư viện kịch bản trước khi lưu kế hoạch.");
+      setSaveStatus("Cần kích hoạt một phiên thực hành (Session) để lưu trữ lên máy chủ.");
       return;
     }
     setIsSaving(true);
@@ -68,16 +76,16 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
         objective,
         approach,
         questions: questions.map((q, idx) => ({
-          topic: q.topic,
+          topic: q.topic || "Process",
           question: q.question,
-          priority: q.priority,
+          priority: q.priority || "High",
           displayOrder: idx + 1,
           stakeholderPersonaId: q.stakeholderPersonaId || null,
         })),
       });
       setSaveStatus("Lưu kế hoạch lên Backend thành công (PUT /api/sessions/{id}/plan)!");
     } catch (err: any) {
-      setSaveStatus(`Lỗi khi lưu kế hoạch: ${err?.message || "Không xác định"}`);
+      setSaveStatus(`Lỗi lưu kế hoạch: ${err.message || "Thao tác thất bại"}`);
     } finally {
       setIsSaving(false);
     }
@@ -86,334 +94,240 @@ export function PlanningPage({ navigate }: { navigate: (route: RouteKey) => void
   // API 10: Add single question
   const handleAddQuestion = async () => {
     if (!newQuestionText.trim()) return;
-    if (!currentSessionId) {
-      setSaveStatus("Vui lòng bắt đầu phiên thực hành trước khi thêm câu hỏi.");
-      return;
+
+    if (currentSessionId) {
+      try {
+        const added = await planningService.addPlannedQuestion(currentSessionId, {
+          topic: newTopic,
+          question: newQuestionText.trim(),
+          priority: newPriority,
+        });
+        setQuestions((prev) => [...prev, added]);
+        setNewQuestionText("");
+        setShowAddForm(false);
+        setSaveStatus("Đã thêm câu hỏi vào kế hoạch (POST /api/sessions/{id}/plan/questions)");
+        return;
+      } catch (err: any) {
+        console.warn("Lỗi lưu câu hỏi:", err);
+      }
     }
 
-    try {
-      const added = await planningService.addPlannedQuestion(currentSessionId, {
-        topic: newTopic,
-        question: newQuestionText.trim(),
-        priority: newPriority,
-      });
-      setQuestions((prev) => [...prev, added]);
-      setSaveStatus("Đã thêm câu hỏi vào Backend (POST /api/sessions/{id}/plan/questions)!");
-      setNewQuestionText("");
-      setShowAddForm(false);
-    } catch (err: any) {
-      setSaveStatus(`Lỗi khi thêm câu hỏi: ${err?.message || "Không xác định"}`);
-    }
+    // Local state if session offline
+    const localQ = {
+      id: Date.now(),
+      topic: newTopic,
+      question: newQuestionText.trim(),
+      priority: newPriority,
+      status: "Planned",
+    };
+    setQuestions((prev) => [...prev, localQ]);
+    setNewQuestionText("");
+    setShowAddForm(false);
   };
 
-  // API 12: Delete single question
-  const handleDeleteQuestion = async (qId: number) => {
-    if (!currentSessionId) return;
-    try {
-      await planningService.deletePlannedQuestion(qId);
-      setQuestions((prev) => prev.filter((item) => item.id !== qId));
-      setSaveStatus("Đã xóa câu hỏi trên Backend (DELETE /api/planned-questions/{id})!");
-    } catch (err: any) {
-      setSaveStatus(`Lỗi khi xóa câu hỏi: ${err?.message || "Không xác định"}`);
+  // API 12: Delete question
+  const handleDeleteQuestion = async (questionId: number) => {
+    if (currentSessionId) {
+      try {
+        await planningService.deletePlannedQuestion(questionId);
+      } catch (err) {
+        console.warn("Không thể xóa câu hỏi qua API:", err);
+      }
     }
+    setQuestions((prev) => prev.filter((q) => q.id !== questionId));
   };
 
   return (
     <>
-      <PageHeader
-        eyebrow="Bước 1/5 · Lập kế hoạch Phân tích (BA Planning & Monitoring)"
-        title="Kế hoạch Phân tích Nghiệp vụ (BA Plan)"
-        description="Xác định mục tiêu đo lường, kế hoạch phỏng vấn các bên liên quan và ngân hàng câu hỏi định hướng trước khi bắt đầu mô phỏng."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => navigate("scenarios")}
-              className="text-xs font-semibold gap-1.5 border-slate/20"
-            >
-              <ArrowLeft size={14} /> Quay lại kịch bản
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={handleSavePlan}
-              disabled={isSaving}
-              className="text-xs font-semibold gap-1.5 border-slate/20"
-            >
-              <Save size={14} /> {isSaving ? "Đang lưu..." : "Lưu kế hoạch"}
-            </Button>
-            <Button
-              onClick={() => navigate("simulation")}
-              className="bg-navy text-xs font-semibold hover:bg-navy-light text-white gap-1.5 shadow-sm"
-            >
-              Vào phỏng vấn Stakeholder <ArrowRight size={14} />
-            </Button>
-          </div>
-        }
-      />
+      <div className="flex items-center justify-between">
+        <PageHeader
+          eyebrow="Giai đoạn 1 · Lập kế hoạch phân tích nghiệp vụ"
+          title="Kế hoạch Phân tích Nghiệp vụ (BA Plan)"
+          description="Thiết lập mục tiêu giải pháp, phương pháp tiếp cận và chuẩn bị ngân hàng câu hỏi trước khi phỏng vấn các tác tử Stakeholder."
+        />
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={() => navigate("scenario-detail")} className="gap-2">
+            <ArrowLeft size={16} /> Bối cảnh đề bài
+          </Button>
+          <Button onClick={handleSavePlan} disabled={isSaving} className="gap-2">
+            <Save size={16} /> {isSaving ? "Đang lưu..." : "Lưu kế hoạch"}
+          </Button>
+        </div>
+      </div>
 
       {saveStatus && (
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <span>{saveStatus}</span>
-          <button onClick={() => setSaveStatus(null)} className="text-xs font-semibold hover:underline">
-            Đóng
-          </button>
+        <div className="mt-3 rounded-xl border border-navy/20 bg-navy/5 p-3 text-xs font-semibold text-navy">
+          ℹ️ {saveStatus}
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
-        <div className="space-y-4">
-          {/* Business Objectives */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
+        {/* Main Planning Form */}
+        <div className="space-y-6">
+          {/* Objective Card */}
           <Card className="p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Target className="text-brass" />
+              <h2 className="font-bold text-navy">Mục tiêu giải pháp & Kế hoạch (Solution Objectives)</h2>
+            </div>
+            <p className="mt-1 text-xs text-slate">
+              Ghi nhận mục tiêu cụ thể, chỉ số đo lường thành công và vấn đề cần giải quyết theo yêu cầu đề bài.
+            </p>
+            <textarea
+              rows={3}
+              value={objective}
+              onChange={(e) => setObjective(e.target.value)}
+              placeholder="Nhập mục tiêu phân tích nghiệp vụ của bạn..."
+              className="mt-3 w-full rounded-xl border border-slate/20 p-3 text-sm text-navy outline-none focus:border-navy focus:ring-1 focus:ring-navy"
+            />
+            {scenarioContext?.businessObjectives && (
+              <p className="mt-2 text-[11px] text-slate italic">
+                💡 Tham khảo từ đề bài: {scenarioContext.businessObjectives}
+              </p>
+            )}
+          </Card>
+
+          {/* Approach Card */}
+          <Card className="p-6">
+            <div className="flex items-center gap-3">
+              <ClipboardList className="text-navy" />
+              <h2 className="font-bold text-navy">Phương pháp tiếp cận phân tích (BA Approach)</h2>
+            </div>
+            <p className="mt-1 text-xs text-slate">
+              Xác định các kỹ thuật BABOK sẽ áp dụng (ví dụ: Phỏng vấn sâu, sơ đồ luồng dữ liệu, phân tích quy tắc nghiệp vụ).
+            </p>
+            <textarea
+              rows={2}
+              value={approach}
+              onChange={(e) => setApproach(e.target.value)}
+              placeholder="Mô tả phương pháp tiếp cận các bên liên quan và phân tích dữ liệu..."
+              className="mt-3 w-full rounded-xl border border-slate/20 p-3 text-sm text-navy outline-none focus:border-navy focus:ring-1 focus:ring-navy"
+            />
+          </Card>
+
+          {/* Planned Questions Bank */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between border-b border-slate/10 pb-4">
               <div className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e9f1f8] text-[#456d94]">
-                  <Target size={20} />
-                </span>
+                <FileQuestion className="text-brass" />
                 <div>
-                  <h2 className="text-lg font-bold text-[#1d3858]">Business objectives & success measures</h2>
-                  <p className="text-xs text-slate">Mục tiêu kinh doanh và tiêu chí đo lường thành công</p>
+                  <h2 className="font-bold text-navy">Ngân hàng câu hỏi dự kiến ({questions.length})</h2>
+                  <p className="text-xs text-slate">Danh sách câu hỏi bạn dự kiến đặt cho các tác tử Stakeholder</p>
                 </div>
               </div>
-              <Button onClick={handleSavePlan} disabled={isSaving} size="sm" className="gap-1.5">
-                <Save size={15} />
-                {isSaving ? "Đang lưu..." : "Lưu Kế hoạch (API 9)"}
+              <Button size="sm" onClick={() => setShowAddForm(true)} className="gap-1.5">
+                <Plus size={14} /> Thêm câu hỏi
               </Button>
             </div>
 
-            <textarea
-              className="mt-5 min-h-20 w-full rounded-xl border border-[#d9e3ec] bg-[#fafcfd] p-4 text-sm leading-6 text-[#304966] outline-none transition focus:border-navy"
-              placeholder="Mô tả mục tiêu kinh doanh (Business Objectives) và các chỉ số đo lường thành công..."
-              value={objective}
-              onChange={(e) => setObjective(e.target.value)}
-            />
-
-            <div className="mt-4">
-              <label className="block text-xs font-bold text-[#71869b] mb-1.5">
-                Phương pháp tiếp cận (BA Approach)
-              </label>
-              <input
-                type="text"
-                value={approach}
-                onChange={(e) => setApproach(e.target.value)}
-                placeholder="VD: Phỏng vấn trực tiếp các bên liên quan, phân tích tài liệu và mô hình hóa quy trình..."
-                className="w-full rounded-xl border border-[#d9e3ec] bg-[#fafcfd] px-4 py-2.5 text-sm text-[#304966] outline-none focus:border-navy"
-              />
-            </div>
-          </Card>
-
-          {/* Stakeholder Elicitation Plan */}
-          <Card className="overflow-hidden">
-            <div className="flex items-center gap-3 border-b border-[#e3e9ef] p-5">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#edf4f8] text-[#4b759a]">
-                <Users size={20} />
-              </span>
-              <div>
-                <h2 className="font-bold text-[#203b59]">Stakeholder elicitation plan</h2>
-                <p className="text-sm text-[#7d8d9e]">Danh sách các nhân vật AI (Stakeholders) thuộc phiên thực hành hiện tại.</p>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[680px] text-left text-sm">
-                <thead className="bg-[#f5f8fa] text-xs uppercase text-[#7b8da0]">
-                  <tr>
-                    <th className="px-5 py-3">Stakeholder</th>
-                    <th className="px-5 py-3">Vai trò</th>
-                    <th className="px-5 py-3">Độ tin cậy ban đầu</th>
-                    <th className="px-5 py-3">Mức độ hợp tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#e5ecf1]">
-                  {sessionAgents.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-5 py-6 text-center text-xs text-[#7d8d9e]">
-                        {currentSessionId
-                          ? "Chưa tải được danh sách Stakeholder cho phiên này."
-                          : "Vui lòng chọn kịch bản và nhấn 'Bắt đầu phiên thực hành' để tải danh sách nhân vật AI."}
-                      </td>
-                    </tr>
-                  ) : (
-                    sessionAgents.map((agent) => (
-                      <tr key={agent.id}>
-                        <td className="px-5 py-4 font-bold text-[#39536d]">{agent.name}</td>
-                        <td className="px-5 py-4 text-[#4c7397]">{agent.stakeholderRole}</td>
-                        <td className="px-5 py-4 text-[#5e7388] font-mono">{agent.trustLevel}/100</td>
-                        <td className="px-5 py-4 text-[#5e7388] font-mono">{agent.cooperationLevel}/100</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          {/* Question Bank (Connected to API 8, 9, 10, 11, 12) */}
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card className="p-6">
-              <div className="flex items-center justify-between border-b border-[#e5ecf1] pb-3">
-                <div className="flex items-center gap-3">
-                  <FileQuestion className="text-[#6970a6]" />
+            {/* Add question modal / inline form */}
+            {showAddForm && (
+              <div className="mt-4 rounded-xl border border-navy/20 bg-slate-50 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <h2 className="font-bold text-[#203b59]">Question bank ({questions.length})</h2>
-                    <p className="text-xs text-[#71879d]">API 8, 10, 11, 12</p>
-                  </div>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => setShowAddForm(!showAddForm)} className="gap-1 text-xs">
-                  <Plus size={14} /> Thêm câu hỏi
-                </Button>
-              </div>
-
-              {showAddForm && (
-                <div className="mt-4 rounded-xl border border-navy/20 bg-slate-50 p-3 text-xs">
-                  <p className="font-bold text-navy">Thêm câu hỏi mới vào Kế hoạch</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] uppercase text-slate">Chủ đề (Topic)</label>
-                      <select
-                        value={newTopic}
-                        onChange={(e) => setNewTopic(e.target.value)}
-                        className="mt-1 w-full rounded border p-1"
-                      >
-                        <option value="Process">Process</option>
-                        <option value="Pain point">Pain point</option>
-                        <option value="Rule">Rule</option>
-                        <option value="Exception">Exception</option>
-                        <option value="Confirmation">Confirmation</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] uppercase text-slate">Độ ưu tiên</label>
-                      <select
-                        value={newPriority}
-                        onChange={(e: any) => setNewPriority(e.target.value)}
-                        className="mt-1 w-full rounded border p-1"
-                      >
-                        <option value="Critical">Critical</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <label className="text-[10px] uppercase text-slate">Nội dung câu hỏi</label>
+                    <label className="text-[10px] font-bold uppercase text-slate">Chủ đề (Topic)</label>
                     <input
                       type="text"
-                      value={newQuestionText}
-                      onChange={(e) => setNewQuestionText(e.target.value)}
-                      placeholder="Nhập câu hỏi dự kiến..."
-                      className="mt-1 w-full rounded border p-1.5 text-xs"
+                      value={newTopic}
+                      onChange={(e) => setNewTopic(e.target.value)}
+                      placeholder="Quy trình, Điểm nghẽn, Quy tắc..."
+                      className="mt-1 w-full rounded-lg border border-slate/20 p-2 text-xs outline-none bg-white"
                     />
                   </div>
-                  <div className="mt-3 flex justify-end gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>
-                      Hủy
-                    </Button>
-                    <Button size="sm" onClick={handleAddQuestion}>
-                      Lưu câu hỏi (API 10)
-                    </Button>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-slate">Mức độ ưu tiên</label>
+                    <select
+                      value={newPriority}
+                      onChange={(e: any) => setNewPriority(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate/20 p-2 text-xs outline-none bg-white"
+                    >
+                      <option value="Critical">Critical (Tối quan trọng)</option>
+                      <option value="High">High (Cao)</option>
+                      <option value="Medium">Medium (Trung bình)</option>
+                      <option value="Low">Low (Thấp)</option>
+                    </select>
                   </div>
                 </div>
-              )}
+                <div className="mt-3">
+                  <label className="text-[10px] font-bold uppercase text-slate">Nội dung câu hỏi phỏng vấn</label>
+                  <input
+                    type="text"
+                    value={newQuestionText}
+                    onChange={(e) => setNewQuestionText(e.target.value)}
+                    placeholder="Nhập câu hỏi bạn dự định hỏi Stakeholder..."
+                    className="mt-1 w-full rounded-lg border border-slate/20 p-2 text-xs outline-none bg-white"
+                  />
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)}>
+                    Hủy
+                  </Button>
+                  <Button size="sm" onClick={handleAddQuestion}>
+                    Thêm vào danh sách
+                  </Button>
+                </div>
+              </div>
+            )}
 
+            {/* Questions List */}
+            {isLoading ? (
+              <div className="p-8 text-center text-xs text-slate">
+                <Loader2 className="animate-spin mx-auto mb-2 text-navy" size={20} />
+                Đang tải kế hoạch câu hỏi từ máy chủ...
+              </div>
+            ) : questions.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-slate/20 p-8 text-center">
+                <FileQuestion className="mx-auto text-slate/40 mb-2" size={28} />
+                <p className="text-xs font-bold text-navy">Chưa có câu hỏi nào trong kế hoạch</p>
+                <p className="text-[11px] text-slate mt-1">
+                  Hãy nhấn <strong>"Thêm câu hỏi"</strong> để chuẩn bị các câu hỏi trước khi phỏng vấn các tác tử.
+                </p>
+              </div>
+            ) : (
               <div className="mt-4 space-y-3">
                 {questions.map((q) => (
-                  <div key={q.id} className="group relative rounded-xl bg-[#f5f8fa] p-3 transition hover:bg-slate-100">
+                  <div key={q.id} className="group relative rounded-xl bg-offwhite p-3.5 transition hover:bg-slate-100 border border-slate/10">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase text-[#71879d]">{q.topic || "Question"}</span>
+                      <span className="text-[10px] font-bold uppercase text-slate">{q.topic || "Question"}</span>
                       <div className="flex items-center gap-1.5">
                         <Badge tone={q.priority === "Critical" ? "red" : q.priority === "High" ? "amber" : "navy"}>
                           {q.priority}
                         </Badge>
                         <button
                           onClick={() => handleDeleteQuestion(q.id)}
-                          className="opacity-0 transition group-hover:opacity-100 hover:text-rose-600"
-                          title="Xóa câu hỏi (API 12)"
+                          className="opacity-0 transition group-hover:opacity-100 hover:text-rose-600 p-1"
+                          title="Xóa câu hỏi"
                         >
                           <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
-                    <p className="mt-1 text-sm text-[#506980]">{q.question}</p>
+                    <p className="mt-1.5 text-xs text-navy font-medium leading-relaxed">{q.question}</p>
                   </div>
                 ))}
               </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center gap-3">
-                <Database className="text-[#427e6a]" />
-                <h2 className="font-bold text-[#203b59]">Documents and data to request</h2>
-              </div>
-              <div className="mt-4 space-y-3">
-                {[
-                  "POS transactions and latency logs for 3 months",
-                  "Inventory snapshots and cycle-count variances",
-                  "8-week forecast, min-max settings, and promotion calendar",
-                  "Transfer orders, purchase orders, and supplier lead times",
-                  "Inventory adjustments and audit trail",
-                  "Return/quarantine SOP and approval matrix",
-                ].map((item, index) => (
-                  <label key={item} className="flex items-start gap-3 rounded-xl border border-[#e0e8ee] p-3">
-                    <input type="checkbox" defaultChecked={index < 4} className="mt-1 accent-[#376489]" />
-                    <span className="text-sm text-[#576f86]">{item}</span>
-                  </label>
-                ))}
-              </div>
-            </Card>
-          </div>
+            )}
+          </Card>
         </div>
 
         {/* Sidebar Controls */}
         <aside className="space-y-5">
           <Card className="p-6">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#6e86a0]">Readiness gate · 5/6</p>
-            <div className="mt-5 space-y-4">
-              {[
-                "Objectives include baselines and targets",
-                "Stakeholder map includes all decision-makers",
-                "Techniques align with each objective",
-                "Question bank includes probing and confirmation",
-                "Data requests have been sent",
-                "Initial assumptions have sponsor approval",
-              ].map((item, index) => (
-                <div key={item} className="flex items-start gap-3">
-                  <span
-                    className={`mt-0.5 grid h-5 w-5 place-items-center rounded-full ${
-                      index < 5 ? "bg-[#dcedf8] text-[#315f88]" : "bg-[#fff0d9] text-[#a06b1b]"
-                    }`}
-                  >
-                    {index < 5 && <Check size={13} />}
-                  </span>
-                  <span className="text-sm text-[#5f748b]">{item}</span>
-                </div>
-              ))}
-            </div>
-            <Button onClick={() => navigate("simulation")} className="mt-7 w-full gap-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate">Sẵn sàng phỏng vấn</h3>
+            <p className="mt-2 text-xs text-slate">
+              Sau khi chuẩn bị mục tiêu và câu hỏi, bạn có thể chuyển sang phòng mô phỏng để phỏng vấn các tác tử Stakeholder.
+            </p>
+            <Button onClick={() => navigate("simulation")} className="mt-5 w-full gap-2">
               Vào phòng mô phỏng <ArrowRight size={16} />
             </Button>
           </Card>
 
-          <Card className="p-5">
+          <Card className="p-5 bg-mist/20 border-slate/15">
             <div className="flex gap-3">
-              <Lightbulb className="shrink-0 text-[#8a6a21]" size={19} />
-              <p className="text-sm leading-6 text-[#6c7d8f]">
-                Do not begin by asking, “What do you want the system to have?” First understand the work, decisions, data, rules,
-                exceptions, and success criteria.
+              <Lightbulb className="shrink-0 text-brass" size={20} />
+              <p className="text-xs leading-5 text-slate">
+                <strong>Gợi ý BABOK®:</strong> Không nên bắt đầu bằng câu hỏi “Hệ thống mới cần tính năng gì?”. Hãy tìm hiểu kỹ thực trạng quy trình, điểm nghẽn và nguyên tắc ra quyết định của các bên liên quan.
               </p>
-            </div>
-          </Card>
-
-          <Card className="p-5">
-            <div className="flex gap-3">
-              <ClipboardList className="shrink-0 text-[#4f779a]" size={19} />
-              <div>
-                <p className="font-bold text-[#36516c]">Assumptions to validate</p>
-                <ul className="mt-2 space-y-2 text-sm leading-5 text-[#6c7d8f]">
-                  <li>• POS latency is the primary cause</li>
-                  <li>• All warehouses use the same SKU codes</li>
-                  <li>• A transfer is always cheaper than a purchase order</li>
-                </ul>
-              </div>
             </div>
           </Card>
         </aside>

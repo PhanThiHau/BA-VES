@@ -12,11 +12,20 @@ export interface ArtifactTemplateSectionDto {
 
 export interface ArtifactTemplateDto {
   id: number;
+  code?: string;
   name: string;
   artifactType: number | string;
   description: string | null;
   status: "Draft" | "Published" | "Archived" | number;
   sections: ArtifactTemplateSectionDto[];
+  deliverableCode?: string | null;
+  category?: string | null;
+  defaultTitle?: string | null;
+  issueKeyPrefix?: string | null;
+  displayOrder?: number;
+  skeletonHtmlContent?: string | null;
+  sampleHtmlContent?: string | null;
+  checklistJson?: string | null;
 }
 
 export interface ArtifactDto {
@@ -52,9 +61,11 @@ export interface SubmissionDto {
 }
 
 export interface CreateArtifactTemplatePayload {
+  code: string;
   name: string;
   artifactType: number | string;
   description?: string;
+  publishImmediately?: boolean;
   sections: {
     sectionKey: string;
     title: string;
