@@ -10,7 +10,7 @@ interface ByokModalProps {
 
 export function ByokModal({ isOpen, onClose }: ByokModalProps) {
   const [provider, setProvider] = useState<"OpenAI" | "Gemini">("Gemini");
-  const [model, setModel] = useState("gemini-1.5-pro");
+  const [model, setModel] = useState("gemini-2.5-flash");
   const [apiKey, setApiKey] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -20,7 +20,18 @@ export function ByokModal({ isOpen, onClose }: ByokModalProps) {
       const saved = aiService.getSavedConfig();
       if (saved) {
         setProvider(saved.provider);
-        setModel(saved.model);
+        // Tự động nâng cấp các model Gemini cũ sang 2.5 Flash
+        let targetModel = saved.model;
+        if (
+          saved.provider === "Gemini" &&
+          (targetModel === "gemini-1.5-pro" ||
+            targetModel === "gemini-1.5-flash" ||
+            targetModel === "gemini-2.0-flash" ||
+            !targetModel)
+        ) {
+          targetModel = "gemini-2.5-flash";
+        }
+        setModel(targetModel);
         setApiKey(saved.apiKey);
       }
       setTestResult(null);
@@ -31,7 +42,7 @@ export function ByokModal({ isOpen, onClose }: ByokModalProps) {
 
   const handleProviderChange = (p: "OpenAI" | "Gemini") => {
     setProvider(p);
-    setModel(p === "Gemini" ? "gemini-1.5-pro" : "gpt-4o");
+    setModel(p === "Gemini" ? "gemini-2.5-flash" : "gpt-4o");
     setTestResult(null);
   };
 
@@ -146,9 +157,8 @@ export function ByokModal({ isOpen, onClose }: ByokModalProps) {
             >
               {provider === "Gemini" ? (
                 <>
-                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Khuyên dùng)</option>
-                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Tốc độ cao)</option>
-                  <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Khuyên dùng - Nhanh & Ổn định)</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro (Suy luận sâu)</option>
                 </>
               ) : (
                 <>
@@ -172,8 +182,17 @@ export function ByokModal({ isOpen, onClose }: ByokModalProps) {
               placeholder={provider === "Gemini" ? "AIzaSy..." : "sk-..."}
               className="h-10 w-full rounded-xl border border-slate/20 bg-white px-3 font-mono text-xs text-navy outline-none focus:border-navy focus:ring-2 focus:ring-navy/10"
             />
-            <p className="mt-1 text-[10px] text-slate/80">
-              * Key chỉ được lưu cục bộ trên trình duyệt của bạn và gửi kèm qua header an toàn.
+            <p className="mt-1.5 text-[10px] text-slate/80 leading-relaxed">
+              * Lấy API Key chính thức tại{" "}
+              <a
+                href={provider === "Gemini" ? "https://aistudio.google.com/app/apikey" : "https://platform.openai.com/api-keys"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-navy underline hover:text-brass transition-colors"
+              >
+                {provider === "Gemini" ? "Google AI Studio (Khuyên dùng)" : "OpenAI Platform"}
+              </a>
+              . Key chỉ được lưu an toàn trong trình duyệt của bạn.
             </p>
           </div>
 

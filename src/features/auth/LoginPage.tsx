@@ -1,14 +1,14 @@
-import { ArrowRight, Check, Eye, EyeOff, GraduationCap, LockKeyhole, Mail, ShieldCheck, Zap } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useApp } from "../../contexts/AppContext";
 import { authService } from "../../services/authService";
-import type { AppRole, RouteKey } from "../../types/models";
+import type { RouteKey } from "../../types/models";
 import { classNames } from "../../utils/format";
+import { homeRouteForRoles, resolveAppRole } from "../../utils/roles";
 import { AuthLayout } from "./AuthLayout";
 
 export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { setRole, setSelectedDomainId, setUser } = useApp();
-  const [role, setLoginRole] = useState<"learner" | "instructor">("learner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -16,7 +16,6 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [demoNotice, setDemoNotice] = useState<string | null>(null);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -39,42 +38,16 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
       });
       setUser(res.user);
 
-      // Theo kiến trúc mới: Quản trị được xác thực ngầm tự động từ máy chủ -> vào thẳng Dashboard
-      if (res.user.roles.includes("ADMIN")) {
-        setRole("admin");
-        setSelectedDomainId("all");
-        navigate("dashboard");
-        return;
-      }
-
-      const isInstructor =
-        res.user.roles.includes("INSTRUCTOR") ||
-        res.user.roles.includes("BAEXPERT") ||
-        role === "instructor";
-
-      if (isInstructor) {
-        setRole("instructor");
-        navigate("instructor");
-      } else {
-        setRole("learner");
-        setSelectedDomainId("all");
-        navigate("dashboard");
-      }
+      // Role.Name từ API có thể là BAExpert / EXPERT / BAEXPERT — so khớp không phân biệt hoa thường
+      const appRole = resolveAppRole(res.user.roles);
+      setRole(appRole);
+      if (appRole === "learner") setSelectedDomainId("all");
+      navigate(homeRouteForRoles(res.user.roles));
     } catch (err: any) {
       setApiError(err.message || "Email hoặc mật khẩu không chính xác.");
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const fillDemoAccount = (demoRole: "learner" | "instructor") => {
-    setLoginRole(demoRole);
-    setEmail("learner@example.com");
-    setPassword("ReplaceWithPassword1");
-    setErrors({});
-    setApiError(null);
-    setDemoNotice(demoRole === "learner" ? "Đã điền tài khoản Học viên" : "Đã điền tài khoản Giảng viên");
-    window.setTimeout(() => setDemoNotice(null), 2500);
   };
 
   return (
@@ -87,45 +60,6 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
         <p className="mt-1 text-xs text-slate">
           Truy cập không gian làm việc mô phỏng doanh nghiệp
         </p>
-      </div>
-
-      {/* Compact Role Switcher */}
-      <div
-        className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-slate/15 bg-[#f4f7fa] p-1"
-        role="radiogroup"
-        aria-label="Chọn vai trò"
-      >
-        <button
-          type="button"
-          role="radio"
-          aria-checked={role === "learner"}
-          onClick={() => setLoginRole("learner")}
-          className={classNames(
-            "flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all duration-200",
-            role === "learner"
-              ? "bg-navy text-white shadow-sm"
-              : "text-slate hover:text-navy hover:bg-white/60"
-          )}
-        >
-          <GraduationCap size={16} className={role === "learner" ? "text-brass" : ""} />
-          Học viên
-        </button>
-
-        <button
-          type="button"
-          role="radio"
-          aria-checked={role === "instructor"}
-          onClick={() => setLoginRole("instructor")}
-          className={classNames(
-            "flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-bold transition-all duration-200",
-            role === "instructor"
-              ? "bg-navy text-white shadow-sm"
-              : "text-slate hover:text-navy hover:bg-white/60"
-          )}
-        >
-          <ShieldCheck size={16} className={role === "instructor" ? "text-brass" : ""} />
-          Giảng viên
-        </button>
       </div>
 
       {apiError && (
@@ -156,7 +90,7 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
                 setErrors((current) => ({ ...current, email: undefined }));
               }}
               className="w-full bg-transparent text-sm text-navy outline-none placeholder:text-slate/40"
-              placeholder={role === "learner" ? "user@gmail.com" : "user2@gmail.com"}
+              placeholder="user@example.com"
               autoComplete="email"
             />
           </div>
@@ -212,8 +146,8 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
           )}
         </div>
 
-        {/* Helpers: Remember & Quick Demo */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+        {/* Helpers: Remember */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
           <label className="flex items-center gap-2 text-xs text-slate cursor-pointer select-none">
             <input
               type="checkbox"
@@ -221,34 +155,9 @@ export function LoginPage({ navigate }: { navigate: (route: RouteKey) => void })
               onChange={(event) => setRemember(event.target.checked)}
               className="h-3.5 w-3.5 rounded border-slate/30 accent-navy"
             />
-            Ghi nhớ
+            Ghi nhớ đăng nhập
           </label>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-slate/70">Thử nhanh:</span>
-            <button
-              type="button"
-              onClick={() => fillDemoAccount("learner")}
-              className="inline-flex items-center gap-1 rounded-md border border-slate/20 bg-offwhite px-2 py-0.5 text-[11px] font-medium text-navy hover:bg-white hover:border-brass/50 transition-all"
-            >
-              <Zap size={11} className="text-brass" /> Học viên
-            </button>
-            <button
-              type="button"
-              onClick={() => fillDemoAccount("instructor")}
-              className="inline-flex items-center gap-1 rounded-md border border-slate/20 bg-offwhite px-2 py-0.5 text-[11px] font-medium text-navy hover:bg-white hover:border-brass/50 transition-all"
-            >
-              <Zap size={11} className="text-brass" /> Giảng viên
-            </button>
-          </div>
         </div>
-
-        {demoNotice && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">
-            <Check size={13} className="text-emerald-600" />
-            {demoNotice} (MK: 123456)
-          </div>
-        )}
 
         {/* Submit Button */}
         <button
