@@ -1,29 +1,16 @@
-import { useState, useEffect } from "react";
-import { Bell, Crown, KeyRound, LogOut, Menu, Sparkles, User, Settings, CheckCircle2 } from "lucide-react";
+import { Bell, LogOut, Menu, Sparkles, Minus, Square, X, Monitor } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
-import { ByokModal } from "../common/ByokModal";
-import { ProfileModal } from "../common/ProfileModal";
-import { SubscriptionModal } from "../common/SubscriptionModal";
-import { commerceService, type CreditBalanceSummaryDto } from "../../services/commerceService";
+import { SettingsModal } from "../common/SettingsModal";
+import type { RouteKey } from "../../types/models";
+import { isAdminRole, isExpertRole, isInstructorRole } from "../../utils/roles";
 
-export function Header({ onMenu }: { onMenu: () => void }) {
-  const { role, user, logout, byokModalOpen, setByokModalOpen, currentSessionId, currentScenarioVersionId } = useApp();
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [subModalOpen, setSubModalOpen] = useState(false);
-  const [credits, setCredits] = useState<CreditBalanceSummaryDto | null>(null);
+export function Header({ onMenu }: { onMenu: () => void; navigate?: (route: RouteKey) => void }) {
+  const { role, user, logout, openSettings, currentSessionId, currentScenarioVersionId } = useApp();
+  const isElectron = typeof window !== "undefined" && !!(window as any).electronAPI?.isElectron;
 
-  useEffect(() => {
-    let isMounted = true;
-    commerceService
-      .getMyCreditsSummary()
-      .then((res) => {
-        if (isMounted && res) setCredits(res);
-      })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, [subModalOpen]);
+  const handleMinimize = () => (window as any).electronAPI?.minimizeWindow?.();
+  const handleMaximize = () => (window as any).electronAPI?.maximizeWindow?.();
+  const handleClose = () => (window as any).electronAPI?.closeWindow?.();
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(" ");
@@ -32,104 +19,69 @@ export function Header({ onMenu }: { onMenu: () => void }) {
   };
 
   const getRoleBadge = () => {
-    if (user?.roles?.includes("ADMIN")) return "Admin";
-    if (user?.roles?.includes("INSTRUCTOR")) return "Giảng viên";
-    if (user?.roles?.includes("BAEXPERT")) return "Chuyên gia BA";
+    if (isAdminRole(user?.roles) || role === "admin") return "Admin";
+    if (isExpertRole(user?.roles) || role === "expert") return "Chuyên gia BA";
+    if (isInstructorRole(user?.roles) || role === "instructor") return "Giảng viên";
     return "Học viên";
   };
 
   return (
     <>
-      <header className="app-header-drag sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate/15 bg-white/95 px-4 shadow-[0_1px_3px_rgba(16,42,67,0.04)] backdrop-blur-md sm:px-6 font-sans">
-        <div className="flex items-center gap-3">
+      <header className="app-header-drag sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate/15 bg-white/95 px-4 shadow-[0_1px_2px_rgba(16,42,67,0.03)] backdrop-blur-md sm:px-6 font-sans">
+        <div className="flex items-center gap-3 min-w-0 flex-1 mr-3">
           <button
             onClick={onMenu}
             aria-label="Mở menu điều hướng"
-            className="grid h-9 w-9 place-items-center rounded-xl border border-slate/20 bg-white text-navy shadow-sm lg:hidden"
+            className="grid h-8.5 w-8.5 shrink-0 place-items-center rounded-lg border border-slate/20 bg-white text-navy shadow-sm lg:hidden"
           >
             <Menu size={18} />
           </button>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate shrink-0">
                 <Sparkles size={11} className="text-brass" />
                 {role === "learner"
-                  ? "Không gian Thực hành BA-VES"
+                  ? "Không gian Thực hành BA"
                   : role === "admin"
                   ? "Cấu hình & Giám sát Hệ thống"
+                  : role === "expert"
+                  ? "Hội đồng Chuyên gia & Đánh giá BA"
                   : "Hệ thống quản trị Đào tạo BA-VES"}
               </span>
-              <span className="hidden sm:inline-block rounded-full bg-brass/15 px-2 py-0.2 text-[9px] font-bold uppercase tracking-wider text-brass">
+              <span className="hidden sm:inline-block rounded-full border border-amber-300 bg-amber-50 px-2 py-0.2 text-[9px] font-bold uppercase tracking-wider text-amber-900 shrink-0">
                 BABOK® v3
               </span>
             </div>
-            <p className="font-display text-sm font-extrabold tracking-tight text-navy">
+            <p className="font-display text-sm font-extrabold tracking-tight text-navy truncate">
               {role === "learner"
                 ? currentSessionId
-                  ? `Phiên mô phỏng #${currentSessionId}`
-                  : currentScenarioVersionId
-                  ? `Kịch bản thực hành #${currentScenarioVersionId}`
-                  : "Mô phỏng Phân tích Nghiệp vụ Thực chiến"
+                  ? `Phiên mô phỏng #${currentSessionId} (Kịch bản #${currentScenarioVersionId ?? 1})`
+                  : "Hệ thống Đào tạo Mô phỏng Phân tích Nghiệp vụ BA-VES"
                 : role === "admin"
                 ? "Trung tâm Quản trị Hệ thống (Admin Portal)"
+                : role === "expert"
+                ? "Trung tâm Thẩm định & Cố vấn Chuyên gia"
                 : "Trung tâm điều hành Giảng viên"}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* Credit balance quick glance */}
-          {credits && (
-            <button
-              onClick={() => setSubModalOpen(true)}
-              title="Số dư lượt sử dụng: Bấm để xem chi tiết hoặc nạp thêm"
-              className="hidden lg:flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-50/80 px-2.5 py-1.5 text-xs font-semibold text-emerald-950 hover:bg-emerald-100 transition-all shadow-2xs"
-            >
-              <span className="flex items-center gap-1">
-                <Sparkles size={13} className="text-emerald-700" />
-                <strong className="font-bold text-emerald-800">{credits.reviewCredits}</strong> lượt chấm
-              </span>
-              <span className="text-emerald-300">·</span>
-              <span>
-                <strong className="font-bold text-emerald-800">{credits.consultationCredits}</strong> tư vấn 1-on-1
-              </span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setSubModalOpen(true)}
-            title="Gói hội viên & Cổng thanh toán (VNPay / PayOS)"
-            className="flex items-center gap-1.5 rounded-xl border border-brass/40 bg-brass/10 px-2.5 py-1.5 text-xs font-bold text-navy hover:bg-brass/25 transition-all shadow-xs"
-          >
-            <Crown size={14} className="text-brass" />
-            <span className="hidden md:inline">Gói dịch vụ</span>
-          </button>
-
-          {/* FE-05: Nút Cài đặt API Key AI (BYOK) */}
-          <button
-            onClick={() => setByokModalOpen(true)}
-            title="Cài đặt API Key AI (Bring Your Own Key)"
-            className="flex items-center gap-1.5 rounded-xl border border-slate/20 bg-white px-2.5 py-1.5 text-xs font-bold text-navy hover:border-brass hover:text-brass transition-all shadow-sm"
-          >
-            <KeyRound size={14} className="text-brass" />
-            <span className="hidden md:inline">Cấu hình AI (BYOK)</span>
-          </button>
-
+        <div className="flex items-center gap-2 shrink-0">
           {/* Notifications */}
           <button
             aria-label="Thông báo"
-            className="relative grid h-9 w-9 place-items-center rounded-xl border border-slate/15 bg-white text-slate transition hover:border-slate/30 hover:text-navy hover:shadow-sm"
+            className="relative grid h-8 w-8 place-items-center rounded-lg border border-slate/15 bg-white text-slate transition hover:border-slate/30 hover:text-navy hover:shadow-sm shrink-0"
           >
-            <Bell size={16} />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
+            <Bell size={15} />
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
           </button>
 
           {/* FE-04: Topbar User Profile */}
           <div className="flex items-center gap-2 pl-2 border-l border-slate/15">
             <button
-              onClick={() => setProfileModalOpen(true)}
-              title="Quản lý hồ sơ & Đổi mật khẩu"
-              className="flex items-center gap-2.5 rounded-xl p-1 text-left transition hover:bg-slate/10"
+              onClick={() => openSettings("profile")}
+              title="Quản lý hồ sơ, mật khẩu & API Key"
+              className="flex items-center gap-2.5 rounded-xl p-1 text-left transition hover:bg-slate/10 cursor-pointer"
             >
               {user?.avatarUrl ? (
                 <img
@@ -139,16 +91,16 @@ export function Header({ onMenu }: { onMenu: () => void }) {
                 />
               ) : (
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-navy font-display text-xs font-bold text-white shadow-sm">
-                  {user ? getInitials(user.fullName) : role === "admin" ? "AD" : role === "learner" ? "HV" : "GV"}
+                  {user ? getInitials(user.fullName) : (role === "learner" ? "HV" : "GV")}
                 </span>
               )}
 
               <div className="hidden sm:block text-left">
                 <strong className="block text-xs font-bold text-navy leading-none">
-                  {user?.fullName || (role === "admin" ? "Quản trị viên" : role === "learner" ? "Học viên" : "Giảng viên")}
+                  {user?.fullName || "Tài khoản BA-VES"}
                 </strong>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="inline-block rounded bg-offwhite px-1.5 py-0.2 text-[10px] font-semibold text-brass">
+                  <span className="inline-block rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[10px] font-bold text-blue-800">
                     {getRoleBadge()}
                   </span>
                   {user?.email && (
@@ -164,20 +116,49 @@ export function Header({ onMenu }: { onMenu: () => void }) {
             <button
               onClick={logout}
               title="Đăng xuất"
-              className="ml-1 grid h-8 w-8 place-items-center rounded-lg text-slate hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              className="ml-1 grid h-8 w-8 place-items-center rounded-lg text-slate hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
             >
               <LogOut size={15} />
             </button>
+
+            {/* Desktop Window Controls (Only in Electron Desktop App) */}
+            {isElectron && (
+              <div className="flex items-center gap-1 border-l border-slate/20 pl-2.5 ml-2 no-drag">
+                <span className="hidden xl:inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate">
+                  <Monitor size={10} /> Desktop App
+                </span>
+                <button
+                  onClick={handleMinimize}
+                  title="Thu nhỏ cửa sổ"
+                  aria-label="Thu nhỏ"
+                  className="grid h-7 w-7 place-items-center rounded-md text-slate hover:bg-slate-100 hover:text-navy transition cursor-pointer"
+                >
+                  <Minus size={13} />
+                </button>
+                <button
+                  onClick={handleMaximize}
+                  title="Phóng to / Khôi phục cửa sổ"
+                  aria-label="Phóng to"
+                  className="grid h-7 w-7 place-items-center rounded-md text-slate hover:bg-slate-100 hover:text-navy transition cursor-pointer"
+                >
+                  <Square size={11} />
+                </button>
+                <button
+                  onClick={handleClose}
+                  title="Đóng ứng dụng"
+                  aria-label="Đóng"
+                  className="grid h-7 w-7 place-items-center rounded-md text-slate hover:bg-rose-500 hover:text-white transition cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      {/* BYOK Modal */}
-      <ByokModal isOpen={byokModalOpen} onClose={() => setByokModalOpen(false)} />
-
-      {/* Profile & Password Modal */}
-      <ProfileModal isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
-    <SubscriptionModal isOpen={subModalOpen} onClose={() => setSubModalOpen(false)} />
+      {/* Unified Settings Modal (Profile, Password, API Key, Usage) */}
+      <SettingsModal />
     </>
   );
 }

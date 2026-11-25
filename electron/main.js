@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, globalShortcut } = require("electron");
+const { app, BrowserWindow, Menu, globalShortcut, ipcMain } = require("electron");
 const path = require("path");
 
 const isDev = process.env.NODE_ENV === "development";
@@ -54,6 +54,29 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
+// Window Controls IPC
+ipcMain.on("app:minimize", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.minimize();
+  }
+});
+
+ipcMain.on("app:maximize", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.on("app:close", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close();
+  }
+});
 
 app.whenReady().then(() => {
   createWindow();

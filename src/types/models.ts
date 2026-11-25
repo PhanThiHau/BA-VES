@@ -1,5 +1,5 @@
-export type AppRole = "learner" | "instructor" | "admin";
-export type RouteKey = "landing" | "login" | "register" | "role-selection" | "dashboard" | "applications" | "scenarios" | "scenario-detail" | "planning" | "simulation" | "analysis" | "artifacts" | "assessment" | "progress" | "instructor" | "admin";
+export type AppRole = "learner" | "instructor" | "admin" | "expert";
+export type RouteKey = "landing" | "login" | "register" | "role-selection" | "dashboard" | "applications" | "scenarios" | "scenario-detail" | "cohorts" | "planning" | "simulation" | "analysis" | "artifacts" | "docs" | "assessment" | "progress" | "instructor" | "admin" | "expert" | "payment" | "cart" | "booking";
 
 
 export interface Stakeholder {
@@ -19,6 +19,7 @@ export interface ChatMessage {
   time: string;
   evidence?: boolean;
   stakeholderId?: string;
+  sessionAgentId?: number;
   technique?: string;
 }
 

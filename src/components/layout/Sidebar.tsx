@@ -1,19 +1,24 @@
 import {
   AppWindow,
+  Award,
   BarChart3,
   BookOpenCheck,
+  Building2,
+  CalendarCheck2,
   ClipboardCheck,
+  CreditCard,
   FileStack,
+  FileText,
   GraduationCap,
   Layers3,
   LayoutDashboard,
   MessageSquareText,
-  Radio,
-  Repeat2,
   SearchCheck,
+  Settings,
   Settings2,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Target,
   Users,
   X,
@@ -34,33 +39,46 @@ const roleConfig: Record<
   learner: {
     badge: "Học viên",
     subtitle: "Không gian Học viên",
-    badgeClass: "bg-navy/10 text-navy border border-navy/15",
+    badgeClass: "bg-blue-50 text-blue-800 border border-blue-200",
     icon: GraduationCap,
   },
   instructor: {
     badge: "Giảng viên",
     subtitle: "Không gian Giảng viên",
-    badgeClass: "bg-brass/20 text-navy font-bold border border-brass/30",
+    badgeClass: "bg-amber-100 text-amber-900 font-bold border border-amber-300",
     icon: ShieldCheck,
   },
   admin: {
     badge: "Quản trị",
     subtitle: "Không gian Quản trị",
-    badgeClass: "bg-purple-500/15 text-purple-700 font-bold border border-purple-400/30",
+    badgeClass: "bg-purple-100 text-purple-800 font-bold border border-purple-300",
     icon: ShieldAlert,
+  },
+  expert: {
+    badge: "Chuyên gia",
+    subtitle: "Hội đồng & Cố vấn",
+    badgeClass: "bg-[#fbf6ec] text-navy font-bold border border-brass/40",
+    icon: Award,
   },
 };
 
-const learnerItems: Array<{ route: RouteKey; label: string; icon: typeof LayoutDashboard }> = [
+const learnerItems: Array<{
+  route: RouteKey;
+  label: string;
+  icon: typeof LayoutDashboard;
+  isMatch?: (active: RouteKey) => boolean;
+}> = [
   { route: "dashboard", label: "Tổng quan", icon: LayoutDashboard },
-  { route: "applications", label: "Ứng dụng nghiệp vụ", icon: AppWindow },
-  { route: "scenarios", label: "Kịch bản mô phỏng", icon: BookOpenCheck },
-  { route: "planning", label: "Lập kế hoạch BA", icon: Target },
-  { route: "simulation", label: "Phiên phỏng vấn AI", icon: MessageSquareText },
-  { route: "analysis", label: "Phân tích bằng chứng", icon: SearchCheck },
-  { route: "artifacts", label: "Hồ sơ bàn giao BA", icon: FileStack },
-  { route: "assessment", label: "Đánh giá & Chấm điểm", icon: ClipboardCheck },
-  { route: "progress", label: "Hồ sơ năng lực BABOK", icon: BarChart3 },
+  {
+    route: "applications",
+    label: "Ngành",
+    icon: Building2,
+    isMatch: (active) => active === "applications" || active === "scenarios",
+  },
+  { route: "cohorts", label: "Lớp học & Giảng viên", icon: Users },
+  { route: "progress", label: "Hồ sơ", icon: BarChart3 },
+  { route: "booking", label: "Đặt lịch", icon: CalendarCheck2 },
+  { route: "payment", label: "Gói mô phỏng", icon: CreditCard },
 ];
 
 const instructorMenuItems: Array<{
@@ -70,12 +88,11 @@ const instructorMenuItems: Array<{
   badge?: string;
   badgeTone?: "green" | "amber";
 }> = [
-  { tab: "overview", label: "Tổng quan chung", icon: LayoutDashboard },
-  { tab: "authoring", label: "Đề bài & Nhân vật AI", icon: Layers3 },
-  { tab: "live", label: "Quan sát trực tiếp", icon: Radio, badge: "Live", badgeTone: "green" },
-  { tab: "review", label: "Chấm & Duyệt điểm", icon: ClipboardCheck },
-  { tab: "cohorts", label: "Lớp học & Giao bài", icon: Users },
-  { tab: "analytics", label: "Bảng điểm & Năng lực", icon: BarChart3 },
+  { tab: "overview", label: "Tổng quan", icon: LayoutDashboard },
+  { tab: "authoring", label: "Kịch bản mô phỏng", icon: Layers3 },
+  { tab: "review", label: "Chấm bài", icon: ClipboardCheck },
+  { tab: "cohorts", label: "Lớp học", icon: Users },
+  { tab: "analytics", label: "Bảng điểm", icon: BarChart3 },
 ];
 
 const adminMenuItems: Array<{
@@ -86,11 +103,26 @@ const adminMenuItems: Array<{
   badgeTone?: "green" | "amber";
 }> = [
   { tab: "overview", label: "Tổng quan hệ thống", icon: LayoutDashboard },
+  { tab: "authoring", label: "Kịch bản hệ thống", icon: Layers3 },
   { tab: "users", label: "Tài khoản & Phân quyền", icon: Users },
   { tab: "domains", label: "Lĩnh vực & Ứng dụng", icon: AppWindow },
   { tab: "babok", label: "Khung chuẩn BABOK", icon: BookOpenCheck },
   { tab: "ai", label: "Cấu hình AI & Token", icon: Settings2 },
   { tab: "audit", label: "Nhật ký kiểm toán", icon: ShieldCheck },
+];
+
+const expertMenuItems: Array<{
+  tab: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  badge?: string;
+  badgeTone?: "green" | "amber";
+}> = [
+  { tab: "overview", label: "Tổng quan", icon: LayoutDashboard },
+  { tab: "approvals", label: "Duyệt kịch bản", icon: ShieldCheck },
+  { tab: "reviews", label: "Chấm hồ sơ", icon: ClipboardCheck },
+  { tab: "bookings", label: "Lịch hẹn", icon: CalendarCheck2 },
+  { tab: "rubrics", label: "Tiêu chí chấm", icon: BookOpenCheck },
 ];
 
 export function Sidebar({
@@ -104,8 +136,15 @@ export function Sidebar({
   open: boolean;
   onClose: () => void;
 }) {
-  const { role, instructorTab, setInstructorTab, adminTab, setAdminTab } = useApp();
-  const homeRoute: RouteKey = role === "learner" ? "dashboard" : role === "admin" ? "admin" : "instructor";
+  const { role, instructorTab, setInstructorTab, adminTab, setAdminTab, expertTab, setExpertTab, currentSessionId, currentScenarioVersionId, openSettings } = useApp();
+  const homeRoute: RouteKey =
+    role === "learner"
+      ? "dashboard"
+      : role === "admin"
+      ? "admin"
+      : role === "expert"
+      ? "expert"
+      : "instructor";
   const currentRole = roleConfig[role] ?? roleConfig.learner;
   const RoleIcon = currentRole.icon;
 
@@ -166,37 +205,72 @@ export function Sidebar({
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-1" aria-label="Menu chính">
           {role === "learner" ? (
-            learnerItems.map(({ route, label, icon: Icon }) => {
-              const isActive = active === route;
-              return (
-                <button
-                  key={route}
-                  onClick={() => {
-                    navigate(route);
-                    onClose();
-                  }}
-                  className={classNames(
-                    "group relative flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-all duration-200",
-                    isActive
-                      ? "bg-navy text-white shadow-sm"
-                      : "text-slate hover:bg-offwhite hover:text-navy"
-                  )}
-                >
-                  {isActive && (
-                    <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brass" />
-                  )}
-                  <span
+            <>
+              {learnerItems.map(({ route, label, icon: Icon, isMatch }) => {
+                const isActive = isMatch ? isMatch(active) : active === route;
+                return (
+                  <button
+                    type="button"
+                    key={route}
+                    onClick={() => {
+                      navigate(route);
+                      onClose();
+                    }}
                     className={classNames(
-                      "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
-                      isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                      "group relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-xs font-semibold transition-all duration-150 cursor-pointer",
+                      isActive
+                        ? "bg-navy text-white shadow-2xs font-bold"
+                        : "text-slate hover:bg-offwhite hover:text-navy"
                     )}
                   >
-                    <Icon size={15} />
-                  </span>
-                  <span className="truncate whitespace-nowrap">{label}</span>
-                </button>
-              );
-            })
+                    {isActive && (
+                      <span className="absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-brass" />
+                    )}
+                    <span
+                      className={classNames(
+                        "grid h-6 w-6 shrink-0 place-items-center rounded-md transition-transform group-hover:scale-105",
+                        isActive ? "bg-white/20 text-amber-300" : "bg-slate-100 text-slate-600 group-hover:text-navy"
+                      )}
+                    >
+                      <Icon size={14} />
+                    </span>
+                    <span className="truncate whitespace-nowrap">{label}</span>
+                  </button>
+                );
+              })}
+
+              {/* Active Scenario Quick Card */}
+              <div className="mt-3 pt-3 border-t border-slate/10">
+                <div className="px-1 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate/70">
+                  Không gian kịch bản
+                </div>
+                <div className="rounded-xl border border-brass/30 bg-gradient-to-b from-brass/10 to-transparent p-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-navy">
+                      <Sparkles size={11} className="text-brass" />{" "}
+                      {currentSessionId ? `Phiên #${currentSessionId}` : `Kịch bản #${currentScenarioVersionId ?? 1}`}
+                    </span>
+                    <span className="rounded bg-emerald-500/15 px-1.5 py-0.2 text-[8.5px] font-bold text-emerald-700 uppercase">
+                      {currentSessionId ? "Đang làm" : "Sẵn sàng"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-navy truncate">
+                    {currentSessionId ? "Phiên phỏng vấn thực chiến" : "Kho kịch bản doanh nghiệp"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate(currentSessionId ? "simulation" : "scenarios");
+                      onClose();
+                    }}
+                    className="mt-2 flex h-7 w-full items-center justify-center gap-1.5 rounded-lg bg-navy text-[11px] font-bold text-white hover:bg-navy-light transition shadow-2xs cursor-pointer"
+                  >
+                    <span>{currentSessionId ? "Vào phiên kịch bản" : "Chọn kịch bản"}</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+              </div>
+            </>
           ) : role === "admin" ? (
             adminMenuItems.map(({ tab, label, icon: Icon, badge, badgeTone }) => {
               const isActive = active === "admin" && adminTab === tab;
@@ -222,7 +296,55 @@ export function Sidebar({
                     <span
                       className={classNames(
                         "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
-                        isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                        isActive ? "bg-white/20 text-amber-300" : "bg-slate-100 text-slate-600 group-hover:text-navy"
+                      )}
+                    >
+                      <Icon size={15} />
+                    </span>
+                    <span className="truncate whitespace-nowrap">{label}</span>
+                  </div>
+
+                  {badge && (
+                    <span
+                      className={classNames(
+                        "rounded-full px-1.5 py-0.2 text-[9px] font-bold uppercase",
+                        badgeTone === "green"
+                          ? "bg-emerald-500/20 text-emerald-600"
+                          : "bg-brass/20 text-brass"
+                      )}
+                    >
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          ) : role === "expert" ? (
+            expertMenuItems.map(({ tab, label, icon: Icon, badge, badgeTone }) => {
+              const isActive = active === "expert" && expertTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    navigate("expert");
+                    setExpertTab(tab);
+                    onClose();
+                  }}
+                  className={classNames(
+                    "group relative flex min-h-10 w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-bold transition-all duration-200 cursor-pointer",
+                    isActive
+                      ? "bg-navy text-white shadow-sm"
+                      : "text-slate hover:bg-offwhite hover:text-navy"
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {isActive && (
+                      <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brass" />
+                    )}
+                    <span
+                      className={classNames(
+                        "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
+                        isActive ? "bg-white/20 text-amber-300" : "bg-slate-100 text-slate-600 group-hover:text-navy"
                       )}
                     >
                       <Icon size={15} />
@@ -270,7 +392,7 @@ export function Sidebar({
                     <span
                       className={classNames(
                         "grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105",
-                        isActive ? "bg-white/15 text-brass" : "bg-offwhite text-slate group-hover:text-navy"
+                        isActive ? "bg-white/20 text-amber-300" : "bg-slate-100 text-slate-600 group-hover:text-navy"
                       )}
                     >
                       <Icon size={15} />
@@ -296,21 +418,22 @@ export function Sidebar({
           )}
         </nav>
 
-        {/* Footer Actions */}
-        <div className="space-y-1 border-t border-slate/10 p-3">
+        {/* Footer Actions: Settings Gear */}
+        <div className="border-t border-slate/15 p-2.5 bg-slate-50/50">
           <button
-            onClick={() => navigate("role-selection")}
-            className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-slate transition hover:bg-offwhite hover:text-navy"
+            type="button"
+            onClick={() => {
+              openSettings("profile");
+              onClose();
+            }}
+            title="Cài đặt tài khoản, API Key & Usage"
+            aria-label="Mở cài đặt"
+            className="group flex h-9 w-full items-center gap-2.5 rounded-xl border border-slate/20 bg-white px-3 text-left text-xs font-bold text-navy shadow-2xs transition hover:border-navy/30 hover:bg-offwhite cursor-pointer"
           >
-            <Repeat2 size={16} className="text-brass" />
-            Đổi vai trò
-          </button>
-          <button
-            onClick={() => navigate("landing")}
-            className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-bold text-slate transition hover:bg-offwhite hover:text-navy"
-          >
-            <Settings2 size={16} />
-            Về trang chủ
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-slate-100 text-navy transition-transform duration-300 group-hover:rotate-45">
+              <Settings size={15} />
+            </span>
+            <span className="truncate">Cài đặt</span>
           </button>
         </div>
       </aside>
