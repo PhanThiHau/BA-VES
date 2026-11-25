@@ -4,10 +4,7 @@ import {
   Download,
   X,
   Loader2,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  Award,
+  FileText,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -15,6 +12,10 @@ import {
   assignmentService,
   AssignmentGradebookDto,
 } from "../../../services/assignmentService";
+import {
+  assessmentService,
+  type FinalSubmissionReportDto,
+} from "../../../services/assessmentService";
 
 interface AssignmentGradebookModalProps {
   isOpen: boolean;
@@ -31,6 +32,10 @@ export function AssignmentGradebookModal({
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportLearner, setReportLearner] = useState<string | null>(null);
 
   const assignmentNumericId = assignment
     ? typeof assignment.id === "number"
@@ -42,6 +47,9 @@ export function AssignmentGradebookModal({
     if (!isOpen || !assignment) return;
 
     setLoading(true);
+    setReport(null);
+    setReportError(null);
+    setReportLearner(null);
     assignmentService
       .getAssignmentGradebook(assignmentNumericId)
       .then((data) => setGradebook(data))
@@ -51,6 +59,21 @@ export function AssignmentGradebookModal({
       })
       .finally(() => setLoading(false));
   }, [isOpen, assignment]);
+
+  const openReport = async (submissionId: number, learnerName: string) => {
+    setReportLoading(true);
+    setReportError(null);
+    setReportLearner(learnerName);
+    try {
+      const data = await assessmentService.getFinalReport(submissionId);
+      setReport(data);
+    } catch (err) {
+      setReport(null);
+      setReportError(err instanceof Error ? err.message : "Không tải được báo cáo bài nộp.");
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   if (!isOpen || !assignment) return null;
 
@@ -230,6 +253,7 @@ export function AssignmentGradebookModal({
                     <th className="py-2.5 px-4 text-center">Điểm AI</th>
                     <th className="py-2.5 px-4 text-center">Điểm Chốt</th>
                     <th className="py-2.5 px-4 text-right">Ngày nộp</th>
+                    <th className="py-2.5 px-4 text-right">Báo cáo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#edf2f6]">
@@ -278,12 +302,79 @@ export function AssignmentGradebookModal({
                         <td className="py-2.5 px-4 text-right text-[#8291a1]">
                           {entry.submittedAt ? new Date(entry.submittedAt).toLocaleDateString("vi-VN") : "—"}
                         </td>
+                        <td className="py-2.5 px-4 text-right">
+                          {entry.latestSubmissionId ? (
+                            <button
+                              type="button"
+                              onClick={() => void openReport(entry.latestSubmissionId!, entry.fullName)}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#2f638c] hover:underline"
+                            >
+                              <FileText size={12} /> Xem
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-[#8291a1]">—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+
+            {(reportLoading || report || reportError) && (
+              <div className="rounded-xl border border-[#d9e4ec] bg-[#f8fafc] p-4 text-xs">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h4 className="font-bold text-[#132d49]">
+                    Báo cáo bài nộp {reportLearner ? `· ${reportLearner}` : ""}
+                  </h4>
+                  <button
+                    type="button"
+                    className="text-[#667d93] hover:text-[#132d49]"
+                    onClick={() => {
+                      setReport(null);
+                      setReportError(null);
+                      setReportLearner(null);
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {reportLoading ? (
+                  <div className="flex items-center gap-2 text-[#667d93]">
+                    <Loader2 size={14} className="animate-spin" /> Đang tải báo cáo...
+                  </div>
+                ) : reportError ? (
+                  <p className="font-semibold text-rose-700">{reportError}</p>
+                ) : report ? (
+                  <div className="space-y-2 text-[#334e68]">
+                    <p>
+                      Submission #{report.submissionId} · Session #{report.sessionId} ·{" "}
+                      <Badge tone="navy">{report.status}</Badge>
+                    </p>
+                    <p>
+                      Điểm chốt:{" "}
+                      <strong className="font-mono text-[#2d7b60]">
+                        {report.finalScore != null ? `${report.finalScore}` : "—"}
+                      </strong>
+                      {report.aiFeedback?.suggestedScore != null
+                        ? ` · AI đề xuất ${report.aiFeedback.suggestedScore}`
+                        : ""}
+                    </p>
+                    {report.expertReview?.overallFeedback && (
+                      <p className="rounded-lg border border-[#e2e9ef] bg-white p-3 leading-5">
+                        {report.expertReview.overallFeedback}
+                      </p>
+                    )}
+                    {!report.expertReview?.overallFeedback && report.aiFeedback?.overallFeedback && (
+                      <p className="rounded-lg border border-[#e2e9ef] bg-white p-3 leading-5">
+                        {report.aiFeedback.overallFeedback}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
         ) : null}
 

@@ -1,4 +1,14 @@
-import { apiClient, getStoredByokConfig, setStoredByokConfig, type ByokConfig } from "./apiClient";
+import {
+  apiClient,
+  clearAiUsageLogs,
+  clearStoredByokConfig,
+  getAiUsageLogs,
+  getStoredByokConfig,
+  maskApiKey,
+  setStoredByokConfig,
+  type AiUsageEntry,
+  type ByokConfig,
+} from "./apiClient";
 
 export interface ValidateAiConnectionPayload {
   provider: "OpenAI" | "Gemini";
@@ -38,5 +48,21 @@ export const aiService = {
 
   saveConfig(config: ByokConfig) {
     setStoredByokConfig(config);
+  },
+
+  clearConfig() {
+    clearStoredByokConfig();
+  },
+
+  getUsageLogs(): AiUsageEntry[] {
+    return getAiUsageLogs();
+  },
+
+  clearUsageLogs() {
+    clearAiUsageLogs();
+  },
+
+  maskApiKey(key: string): string {
+    return maskApiKey(key);
   },
 };

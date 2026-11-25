@@ -9,13 +9,14 @@ import {
   CheckCircle2,
   AlertCircle,
   FileSpreadsheet,
+  Check,
+  Clock,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import {
   cohortService,
-  CohortMemberDto,
-  CohortSummaryDto,
+  type CohortMemberDto,
 } from "../../../services/cohortService";
 
 interface CohortMembersModalProps {
@@ -37,9 +38,14 @@ export function CohortMembersModal({
   const [batchEmails, setBatchEmails] = useState("");
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [processingLearnerId, setProcessingLearnerId] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const cohortNumericId = cohort ? (typeof cohort.id === "number" ? cohort.id : parseInt(cohort.id.replace(/\D/g, ""), 10) || 1) : 1;
+  const cohortNumericId = cohort
+    ? typeof cohort.id === "number"
+      ? cohort.id
+      : parseInt(cohort.id.replace(/\D/g, ""), 10) || 1
+    : 1;
 
   const fetchMembers = async () => {
     if (!cohort) return;
@@ -47,10 +53,9 @@ export function CohortMembersModal({
     try {
       const data = await cohortService.getCohortMembers(cohortNumericId);
       setMembers(data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.warn("Could not fetch cohort members from API:", err);
       setMembers([]);
-      setStatusMessage({ type: "error", text: err?.message || "Không thể tải danh sách học viên từ server." });
     } finally {
       setLoading(false);
     }
@@ -67,6 +72,12 @@ export function CohortMembersModal({
 
   if (!isOpen || !cohort) return null;
 
+  const isMemberPending = (status: any) =>
+    status === "Pending" || status === 3 || String(status).toLowerCase() === "pending";
+
+  const isMemberActive = (status: any) =>
+    status === "Active" || status === 0 || String(status).toLowerCase() === "active";
+
   const handleAddSingleMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!singleEmail.trim()) return;
@@ -75,12 +86,15 @@ export function CohortMembersModal({
     setStatusMessage(null);
     try {
       const res = await cohortService.addCohortMember(cohortNumericId, { email: singleEmail.trim() });
-      setMembers((prev) => [res, ...prev]);
+      await fetchMembers();
       setSingleEmail("");
       setStatusMessage({ type: "success", text: `Đã thêm thành công học viên ${res.fullName || singleEmail}!` });
       onMembersUpdated?.();
     } catch (err: any) {
-      setStatusMessage({ type: "error", text: err?.message || `Không thể thêm học viên ${singleEmail}.` });
+      setStatusMessage({
+        type: "error",
+        text: err?.message || `Không thể thêm học viên với email "${singleEmail}". Vui lòng kiểm tra tài khoản đã tồn tại trong DB chưa.`,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -106,30 +120,71 @@ export function CohortMembersModal({
         type: "success",
         text: `Đã xử lý danh sách: Thêm mới ${res.addedCount} học viên, kích hoạt lại ${res.reactivatedCount}.`,
       });
-      fetchMembers();
+      await fetchMembers();
       setBatchEmails("");
       setIsBatchMode(false);
       onMembersUpdated?.();
     } catch (err: any) {
-      setStatusMessage({ type: "error", text: err?.message || "Lỗi khi thêm danh sách học viên hàng loạt." });
+      setStatusMessage({
+        type: "error",
+        text: err?.message || "Không thể thêm hàng loạt học viên vào lớp.",
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleRemoveMember = async (learnerId: number, memberName: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa học viên ${memberName} khỏi lớp ${cohort.code}?`)) {
-      return;
-    }
+  const handleApproveMember = async (learnerId: number, memberName: string) => {
+    setProcessingLearnerId(learnerId);
+    setStatusMessage(null);
     try {
-      await cohortService.removeCohortMember(cohortNumericId, learnerId);
-      setMembers((prev) => prev.filter((m) => m.learnerId !== learnerId));
-      setStatusMessage({ type: "success", text: `Đã xóa học viên ${memberName} khỏi lớp.` });
+      await cohortService.approveCohortMember(cohortNumericId, learnerId);
+      setStatusMessage({
+        type: "success",
+        text: `Đã phê duyệt học viên ${memberName} vào lớp ${cohort.code}!`,
+      });
+      await fetchMembers();
       onMembersUpdated?.();
     } catch (err: any) {
-      setStatusMessage({ type: "error", text: err?.message || "Không thể xóa học viên khỏi lớp." });
+      setStatusMessage({
+        type: "error",
+        text: err?.message || `Không thể phê duyệt học viên ${memberName}.`,
+      });
+    } finally {
+      setProcessingLearnerId(null);
     }
   };
+
+  const handleRemoveMember = async (learnerId: number, memberName: string, isPendingRequest = false) => {
+    const confirmText = isPendingRequest
+      ? `Từ chối yêu cầu xin vào lớp ${cohort.code} của học viên ${memberName}?`
+      : `Bạn có chắc chắn muốn xóa học viên ${memberName} khỏi lớp ${cohort.code}?`;
+    if (!window.confirm(confirmText)) {
+      return;
+    }
+    setProcessingLearnerId(learnerId);
+    try {
+      await cohortService.removeCohortMember(cohortNumericId, learnerId);
+      await fetchMembers();
+      setStatusMessage({
+        type: "success",
+        text: isPendingRequest
+          ? `Đã từ chối yêu cầu tham gia lớp của ${memberName}.`
+          : `Đã xóa học viên ${memberName} khỏi lớp.`,
+      });
+      onMembersUpdated?.();
+    } catch (err: any) {
+      setStatusMessage({
+        type: "error",
+        text: err?.message || "Không thể cập nhật trạng thái thành viên.",
+      });
+    } finally {
+      setProcessingLearnerId(null);
+    }
+  };
+
+  const pendingMembers = members.filter((m) => isMemberPending(m.status));
+  const activeMembers = members.filter((m) => isMemberActive(m.status));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
@@ -142,8 +197,11 @@ export function CohortMembersModal({
             </div>
             <div>
               <h3 className="text-sm font-bold text-[#132d49] flex items-center gap-2">
-                Danh Sách Sinh Viên Lớp {cohort.code}
-                <Badge tone="navy">{members.length} học viên</Badge>
+                Danh Sách Học Viên Lớp {cohort.code}
+                <Badge tone="navy">{activeMembers.length} chính thức</Badge>
+                {pendingMembers.length > 0 && (
+                  <Badge tone="amber">{pendingMembers.length} chờ duyệt</Badge>
+                )}
               </h3>
               <p className="text-xs text-[#667d93]">{cohort.name}</p>
             </div>
@@ -195,7 +253,7 @@ export function CohortMembersModal({
                   <input
                     type="email"
                     required
-                    placeholder="Nhập email học viên (VD: hocvien@example.com)..."
+                    placeholder="Nhập email học viên trong hệ thống..."
                     value={singleEmail}
                     onChange={(e) => setSingleEmail(e.target.value)}
                     className="w-full rounded-xl border border-[#d9e4ec] bg-white pl-9 pr-3 py-2 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
@@ -231,11 +289,11 @@ export function CohortMembersModal({
             {loading ? (
               <div className="flex h-48 items-center justify-center gap-2 text-xs text-[#667d93]">
                 <Loader2 size={24} className="animate-spin text-[#2f638c]" />
-                <span>Đang tải danh sách thành viên...</span>
+                <span>Đang tải danh sách thành viên từ cơ sở dữ liệu...</span>
               </div>
             ) : members.length === 0 ? (
               <div className="flex h-48 items-center justify-center text-xs text-[#667d93]">
-                Lớp học hiện chưa có sinh viên nào. Hãy thêm sinh viên vào lớp ở khung phía trên.
+                Lớp học hiện chưa có học viên hoặc yêu cầu tham gia nào.
               </div>
             ) : (
               <table className="w-full text-left border-collapse text-xs">
@@ -245,36 +303,74 @@ export function CohortMembersModal({
                     <th className="py-2.5 px-4">Họ và tên</th>
                     <th className="py-2.5 px-4">Email</th>
                     <th className="py-2.5 px-4">Trạng thái</th>
-                    <th className="py-2.5 px-4">Ngày tham gia</th>
+                    <th className="py-2.5 px-4">Ngày gửi / tham gia</th>
                     <th className="py-2.5 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#edf2f6]">
-                  {members.map((m, idx) => (
-                    <tr key={m.id || idx} className="hover:bg-[#fbfcfd]">
-                      <td className="py-2.5 px-4 font-mono text-[#8291a1]">{idx + 1}</td>
-                      <td className="py-2.5 px-4 font-bold text-[#132d49]">{m.fullName}</td>
-                      <td className="py-2.5 px-4 text-[#526b81]">{m.email || "—"}</td>
-                      <td className="py-2.5 px-4">
-                        <Badge tone={m.status === "Active" || m.status === 0 ? "green" : "gray"}>
-                          {m.status === "Active" || m.status === 0 ? "Đang học" : "Đã thôi học"}
-                        </Badge>
-                      </td>
-                      <td className="py-2.5 px-4 text-[#8291a1]">
-                        {new Date(m.joinedAt).toLocaleDateString("vi-VN")}
-                      </td>
-                      <td className="py-2.5 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMember(m.learnerId, m.fullName)}
-                          className="rounded p-1 text-[#a03d3d] hover:bg-[#fff0f0] transition-colors"
-                          title="Xóa học viên khỏi lớp"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {members.map((m, idx) => {
+                    const pending = isMemberPending(m.status);
+                    const active = isMemberActive(m.status);
+                    return (
+                      <tr
+                        key={m.id || idx}
+                        className={pending ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-[#fbfcfd]"}
+                      >
+                        <td className="py-2.5 px-4 font-mono text-[#8291a1]">{idx + 1}</td>
+                        <td className="py-2.5 px-4 font-bold text-[#132d49]">{m.fullName}</td>
+                        <td className="py-2.5 px-4 text-[#526b81]">{m.email || "—"}</td>
+                        <td className="py-2.5 px-4">
+                          {pending ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+                              <Clock size={12} /> Chờ duyệt vào lớp
+                            </span>
+                          ) : active ? (
+                            <Badge tone="green">Đang học</Badge>
+                          ) : (
+                            <Badge tone="gray">Đã rời lớp</Badge>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-4 text-[#8291a1]">
+                          {new Date(m.joinedAt).toLocaleDateString("vi-VN")}
+                        </td>
+                        <td className="py-2.5 px-4 text-right">
+                          {pending ? (
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={processingLearnerId === m.learnerId}
+                                onClick={() => handleApproveMember(m.learnerId, m.fullName)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 px-2.5 py-1 text-[11px] font-bold text-white transition cursor-pointer"
+                                title="Duyệt học viên vào lớp"
+                              >
+                                <Check size={12} />
+                                Duyệt
+                              </button>
+                              <button
+                                type="button"
+                                disabled={processingLearnerId === m.learnerId}
+                                onClick={() => handleRemoveMember(m.learnerId, m.fullName, true)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-700 transition cursor-pointer"
+                                title="Từ chối yêu cầu"
+                              >
+                                Từ chối
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={processingLearnerId === m.learnerId}
+                              onClick={() => handleRemoveMember(m.learnerId, m.fullName, false)}
+                              className="rounded p-1 text-[#a03d3d] hover:bg-[#fff0f0] transition-colors cursor-pointer"
+                              title="Xóa học viên khỏi lớp"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -291,4 +387,3 @@ export function CohortMembersModal({
     </div>
   );
 }
-

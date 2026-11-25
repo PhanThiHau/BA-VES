@@ -1,161 +1,192 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   Award,
-  BarChart3,
   Building2,
   Cpu,
   Download,
+  Edit3,
   KeyRound,
   Plus,
   RefreshCw,
   Search,
-  Server,
-  ShieldAlert,
   ShieldCheck,
   UserCheck,
-  UserPlus,
   Users,
   UserX,
-  Shield,
-  Edit2,
   X,
   Check,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
+import { PageHeader } from "../../components/common/PageHeader";
+import { Button } from "../../components/ui/Button";
 import { userService } from "../../services/userService";
-import { catalogService } from "../../services/catalogService";
-import { assessmentService } from "../../services/assessmentService";
 import type { UserProfile } from "../../services/authService";
+import type { AuditLogItem } from "./adminData";
 import {
-  initialAdminStats,
-  initialAiModels,
-  initialAuditLogs,
-  type MasterDomain,
-  type AiModelConfig,
-} from "./adminData";
+  catalogService,
+  type IndustryItem,
+  type ApplicationItem,
+  type ScenarioItem,
+} from "../../services/catalogService";
+import { assessmentService, type BabokTaskDto } from "../../services/assessmentService";
+import { cohortService, type CohortSummaryDto } from "../../services/cohortService";
+import { apiClient } from "../../services/apiClient";
+import { classNames } from "../../utils/format";
+import {
+  isAdminRole,
+  isExpertRole,
+  isInstructorRole,
+  isLearnerRole,
+  normalizeRole,
+} from "../../utils/roles";
+import { AdminOverviewTab } from "./components/AdminOverviewTab";
+import { AdminAuthoringTab } from "./components/AdminAuthoringTab";
+
+type AdminTabId = "overview" | "authoring" | "users" | "domains" | "babok" | "ai" | "audit";
+const VALID_ADMIN_TABS: AdminTabId[] = [
+  "overview",
+  "authoring",
+  "users",
+  "domains",
+  "babok",
+  "ai",
+  "audit",
+];
 
 export function AdminPage() {
-  const { adminTab, setAdminTab } = useApp();
-  const currentTab = adminTab || "overview";
+  const { adminTab, setAdminTab, user: currentUser, setByokModalOpen } = useApp();
+  const currentTab = VALID_ADMIN_TABS.includes(adminTab as AdminTabId)
+    ? (adminTab as AdminTabId)
+    : "overview";
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // State quản trị
-  const [domains, setDomains] = useState<MasterDomain[]>([]);
-  const [isLoadingDomains, setIsLoadingDomains] = useState(false);
-  const [babokAreas, setBabokAreas] = useState<
-    { code: string; name: string; tasksCount: number; rubricCriteriaCount: number; weight: number }[]
-  >([]);
-  const [isLoadingBabok, setIsLoadingBabok] = useState(false);
-  const [aiModels, setAiModels] = useState<AiModelConfig[]>(initialAiModels);
+  // Dữ liệu thực từ Database
+  const [industries, setIndustries] = useState<IndustryItem[]>([]);
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [scenarios, setScenarios] = useState<ScenarioItem[]>([]);
+  const [babokTasks, setBabokTasks] = useState<BabokTaskDto[]>([]);
+  const [cohorts, setCohorts] = useState<CohortSummaryDto[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [healthStatus, setHealthStatus] = useState<{
+    healthy: boolean;
+    latencyMs: number | null;
+  }>({ healthy: false, latencyMs: null });
+
   const [searchUser, setSearchUser] = useState("");
   const [filterRole, setFilterRole] = useState<string>("ALL");
+
+  // In-app Notification / Toast state
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "info" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 4000);
+  };
 
   // API Users State
   const [apiUsers, setApiUsers] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [userError, setUserError] = useState<string | null>(null);
 
-  // Role Edit Modal State
-  const [roleModalUser, setRoleModalUser] = useState<UserProfile | null>(null);
-  const [editRoles, setEditRoles] = useState<string[]>([]);
-  const [isUpdatingRoles, setIsUpdatingRoles] = useState(false);
+  // Create / Edit user modal
+  const [userFormMode, setUserFormMode] = useState<"create" | "edit" | null>(null);
+  const [userFormTarget, setUserFormTarget] = useState<UserProfile | null>(null);
+  const [userForm, setUserForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    roles: ["LEARNER"] as string[],
+  });
+  const [isSavingUser, setIsSavingUser] = useState(false);
+
+  const mapRolesForUi = (roles: string[] | undefined) => {
+    const mapped = (roles || ["LEARNER"]).map((r) => {
+      const n = normalizeRole(r);
+      if (n === "BAEXPERT" || n === "EXPERT") return "BAEXPERT";
+      if (n === "ADMIN") return "ADMIN";
+      if (n === "INSTRUCTOR") return "INSTRUCTOR";
+      if (n === "LEARNER") return "LEARNER";
+      return n;
+    });
+    return [...new Set(mapped)];
+  };
+
+  const mapRolesForApi = (roles: string[]) =>
+    roles.map((r) => (r === "BAEXPERT" ? "EXPERT" : r));
 
   // Load users from backend API
   const loadUsers = async () => {
     setIsLoadingUsers(true);
     setUserError(null);
     try {
+      const roleFilter =
+        filterRole === "ALL"
+          ? undefined
+          : filterRole === "BAEXPERT"
+            ? "EXPERT"
+            : filterRole;
       const res = await userService.getUsers({
         search: searchUser.trim() || undefined,
-        role: filterRole !== "ALL" ? filterRole : undefined,
+        role: roleFilter,
       });
       setApiUsers(res || []);
     } catch (err: any) {
       console.warn("Backend users API failed:", err);
-      setApiUsers([]);
       setUserError(err?.message || "Không thể tải danh sách tài khoản từ server.");
     } finally {
       setIsLoadingUsers(false);
     }
   };
 
-  // Load domains (Industries + Applications + Scenarios) from backend API
-  const loadDomains = async () => {
-    setIsLoadingDomains(true);
+  const loadAdminData = async () => {
+    const start = performance.now();
     try {
-      const [inds, apps, scens] = await Promise.all([
+      const [healthRes, indRes, appRes, scenRes, tasksRes, cohRes] = await Promise.allSettled([
+        apiClient.get<{ status: string }>("/health"),
         catalogService.getIndustries(),
         catalogService.getApplications(),
         catalogService.getScenarios(),
+        assessmentService.getBabokTasks(),
+        cohortService.getCohorts(),
       ]);
-      const mapped: MasterDomain[] = (inds || []).map((ind) => {
-        const indApps = (apps || []).filter((a) => a.industry?.id === ind.id);
-        const indScens = (scens || []).filter((s) =>
-          indApps.some((a) => a.id === s.applicationId || a.id === s.application?.id)
-        );
-        return {
-          id: String(ind.id),
-          code: ind.code,
-          name: ind.name,
-          description: ind.description || "Danh mục ngành mô phỏng nghiệp vụ.",
-          applicationsCount: indApps.length,
-          scenariosCount: indScens.length,
-          status: String(ind.status).toLowerCase() === "active" || ind.status === 1 ? "ACTIVE" : "DRAFT",
-        };
-      });
-      setDomains(mapped);
-    } catch (err) {
-      console.warn("Could not load domains from catalogService:", err);
-      setDomains([]);
-    } finally {
-      setIsLoadingDomains(false);
-    }
-  };
 
-  // Load BABOK knowledge areas & tasks from backend API
-  const loadBabok = async () => {
-    setIsLoadingBabok(true);
-    try {
-      const tasks = await assessmentService.getBabokTasks();
-      const map = new Map<string, { code: string; name: string; tasksCount: number }>();
-      for (const t of tasks || []) {
-        const key = t.knowledgeAreaCode || "KA";
-        const prev = map.get(key);
-        if (prev) {
-          prev.tasksCount += 1;
-        } else {
-          map.set(key, {
-            code: key,
-            name: t.knowledgeAreaName || key,
-            tasksCount: 1,
-          });
-        }
+      const elapsed = Math.round(performance.now() - start);
+      setHealthStatus({
+        healthy: healthRes.status === "fulfilled",
+        latencyMs: healthRes.status === "fulfilled" ? elapsed : null,
+      });
+
+      if (indRes.status === "fulfilled" && indRes.value) {
+        setIndustries(indRes.value);
       }
-      const list = Array.from(map.values());
-      const weightPerArea = list.length > 0 ? Math.round(100 / list.length) : 0;
-      setBabokAreas(
-        list.map((item) => ({
-          ...item,
-          rubricCriteriaCount: item.tasksCount,
-          weight: weightPerArea,
-        }))
-      );
+      if (appRes.status === "fulfilled" && appRes.value) {
+        setApplications(appRes.value);
+      }
+      if (scenRes.status === "fulfilled" && scenRes.value) {
+        setScenarios(scenRes.value);
+      }
+      if (tasksRes.status === "fulfilled" && tasksRes.value) {
+        setBabokTasks(tasksRes.value);
+      }
+      if (cohRes.status === "fulfilled" && cohRes.value) {
+        setCohorts(cohRes.value);
+      }
     } catch (err) {
-      console.warn("Could not load BABOK tasks from assessmentService:", err);
-      setBabokAreas([]);
-    } finally {
-      setIsLoadingBabok(false);
+      console.warn("Could not load admin catalog/babok data:", err);
     }
   };
 
   useEffect(() => {
-    if (currentTab === "users") {
-      loadUsers();
-    } else if (currentTab === "domains") {
-      loadDomains();
-    } else if (currentTab === "babok") {
-      loadBabok();
-    }
-  }, [currentTab, searchUser, filterRole]);
+    loadAdminData();
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [searchUser, filterRole]);
 
   // Handle Toggle Status via API
   const handleToggleApiUserStatus = async (user: UserProfile) => {
@@ -163,391 +194,402 @@ export function AdminPage() {
     const nextStatus = isCurrentlyActive ? "Suspended" : "Active";
     try {
       await userService.updateUserStatus(user.id, nextStatus);
+      setAuditLogs((prev) => [
+        {
+          id: `aud-${Date.now()}`,
+          timestamp: new Date().toLocaleString("vi-VN"),
+          actor: currentUser?.fullName || "Admin",
+          action: isCurrentlyActive ? "KHÓA TÀI KHOẢN" : "MỞ KHÓA TÀI KHOẢN",
+          target: `${user.fullName} (#${user.id})`,
+          ipAddress: "Client Session",
+          status: "SUCCESS",
+        },
+        ...prev,
+      ]);
+      showToast(
+        isCurrentlyActive
+          ? `Đã khóa tài khoản ${user.fullName} thành công.`
+          : `Đã mở khóa tài khoản ${user.fullName} thành công.`
+      );
       await loadUsers();
     } catch (err: any) {
-      alert("Lỗi khi cập nhật trạng thái: " + (err?.message || "Không xác định"));
+      showToast("Lỗi khi cập nhật trạng thái: " + (err?.message || "Không xác định"), "error");
     }
-  };
-
-  // Handle Role Update via API
-  const handleOpenRoleModal = (user: UserProfile) => {
-    setRoleModalUser(user);
-    setEditRoles(user.roles || ["LEARNER"]);
   };
 
   const handleToggleRoleSelection = (role: string) => {
-    setEditRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
+    setUserForm((prev) => ({
+      ...prev,
+      roles: prev.roles.includes(role)
+        ? prev.roles.filter((r) => r !== role)
+        : [...prev.roles, role],
+    }));
   };
 
-  const handleSaveRoles = async () => {
-    if (!roleModalUser) return;
-    if (editRoles.length === 0) {
-      alert("Người dùng phải có ít nhất 1 vai trò.");
+  const openCreateUser = () => {
+    setUserFormMode("create");
+    setUserFormTarget(null);
+    setUserForm({ fullName: "", email: "", password: "", roles: ["LEARNER"] });
+  };
+
+  const openEditUser = (user: UserProfile) => {
+    setUserFormMode("edit");
+    setUserFormTarget(user);
+    setUserForm({
+      fullName: user.fullName || "",
+      email: user.email || "",
+      password: "",
+      roles: mapRolesForUi(user.roles),
+    });
+  };
+
+  const closeUserForm = () => {
+    setUserFormMode(null);
+    setUserFormTarget(null);
+    setUserForm({ fullName: "", email: "", password: "", roles: ["LEARNER"] });
+  };
+
+  const handleSaveUserForm = async () => {
+    if (!userForm.fullName.trim() || !userForm.email.trim()) {
+      showToast("Cần nhập họ tên và email.", "error");
       return;
     }
-    setIsUpdatingRoles(true);
+    if (userForm.roles.length === 0) {
+      showToast("Cần chọn ít nhất 1 vai trò.", "error");
+      return;
+    }
+    if (userFormMode === "create" && userForm.password.trim().length < 8) {
+      showToast("Mật khẩu tối thiểu 8 ký tự.", "error");
+      return;
+    }
+    if (userFormMode === "edit" && userForm.password && userForm.password.trim().length < 8) {
+      showToast("Mật khẩu mới tối thiểu 8 ký tự.", "error");
+      return;
+    }
+
+    setIsSavingUser(true);
     try {
-      await userService.updateUserRoles(roleModalUser.id, editRoles);
-      setRoleModalUser(null);
+      const apiRoles = mapRolesForApi(userForm.roles);
+      if (userFormMode === "create") {
+        const created = await userService.createUser({
+          email: userForm.email.trim(),
+          fullName: userForm.fullName.trim(),
+          password: userForm.password,
+          roles: apiRoles,
+        });
+        setAuditLogs((prev) => [
+          {
+            id: `aud-${Date.now()}`,
+            timestamp: new Date().toLocaleString("vi-VN"),
+            actor: currentUser?.fullName || "Admin",
+            action: "TẠO TÀI KHOẢN",
+            target: `${created.fullName} (#${created.id})`,
+            ipAddress: "Client Session",
+            status: "SUCCESS",
+          },
+          ...prev,
+        ]);
+        showToast(`Đã tạo ${created.fullName}.`);
+      } else if (userFormMode === "edit" && userFormTarget) {
+        const updated = await userService.updateUser(userFormTarget.id, {
+          email: userForm.email.trim(),
+          fullName: userForm.fullName.trim(),
+          newPassword: userForm.password.trim() || null,
+          roles: apiRoles,
+        });
+        setAuditLogs((prev) => [
+          {
+            id: `aud-${Date.now()}`,
+            timestamp: new Date().toLocaleString("vi-VN"),
+            actor: currentUser?.fullName || "Admin",
+            action: "SỬA TÀI KHOẢN",
+            target: `${updated.fullName} (#${updated.id})`,
+            ipAddress: "Client Session",
+            status: "SUCCESS",
+          },
+          ...prev,
+        ]);
+        showToast(`Đã cập nhật ${updated.fullName}.`);
+      }
+      closeUserForm();
       await loadUsers();
     } catch (err: any) {
-      alert("Lỗi khi cập nhật vai trò: " + (err?.message || "Không xác định"));
+      showToast(err?.message || "Không lưu được tài khoản.", "error");
     } finally {
-      setIsUpdatingRoles(false);
+      setIsSavingUser(false);
     }
   };
 
+  const learnerCount = apiUsers.filter((u) => isLearnerRole(u.roles)).length;
+  const instructorCount = apiUsers.filter((u) => isInstructorRole(u.roles)).length;
+  const expertCount = apiUsers.filter((u) => isExpertRole(u.roles)).length;
+  const adminCount = apiUsers.filter((u) => isAdminRole(u.roles)).length;
+
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([loadUsers(), loadAdminData()]);
+      showToast("Đã làm mới dữ liệu từ server!");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const storedProvider = localStorage.getItem("baves_ai_provider");
+  const storedModel = localStorage.getItem("baves_ai_model");
+  const hasStoredKey = Boolean(localStorage.getItem("baves_ai_key"));
+
+  const tabHeaders: Record<AdminTabId, { title: string; description?: string; actions?: ReactNode }> = {
+    overview: {
+      title: "Tổng quan hệ thống",
+      description: "Sức khỏe nền tảng, catalog và ưu tiên vận hành.",
+      actions: (
+        <Button
+          variant="secondary"
+          onClick={() => void handleRefreshAll()}
+          className="gap-1.5 border-navy/20 bg-white text-xs font-semibold text-navy"
+        >
+          <RefreshCw size={14} className={isRefreshing || isLoadingUsers ? "animate-spin" : ""} />
+          Làm mới
+        </Button>
+      ),
+    },
+    authoring: {
+      title: "Kịch bản hệ thống",
+      description:
+        "Soạn kịch bản toàn hệ thống. Sau Expert duyệt sẽ xuất bản lên Scenario Library.",
+    },
+    users: {
+      title: "Tài khoản & phân quyền",
+      description: "RBAC, khóa/mở tài khoản và vai trò hệ thống.",
+    },
+    domains: {
+      title: "Lĩnh vực & ứng dụng",
+      description: "Ngành, ứng dụng và kịch bản trong catalog.",
+    },
+    babok: {
+      title: "Khung chuẩn BABOK",
+      description: "Vùng tri thức và tác vụ đánh giá năng lực.",
+    },
+    ai: {
+      title: "Cấu hình AI",
+      description: "Kết nối BYOK cho mô phỏng và chấm điểm.",
+    },
+    audit: {
+      title: "Nhật ký kiểm toán",
+      description: "Thao tác quản trị trong phiên hiện tại.",
+    },
+  };
+
+  const currentHeader = tabHeaders[currentTab];
+
   return (
-    <div className="mx-auto max-w-[1540px] space-y-6 p-4 sm:p-6 lg:p-8 font-sans">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate/15 pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-brass">
-              <ShieldAlert size={14} />
-              Trung tâm Quản trị Tối cao
-            </span>
-            <span className="rounded-full bg-navy/10 px-2 py-0.5 text-[10px] font-bold text-navy">
-              System Admin
-            </span>
-          </div>
-          <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-navy sm:text-3xl">
-            Admin Operations Studio
-          </h1>
-          <p className="mt-1 text-xs text-slate">
-            Giám sát vận hành hệ sinh thái BA-VES, phân quyền bảo mật, quản trị dữ liệu gốc và cấu hình AI Multi-Agent.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => {
-              if (currentTab === "users") loadUsers();
-              else alert("Đã đồng bộ dữ liệu mới nhất từ database.");
-            }}
-            className="flex items-center gap-1.5 rounded-xl border border-slate/20 bg-white px-3 py-2 text-xs font-bold text-navy shadow-sm hover:border-slate/40 transition"
-          >
-            <RefreshCw size={14} className={`text-slate ${isLoadingUsers ? "animate-spin" : ""}`} />
-            Đồng bộ hệ thống
+    <>
+      {toast && (
+        <div
+          className={classNames(
+            "fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-xs font-bold shadow-xl backdrop-blur-md",
+            toast.type === "success"
+              ? "border-emerald-500/40 bg-emerald-950/90 text-emerald-100"
+              : toast.type === "error"
+                ? "border-rose-500/40 bg-rose-950/90 text-rose-100"
+                : "border-white/20 bg-navy-deep/90 text-white"
+          )}
+        >
+          {toast.type === "success" ? (
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
+          ) : (
+            <AlertCircle size={16} className="shrink-0 text-rose-400" />
+          )}
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} className="ml-2 text-white/60 transition hover:text-white">
+            <X size={14} />
           </button>
-          <button
-            onClick={() => alert("Xuất báo cáo hệ thống thành công.")}
-            className="flex items-center gap-1.5 rounded-xl bg-navy px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-navy-deep transition"
-          >
-            <Download size={14} />
-            Xuất báo cáo
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs Menu Navigation */}
-      <div className="flex gap-1 overflow-x-auto border-b border-slate/15 pb-px">
-        {[
-          { id: "overview", label: "Tổng quan", icon: BarChart3 },
-          { id: "users", label: "Tài khoản & Phân quyền", icon: Users },
-          { id: "domains", label: "Lĩnh vực & Ứng dụng", icon: Building2 },
-          { id: "babok", label: "Khung chuẩn BABOK", icon: Award },
-          { id: "ai", label: "Cấu hình AI & Token", icon: Cpu },
-          { id: "audit", label: "Nhật ký kiểm toán", icon: ShieldCheck },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = currentTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setAdminTab(tab.id)}
-              className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold transition-all whitespace-nowrap ${
-                isActive
-                  ? "border-navy text-navy"
-                  : "border-transparent text-slate hover:border-slate/30 hover:text-navy"
-              }`}
-            >
-              <Icon size={15} className={isActive ? "text-brass" : "text-slate"} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TAB 1: OVERVIEW */}
-      {currentTab === "overview" && (
-        <div className="space-y-6">
-          {/* Stat Cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {initialAdminStats.map((stat) => (
-              <div
-                key={stat.id}
-                className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm transition hover:shadow-md"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate">{stat.label}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      stat.positive ? "bg-emerald-500/15 text-emerald-600" : "bg-brass/15 text-brass"
-                    }`}
-                  >
-                    {stat.change}
-                  </span>
-                </div>
-                <div className="mt-3 font-display text-3xl font-extrabold tracking-tight text-navy">
-                  {stat.value}
-                </div>
-                <p className="mt-2 text-xs text-slate/80">{stat.subtext}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Bento Grid Overview */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* System Health */}
-            <div className="rounded-2xl border border-slate/15 bg-white p-6 shadow-sm">
-              <h3 className="flex items-center gap-2 font-display text-sm font-extrabold text-navy">
-                <Server size={16} className="text-brass" />
-                Trạng thái Dịch vụ & Máy chủ
-              </h3>
-              <p className="mt-1 text-xs text-slate">Thời gian hoạt động liên tục: 99.98% (30 ngày)</p>
-
-              <div className="mt-5 space-y-3.5">
-                {[
-                  { name: "BAVES Core API (.NET 9)", status: "Ổn định", latency: "24ms", color: "bg-emerald-500" },
-                  { name: "SQL Server (40 MVP Tables)", status: "Ổn định", latency: "12ms", color: "bg-emerald-500" },
-                  { name: "Gemini AI Agent Gateway", status: "Ổn định", latency: "420ms", color: "bg-emerald-500" },
-                  { name: "Simulation Session Socket", status: "Bình thường", latency: "45ms", color: "bg-emerald-500" },
-                  { name: "Blob Storage (Artifact Files)", status: "Ổn định", latency: "18ms", color: "bg-emerald-500" },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between rounded-xl bg-offwhite p-3 text-xs">
-                    <div className="flex items-center gap-2.5">
-                      <span className={`h-2 w-2 rounded-full ${item.color}`} />
-                      <span className="font-bold text-navy">{item.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-slate text-[11px]">{item.latency}</span>
-                      <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
-                        {item.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* AI Cost & Token Consumption */}
-            <div className="rounded-2xl border border-slate/15 bg-white p-6 shadow-sm">
-              <h3 className="flex items-center gap-2 font-display text-sm font-extrabold text-navy">
-                <Cpu size={16} className="text-brass" />
-                Hạn mức & Chi phí Token AI
-              </h3>
-              <p className="mt-1 text-xs text-slate">Phân bổ token theo từng mục đích mô phỏng</p>
-
-              <div className="mt-5 space-y-4">
-                <div>
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-navy">Phỏng vấn Stakeholder AI (Simulation)</span>
-                    <span className="text-slate">68% (3.27M)</span>
-                  </div>
-                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate/15">
-                    <div className="h-full bg-navy rounded-full" style={{ width: "68%" }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-navy">Chấm điểm & Phản hồi Rubric (Assessment)</span>
-                    <span className="text-slate">22% (1.06M)</span>
-                  </div>
-                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate/15">
-                    <div className="h-full bg-brass rounded-full" style={{ width: "22%" }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-navy">Gợi ý câu hỏi BAPlan (Planning)</span>
-                    <span className="text-slate">10% (0.49M)</span>
-                  </div>
-                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate/15">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: "10%" }} />
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-brass/25 bg-brass/10 p-3 mt-4 text-xs text-navy">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <KeyRound size={13} className="text-brass" />
-                    Chế độ BYOK (Bring Your Own Key)
-                  </div>
-                  <p className="mt-1 text-slate text-[11px]">
-                    Hiện có <strong>28/45</strong> giảng viên đang dùng API Key cá nhân để tiết kiệm ngân sách chung của trường.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Audit feed */}
-            <div className="rounded-2xl border border-slate/15 bg-white p-6 shadow-sm">
-              <h3 className="flex items-center gap-2 font-display text-sm font-extrabold text-navy">
-                <ShieldCheck size={16} className="text-brass" />
-                Hoạt động Hệ thống Mới nhất
-              </h3>
-              <p className="mt-1 text-xs text-slate">Nhật ký can thiệp điểm số và phân quyền</p>
-
-              <div className="mt-4 space-y-3">
-                {initialAuditLogs.slice(0, 4).map((log) => (
-                  <div key={log.id} className="rounded-xl border border-slate/10 p-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-navy">{log.action}</span>
-                      <span className="text-[10px] text-slate">{log.timestamp}</span>
-                    </div>
-                    <p className="mt-1 text-slate text-[11px]">
-                      Thực hiện: <strong>{log.actor}</strong> &rarr; {log.target}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* TAB 2: USERS & RBAC */}
+      <PageHeader
+        eyebrow="Quản trị"
+        title={currentHeader.title}
+        description={currentHeader.description}
+        actions={currentHeader.actions}
+      />
+
+      {currentTab === "overview" && (
+        <AdminOverviewTab
+          users={apiUsers}
+          industries={industries}
+          applications={applications}
+          scenarios={scenarios}
+          babokTasks={babokTasks}
+          cohorts={cohorts}
+          auditLogs={auditLogs}
+          healthStatus={healthStatus}
+          aiConfigured={hasStoredKey}
+          aiProvider={storedProvider}
+          aiModel={storedModel}
+          onSelectTab={setAdminTab}
+          onRefresh={() => void handleRefreshAll()}
+          refreshing={isRefreshing || isLoadingUsers}
+        />
+      )}
+
+      {currentTab === "authoring" && <AdminAuthoringTab />}
+
       {currentTab === "users" && (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-2xl border border-slate/15 shadow-sm">
-            <div className="flex flex-1 items-center gap-2 max-w-md rounded-xl border border-slate/20 bg-offwhite px-3 py-1.5">
-              <Search size={16} className="text-slate" />
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate/15 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex max-w-md flex-1 items-center gap-2 rounded-xl border border-slate/20 bg-offwhite/50 px-3 py-2">
+              <Search size={15} className="text-slate/60" />
               <input
                 type="text"
-                placeholder="Tìm theo tên hoặc email..."
+                placeholder="Tìm tên, email, ID..."
                 value={searchUser}
                 onChange={(e) => setSearchUser(e.target.value)}
-                className="w-full bg-transparent text-xs text-navy outline-none"
+                className="w-full bg-transparent text-xs font-medium text-navy outline-none placeholder:text-slate/60"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                className="rounded-xl border border-slate/20 bg-white px-3 py-2 text-xs font-bold text-navy outline-none shadow-sm"
-              >
-                <option value="ALL">Tất cả vai trò</option>
-                <option value="ADMIN">Admin</option>
-                <option value="INSTRUCTOR">Giảng viên</option>
-                <option value="BAEXPERT">Chuyên gia BA</option>
-                <option value="LEARNER">Học viên</option>
-              </select>
-
-              <button
-                onClick={() => alert("Mở form thêm người dùng mới")}
-                className="flex items-center gap-1.5 rounded-xl bg-navy px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-navy-deep transition"
-              >
-                <UserPlus size={14} />
-                Thêm tài khoản
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-xl border border-slate/20 bg-offwhite p-1 text-xs">
+                {[
+                  { key: "ALL", label: `Tất cả (${apiUsers.length})` },
+                  { key: "LEARNER", label: `HV (${learnerCount})` },
+                  { key: "INSTRUCTOR", label: `GV (${instructorCount})` },
+                  { key: "BAEXPERT", label: `CG (${expertCount})` },
+                  { key: "ADMIN", label: `Admin (${adminCount})` },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => setFilterRole(item.key)}
+                    className={classNames(
+                      "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition",
+                      filterRole === item.key
+                        ? "bg-white text-navy shadow-xs"
+                        : "text-slate hover:text-navy"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <Button size="sm" onClick={openCreateUser} className="gap-1.5 text-xs font-bold">
+                <Plus size={14} /> Thêm
+              </Button>
             </div>
           </div>
 
           {userError && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
-              Lỗi kết nối: {userError}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              {userError}
             </div>
           )}
 
-          {/* Table */}
           <div className="overflow-hidden rounded-2xl border border-slate/15 bg-white shadow-sm">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate/15 bg-offwhite font-bold text-slate">
+              <thead className="border-b border-slate/15 bg-offwhite/80 text-[10px] font-bold uppercase tracking-wider text-slate">
                 <tr>
-                  <th className="px-4 py-3">Họ và tên</th>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Vai trò</th>
-                  <th className="px-4 py-3">ID / Lớp học</th>
-                  <th className="px-4 py-3">Trạng thái</th>
-                  <th className="px-4 py-3">Ngày tạo / Hoạt động</th>
-                  <th className="px-4 py-3 text-right">Thao tác</th>
+                  <th className="px-4 py-3.5">Họ tên</th>
+                  <th className="px-4 py-3.5">Email</th>
+                  <th className="px-4 py-3.5">Vai trò</th>
+                  <th className="px-4 py-3.5">ID</th>
+                  <th className="px-4 py-3.5">Trạng thái</th>
+                  <th className="px-4 py-3.5">Tham gia</th>
+                  <th className="px-4 py-3.5 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate/10">
                 {isLoadingUsers ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-xs text-slate">
-                      <RefreshCw size={18} className="mx-auto mb-2 animate-spin text-navy" />
-                      Đang tải danh sách tài khoản từ server...
+                    <td colSpan={7} className="py-12 text-center text-xs text-slate">
+                      <RefreshCw size={20} className="mx-auto mb-2 animate-spin text-navy" />
+                      Đang tải tài khoản...
                     </td>
                   </tr>
                 ) : apiUsers.length > 0 ? (
                   apiUsers.map((u) => {
                     const isActive = String(u.status).toLowerCase() === "active";
                     return (
-                      <tr key={u.id} className="hover:bg-offwhite/50 transition">
+                      <tr key={u.id} className="transition hover:bg-offwhite/50">
                         <td className="px-4 py-3.5 font-bold text-navy">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2.5">
                             {u.avatarUrl ? (
-                              <img src={u.avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+                              <img src={u.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
                             ) : (
-                              <span className="grid h-7 w-7 place-items-center rounded-full bg-navy/10 text-[10px] font-bold text-navy">
+                              <span className="font-display grid h-8 w-8 place-items-center rounded-xl bg-navy/10 text-xs font-bold text-navy">
                                 {u.fullName?.slice(0, 1) || "U"}
                               </span>
                             )}
-                            <span>{u.fullName}</span>
+                            <span className="block font-bold text-navy">{u.fullName}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-slate">{u.email || "—"}</td>
+                        <td className="px-4 py-3.5 font-medium text-slate">{u.email || "—"}</td>
                         <td className="px-4 py-3.5">
                           <div className="flex flex-wrap gap-1">
-                            {u.roles?.map((r) => (
-                              <span
-                                key={r}
-                                className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-                                  r === "ADMIN"
-                                    ? "bg-purple-100 text-purple-700"
-                                    : r === "INSTRUCTOR"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : r === "BAEXPERT"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-slate/15 text-slate"
-                                }`}
-                              >
-                                {r}
-                              </span>
-                            ))}
+                            {u.roles?.map((r) => {
+                              const n = normalizeRole(r);
+                              const isExp = n === "BAEXPERT" || n === "EXPERT";
+                              return (
+                                <span
+                                  key={r}
+                                  className={classNames(
+                                    "rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                                    n === "ADMIN"
+                                      ? "border-navy/20 bg-navy/10 text-navy"
+                                      : n === "INSTRUCTOR"
+                                        ? "border-sky-300/40 bg-sky-100 text-sky-800"
+                                        : isExp
+                                          ? "border-teal-300/40 bg-teal-100 text-teal-800"
+                                          : "border-slate-300/40 bg-slate-100 text-slate-700"
+                                  )}
+                                >
+                                  {isExp ? "EXPERT" : r}
+                                </span>
+                              );
+                            })}
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-slate font-mono text-[11px]">#{u.id}</td>
+                        <td className="px-4 py-3.5 font-mono text-[11px] text-slate">#{u.id}</td>
                         <td className="px-4 py-3.5">
                           <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            className={classNames(
+                              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold",
                               isActive
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-rose-100 text-rose-700"
-                            }`}
+                                ? "border-emerald-300/30 bg-emerald-100 text-emerald-700"
+                                : "border-rose-300/30 bg-rose-100 text-rose-700"
+                            )}
                           >
                             {isActive ? <UserCheck size={11} /> : <UserX size={11} />}
-                            {isActive ? "Hoạt động" : "Bị khóa"}
+                            {isActive ? "Active" : "Khóa"}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-slate">
+                        <td className="px-4 py-3.5 text-[11px] text-slate">
                           {u.createdAt ? new Date(u.createdAt).toLocaleDateString("vi-VN") : "—"}
                         </td>
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => handleOpenRoleModal(u)}
-                              title="Phân quyền vai trò"
-                              className="rounded-lg border border-slate/20 bg-white px-2 py-1 text-[11px] font-bold text-navy hover:border-brass hover:text-brass transition"
+                              type="button"
+                              onClick={() => openEditUser(u)}
+                              title="Sửa tài khoản"
+                              className="cursor-pointer rounded-lg border border-slate/20 bg-white px-2.5 py-1 text-[11px] font-bold text-navy transition hover:border-navy/40 hover:bg-mist/40"
                             >
-                              Phân quyền
+                              <span className="inline-flex items-center gap-1">
+                                <Edit3 size={12} /> Sửa
+                              </span>
                             </button>
                             <button
-                              onClick={() => handleToggleApiUserStatus(u)}
-                              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+                              type="button"
+                              onClick={() => void handleToggleApiUserStatus(u)}
+                              title={isActive ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                              className={classNames(
+                                "cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition",
                                 isActive
                                   ? "border border-rose-300 text-rose-600 hover:bg-rose-50"
                                   : "border border-emerald-300 text-emerald-600 hover:bg-emerald-50"
-                              }`}
+                              )}
                             >
-                              {isActive ? "Khóa" : "Mở khóa"}
+                              {isActive ? "Khóa" : "Mở"}
                             </button>
                           </div>
                         </td>
@@ -556,8 +598,8 @@ export function AdminPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-10 text-center text-xs text-slate">
-                      Không tìm thấy tài khoản nào phù hợp trên máy chủ.
+                    <td colSpan={7} className="py-12 text-center text-xs text-slate">
+                      Không có tài khoản khớp bộ lọc.
                     </td>
                   </tr>
                 )}
@@ -573,54 +615,59 @@ export function AdminPage() {
           <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate/15 shadow-sm">
             <div>
               <h3 className="font-display text-sm font-extrabold text-navy">Ngành & Ứng dụng Mô phỏng Doanh nghiệp</h3>
-              <p className="text-xs text-slate">Quản trị danh mục ContentDbContext (Industries & Applications)</p>
+              <p className="text-xs text-slate">Dữ liệu thực tế từ bảng `content.Industries` và `content.Applications`</p>
             </div>
-            <button
-              onClick={() => loadDomains()}
-              className="flex items-center gap-1.5 rounded-xl border border-slate/20 bg-white px-3.5 py-2 text-xs font-bold text-navy shadow-sm hover:bg-offwhite transition"
-            >
-              <RefreshCw size={14} className={isLoadingDomains ? "animate-spin" : ""} />
-              Làm mới dữ liệu
-            </button>
           </div>
 
-          {isLoadingDomains ? (
-            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-slate/15">
-              <RefreshCw size={18} className="mx-auto mb-2 animate-spin text-navy" />
-              Đang tải danh mục ngành nghề từ server...
-            </div>
-          ) : domains.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-dashed border-slate/20">
-              Chưa có danh mục ngành nghề nào trên máy chủ.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {domains.map((dom) => (
-                <div key={dom.id} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="rounded-md bg-brass/15 px-2 py-0.5 text-[10px] font-bold text-brass uppercase">
-                        {dom.code}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {industries.length > 0 ? (
+              industries.map((ind) => {
+                const indApps = applications.filter((a) => a.industry?.id === ind.id || a.industry?.code === ind.code);
+                const isActive = ind.status === 1 || ind.status === "Active" || ind.status === "ACTIVE";
+                return (
+                  <div key={ind.id} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3 transition hover:shadow-md">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="rounded-md bg-purple-100 text-purple-800 px-2 py-0.5 text-[10px] font-bold uppercase font-mono">
+                          {ind.code}
+                        </span>
+                        <h4 className="mt-1.5 font-display text-base font-extrabold text-navy">{ind.name}</h4>
+                      </div>
+                      <span
+                        className={classNames(
+                          "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                          isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate/15 text-slate"
+                        )}
+                      >
+                        {isActive ? "Đang áp dụng" : "Bản nháp"}
                       </span>
-                      <h4 className="mt-1 font-display text-base font-extrabold text-navy">{dom.name}</h4>
                     </div>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        dom.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-slate/15 text-slate"
-                      }`}
-                    >
-                      {dom.status === "ACTIVE" ? "Đang áp dụng" : "Bản nháp"}
-                    </span>
+                    <p className="text-xs text-slate leading-relaxed">{ind.description || "—"}</p>
+                    {indApps.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {indApps.map((app) => (
+                          <span
+                            key={app.id}
+                            className="rounded-md border border-slate/15 bg-offwhite px-2 py-0.5 text-[11px] font-semibold text-navy"
+                          >
+                            {app.name} ({app.code})
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-6 border-t border-slate/10 pt-3 text-xs text-slate">
+                      <span><strong>{indApps.length}</strong> Ứng dụng nghiệp vụ</span>
+                      <span>Thứ tự hiển thị: <strong>{ind.displayOrder}</strong></span>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate leading-relaxed">{dom.description}</p>
-                  <div className="flex items-center gap-6 border-t border-slate/10 pt-3 text-xs text-slate">
-                    <span><strong>{dom.applicationsCount}</strong> Ứng dụng nghiệp vụ</span>
-                    <span><strong>{dom.scenariosCount}</strong> Kịch bản đào tạo</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                );
+              })
+            ) : (
+              <div className="col-span-full py-12 text-center text-xs text-slate bg-white rounded-2xl border border-slate/15">
+                Chưa có ngành lĩnh vực nào trong cơ sở dữ liệu.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -629,93 +676,80 @@ export function AdminPage() {
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-slate/15 shadow-sm">
             <h3 className="font-display text-sm font-extrabold text-navy">
-              Khung Năng lực 6 Vùng Tri thức BABOK® v3 & Bộ Tiêu chí Chấm điểm
+              Danh mục Vùng Tri thức & Tác vụ BABOK® v3 trong Database
             </h3>
             <p className="text-xs text-slate mt-0.5">
-              Ánh xạ trực tiếp với bảng `BabokKnowledgeAreas`, `BabokTasks` và `Rubrics` trong Assessment module.
+              Dữ liệu thực tế từ bảng `assessment.BabokTasks` ({babokTasks.length} tác vụ)
             </p>
           </div>
 
-          {isLoadingBabok ? (
-            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-slate/15">
-              <RefreshCw size={18} className="mx-auto mb-2 animate-spin text-navy" />
-              Đang tải dữ liệu BABOK® v3 từ server...
-            </div>
-          ) : babokAreas.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate bg-white rounded-2xl border border-dashed border-slate/20">
-              Chưa có dữ liệu vùng tri thức BABOK trên máy chủ.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {babokAreas.map((area) => (
-                <div key={area.code} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {babokTasks.length > 0 ? (
+              babokTasks.map((task) => (
+                <div key={task.id} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-2.5 transition hover:shadow-md">
                   <div className="flex items-center justify-between">
-                    <span className="rounded-md bg-navy px-2 py-0.5 text-[10px] font-bold text-white font-mono">
-                      {area.code}
+                    <span className="rounded-md bg-navy px-2.5 py-0.5 text-[10px] font-bold text-white font-mono">
+                      {task.code}
                     </span>
-                    <span className="font-bold text-xs text-brass">Trọng số tham chiếu: ~{area.weight}%</span>
+                    <span className="font-bold text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                      {task.knowledgeAreaCode} · BABOK® {task.babokVersion}
+                    </span>
                   </div>
-                  <h4 className="font-display text-sm font-extrabold text-navy">{area.name}</h4>
-                  <div className="flex items-center justify-between text-xs text-slate border-t border-slate/10 pt-3">
-                    <span>{area.tasksCount} Tasks nghiệp vụ chuẩn</span>
-                    <span>{area.rubricCriteriaCount} Tiêu chí liên kết</span>
-                  </div>
+                  <h4 className="font-display text-sm font-extrabold text-navy">{task.name}</h4>
+                  <p className="text-xs text-slate">{task.knowledgeAreaName}</p>
+                  {task.description && (
+                    <p className="text-xs text-slate/80 border-t border-slate/10 pt-2">{task.description}</p>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            ) : (
+              <div className="col-span-full py-12 text-center text-xs text-slate bg-white rounded-2xl border border-slate/15">
+                Chưa có dữ liệu tác vụ BABOK trong cơ sở dữ liệu.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* TAB 5: AI & TOKEN GOVERNANCE */}
+      {/* TAB 5: AI & CONNECTION */}
       {currentTab === "ai" && (
         <div className="space-y-4">
-          <div className="bg-white p-4 rounded-2xl border border-slate/15 shadow-sm flex items-center justify-between">
+          <div className="bg-white p-5 rounded-2xl border border-slate/15 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="font-display text-sm font-extrabold text-navy">Cấu hình Mô hình Ngôn ngữ Lớn (LLM)</h3>
-              <p className="text-xs text-slate mt-0.5">Điều phối các Agent Stakeholder AI và Engine chấm điểm tự động</p>
+              <h3 className="font-display text-sm font-extrabold text-navy">Cấu hình Kết nối AI Runtime (BYOK)</h3>
+              <p className="text-xs text-slate mt-0.5">
+                Thiết lập khóa kết nối AI hiện tại trên trình duyệt hoặc dùng cấu hình mặc định của AI Runtime Server
+              </p>
             </div>
             <button
-              onClick={() => alert("Thêm Model Provider")}
-              className="flex items-center gap-1.5 rounded-xl bg-navy px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-navy-deep transition"
+              onClick={() => setByokModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-navy px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-navy-deep transition cursor-pointer"
             >
-              <Plus size={14} />
-              Thêm Model
+              <KeyRound size={14} />
+              Thiết lập BYOK Key
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {aiModels.map((model) => (
-              <div key={model.id} className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-display text-sm font-extrabold text-navy">{model.name}</h4>
-                      {model.isDefault && (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[9px] font-bold text-emerald-700">
-                          Mặc định
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs font-mono text-slate">{model.modelCode}</span>
-                  </div>
-                  <span className="rounded-md bg-offwhite px-2 py-0.5 text-[10px] font-bold text-slate">
-                    {model.provider}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 border-t border-slate/10 pt-3 text-xs">
-                  <div>
-                    <span className="text-slate block text-[11px]">Độ trễ trung bình:</span>
-                    <strong className="text-navy">{model.avgLatencyMs} ms</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate block text-[11px]">Chi phí ước tính / 1k:</span>
-                    <strong className="text-navy">{model.tokenCostPer1k}</strong>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="rounded-2xl border border-slate/15 bg-white p-5 shadow-sm space-y-3 text-xs">
+            <div className="flex items-center justify-between border-b border-slate/10 pb-2.5">
+              <span className="text-slate">Nhà cung cấp (Provider) trên trình duyệt:</span>
+              <strong className="font-mono text-navy">{storedProvider || "Mặc định từ AI Runtime (.env)"}</strong>
+            </div>
+            <div className="flex items-center justify-between border-b border-slate/10 pb-2.5">
+              <span className="text-slate">Model đang chọn:</span>
+              <strong className="font-mono text-navy">{storedModel || "Mặc định từ AI Runtime (.env)"}</strong>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate">Trạng thái khóa BYOK cá nhân:</span>
+              <span
+                className={classNames(
+                  "rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                  hasStoredKey ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"
+                )}
+              >
+                {hasStoredKey ? "Đã cấu hình Key cá nhân" : "Đang dùng Key mặc định của Server"}
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -724,134 +758,154 @@ export function AdminPage() {
       {currentTab === "audit" && (
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-slate/15 shadow-sm">
-            <h3 className="font-display text-sm font-extrabold text-navy">Nhật ký Hoạt động & Kiểm toán Bảo mật</h3>
-            <p className="text-xs text-slate mt-0.5">Lưu vết mọi hành vi chấm điểm, đổi quyền, kích hoạt kịch bản</p>
+            <h3 className="font-display text-sm font-extrabold text-navy">Nhật ký Thao tác Quản trị</h3>
+            <p className="text-xs text-slate mt-0.5">Danh sách các hành động phân quyền hoặc khóa/mở khóa tài khoản thực tế</p>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-slate/15 bg-white shadow-sm">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate/15 bg-offwhite font-bold text-slate">
+              <thead className="border-b border-slate/15 bg-offwhite/80 font-bold uppercase tracking-wider text-[10px] text-slate">
                 <tr>
-                  <th className="px-4 py-3">Thời gian</th>
-                  <th className="px-4 py-3">Người thực hiện</th>
-                  <th className="px-4 py-3">Hành động</th>
-                  <th className="px-4 py-3">Đối tượng tác động</th>
-                  <th className="px-4 py-3">Địa chỉ IP</th>
-                  <th className="px-4 py-3 text-right">Trạng thái</th>
+                  <th className="px-4 py-3.5">Thời gian</th>
+                  <th className="px-4 py-3.5">Người thực hiện</th>
+                  <th className="px-4 py-3.5">Hành động</th>
+                  <th className="px-4 py-3.5">Đối tượng tác động</th>
+                  <th className="px-4 py-3.5">Trạng thái</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate/10">
-                {initialAuditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-offwhite/50 transition">
-                    <td className="px-4 py-3.5 font-mono text-slate">{log.timestamp}</td>
-                    <td className="px-4 py-3.5 font-bold text-navy">{log.actor}</td>
-                    <td className="px-4 py-3.5 text-navy font-semibold">{log.action}</td>
-                    <td className="px-4 py-3.5 text-slate">{log.target}</td>
-                    <td className="px-4 py-3.5 font-mono text-slate">{log.ipAddress}</td>
-                    <td className="px-4 py-3.5 text-right">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          log.status === "SUCCESS"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : log.status === "WARNING"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-rose-100 text-rose-700"
-                        }`}
-                      >
-                        {log.status}
-                      </span>
+                {auditLogs.length > 0 ? (
+                  auditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-offwhite/50 transition">
+                      <td className="px-4 py-3.5 font-mono text-[11px] text-slate">{log.timestamp}</td>
+                      <td className="px-4 py-3.5 font-bold text-navy">{log.actor}</td>
+                      <td className="px-4 py-3.5 text-navy font-medium">{log.action}</td>
+                      <td className="px-4 py-3.5 text-slate">{log.target}</td>
+                      <td className="px-4 py-3.5">
+                        <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-xs text-slate">
+                      Chưa có nhật ký thao tác quản trị nào phát sinh.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Modal Phân quyền Vai trò người dùng (Update Roles) */}
-      {roleModalUser && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-navy-deep/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate/15 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate/15 p-5">
-              <div className="flex items-center gap-2">
-                <Shield className="text-navy" size={18} />
-                <h3 className="font-bold text-navy text-sm">Phân quyền tài khoản #{roleModalUser.id}</h3>
-              </div>
-              <button
-                onClick={() => setRoleModalUser(null)}
-                className="text-slate hover:text-navy text-lg font-bold"
-              >
-                <X size={18} />
+      {userFormMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate/15 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate/15 pb-3">
+              <h3 className="font-display text-sm font-extrabold text-navy">
+                {userFormMode === "create" ? "Thêm tài khoản" : `Sửa · ${userFormTarget?.fullName || ""}`}
+              </h3>
+              <button type="button" onClick={closeUserForm} className="cursor-pointer text-slate transition hover:text-navy">
+                <X size={16} />
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
-              <div>
-                <p className="text-xs text-slate">Người dùng:</p>
-                <strong className="text-sm text-navy">{roleModalUser.fullName}</strong>
-                <p className="text-xs text-slate/80">{roleModalUser.email}</p>
-              </div>
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-bold text-navy">
+                Họ tên *
+                <input
+                  required
+                  value={userForm.fullName}
+                  onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate/20 px-3 py-2 text-xs font-normal outline-none focus:border-navy/40"
+                  placeholder="Nguyễn Văn A"
+                />
+              </label>
+              <label className="block text-xs font-bold text-navy">
+                Email *
+                <input
+                  required
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate/20 px-3 py-2 text-xs font-normal outline-none focus:border-navy/40"
+                  placeholder="email@example.com"
+                />
+              </label>
+              <label className="block text-xs font-bold text-navy">
+                {userFormMode === "create" ? "Mật khẩu *" : "Mật khẩu mới (tuỳ chọn)"}
+                <input
+                  type="password"
+                  required={userFormMode === "create"}
+                  value={userForm.password}
+                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-slate/20 px-3 py-2 text-xs font-normal outline-none focus:border-navy/40"
+                  placeholder={userFormMode === "create" ? "Tối thiểu 8 ký tự" : "Để trống nếu giữ mật khẩu cũ"}
+                />
+              </label>
 
               <div>
-                <label className="block text-xs font-bold text-navy mb-2">Chọn các vai trò áp dụng:</label>
-                <div className="space-y-2">
+                <p className="mb-2 text-xs font-bold text-navy">Vai trò *</p>
+                <div className="grid gap-2 sm:grid-cols-2">
                   {[
-                    { id: "LEARNER", label: "LEARNER", desc: "Học viên thực hành tình huống & nộp bài" },
-                    { id: "INSTRUCTOR", label: "INSTRUCTOR", desc: "Giảng viên quản lý lớp, bài tập & chấm điểm" },
-                    { id: "BAEXPERT", label: "BAEXPERT", desc: "Chuyên gia BA tham gia review & thẩm định bài nộp" },
-                    { id: "ADMIN", label: "ADMIN", desc: "Quản trị viên toàn quyền cấu hình hệ thống" },
-                  ].map((role) => {
-                    const isSelected = editRoles.includes(role.id);
+                    { key: "LEARNER", label: "Học viên", desc: "Luyện tập & nộp bài" },
+                    { key: "INSTRUCTOR", label: "Giảng viên", desc: "Lớp & chấm bài" },
+                    { key: "BAEXPERT", label: "Chuyên gia", desc: "Thẩm định dossier" },
+                    { key: "ADMIN", label: "Admin", desc: "Quản trị hệ thống" },
+                  ].map((r) => {
+                    const isSelected = userForm.roles.includes(r.key);
                     return (
                       <button
+                        key={r.key}
                         type="button"
-                        key={role.id}
-                        onClick={() => handleToggleRoleSelection(role.id)}
-                        className={`w-full flex items-start gap-3 rounded-xl border p-3 text-left transition ${
+                        onClick={() => handleToggleRoleSelection(r.key)}
+                        className={classNames(
+                          "flex cursor-pointer items-start gap-2.5 rounded-xl border p-2.5 text-left transition",
                           isSelected
-                            ? "border-navy bg-navy/5 ring-1 ring-navy"
-                            : "border-slate/20 hover:border-slate/40"
-                        }`}
+                            ? "border-navy/40 bg-navy/5 text-navy"
+                            : "border-slate/15 text-slate hover:border-slate/30"
+                        )}
                       >
                         <div
-                          className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border ${
+                          className={classNames(
+                            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                             isSelected ? "border-navy bg-navy text-white" : "border-slate/30 bg-white"
-                          }`}
+                          )}
                         >
-                          {isSelected && <Check size={12} />}
+                          {isSelected && <Check size={11} strokeWidth={3} />}
                         </div>
                         <div>
-                          <strong className="block text-xs font-bold text-navy">{role.label}</strong>
-                          <span className="block text-[11px] text-slate">{role.desc}</span>
+                          <strong className="block text-xs font-bold text-navy">{r.label}</strong>
+                          <span className="text-[11px] text-slate">{r.desc}</span>
                         </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
+            </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate/10">
-                <button
-                  type="button"
-                  onClick={() => setRoleModalUser(null)}
-                  className="rounded-xl border border-slate/20 px-3.5 py-2 text-xs font-bold text-slate hover:text-navy transition"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  disabled={isUpdatingRoles}
-                  onClick={handleSaveRoles}
-                  className="rounded-xl bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-light transition disabled:opacity-50"
-                >
-                  {isUpdatingRoles ? "Đang lưu..." : "Cập nhật quyền"}
-                </button>
-              </div>
+            <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate/15 pt-4">
+              <Button variant="secondary" size="sm" type="button" onClick={closeUserForm}>
+                Hủy
+              </Button>
+              <Button
+                size="sm"
+                type="button"
+                disabled={isSavingUser}
+                onClick={() => void handleSaveUserForm()}
+                className="gap-1.5"
+              >
+                {isSavingUser ? <RefreshCw size={13} className="animate-spin" /> : null}
+                {userFormMode === "create" ? "Tạo" : "Lưu"}
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
