@@ -1,26 +1,22 @@
 import { apiClient } from "./apiClient";
+import type { HumanReviewDto } from "./assessmentService";
 
-export enum BookingStatus {
-  Requested = 0,
-  Confirmed = 1,
-  InProgress = 2,
-  Completed = 3,
-  Cancelled = 4,
-}
-
-export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; tone: "navy" | "green" | "amber" | "gray" | "red" }> = {
-  [BookingStatus.Requested]: { label: "Chờ chuyên gia xác nhận", tone: "amber" },
-  [BookingStatus.Confirmed]: { label: "Đã xác nhận lịch hẹn", tone: "navy" },
-  [BookingStatus.InProgress]: { label: "Đang diễn ra", tone: "green" },
-  [BookingStatus.Completed]: { label: "Đã hoàn tất", tone: "green" },
-  [BookingStatus.Cancelled]: { label: "Đã hủy", tone: "red" },
-};
+export type BookingStatus = "Pending" | "Confirmed" | "InProgress" | "Completed" | "Cancelled";
 
 export interface CreateExpertBookingRequest {
   reviewRequestId: number;
-  scheduledStartTime?: string | null;
-  scheduledEndTime?: string | null;
-  learnerNote?: string | null;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+  learnerNote?: string;
+}
+
+export interface SendConsultationMessageRequest {
+  content: string;
+}
+
+export interface UpdateBookingStatusRequest {
+  status: BookingStatus;
+  expertSummaryNote?: string;
 }
 
 export interface ConsultationMessageDto {
@@ -40,66 +36,55 @@ export interface ExpertBookingDto {
   learnerId: number;
   expertId: number;
   status: BookingStatus;
-  scheduledStartTime: string | null;
-  scheduledEndTime: string | null;
-  actualStartTime: string | null;
-  actualEndTime: string | null;
-  learnerNote: string | null;
-  expertSummaryNote: string | null;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+  actualStartTime?: string;
+  actualEndTime?: string;
+  learnerNote?: string;
+  expertSummaryNote?: string;
   createdAt: string;
-  learnerName?: string;
-  scenarioTitle?: string;
 }
 
 export interface BookingChatDossierDto {
   booking: ExpertBookingDto;
-  reviewDossier?: any;
+  reviewDossier?: HumanReviewDto;
   messages: ConsultationMessageDto[];
 }
 
 export const bookingService = {
-  // 1. POST /api/assessment/bookings: Đặt lịch hẹn trao đổi 1-on-1 với Chuyên gia BA
-  async createBooking(request: CreateExpertBookingRequest): Promise<ExpertBookingDto> {
+  // Tạo lịch hẹn mới (Tự động trừ 1 Consultation Credit)
+  createBooking: async (request: CreateExpertBookingRequest): Promise<ExpertBookingDto> => {
     return apiClient.post<ExpertBookingDto>("/api/assessment/bookings", request);
   },
 
-  // 2. GET /api/assessment/bookings/me: Học viên xem danh sách các lịch hẹn của mình
-  async getMyBookings(): Promise<ExpertBookingDto[]> {
-    const data = await apiClient.get<ExpertBookingDto[]>("/api/assessment/bookings/me");
-    return Array.isArray(data) ? data : [];
+  // Danh sách lịch hẹn của học viên hiện tại
+  getMyBookings: async (): Promise<ExpertBookingDto[]> => {
+    return apiClient.get<ExpertBookingDto[]>("/api/assessment/bookings/me");
   },
 
-  // 3. GET /api/assessment/bookings/expert: Chuyên gia xem danh sách lịch hẹn học viên đã đặt
-  async getExpertBookings(): Promise<ExpertBookingDto[]> {
-    const data = await apiClient.get<ExpertBookingDto[]>("/api/assessment/bookings/expert");
-    return Array.isArray(data) ? data : [];
+  // Danh sách lịch hẹn cho Chuyên gia / Giảng viên
+  getExpertBookings: async (): Promise<ExpertBookingDto[]> => {
+    return apiClient.get<ExpertBookingDto[]>("/api/assessment/bookings/expert");
   },
 
-  // 4. GET /api/assessment/bookings/{id}/chat: Lấy hồ sơ phòng chat và toàn bộ tin nhắn 1-on-1
-  async getBookingChat(bookingId: number): Promise<BookingChatDossierDto> {
-    return apiClient.get<BookingChatDossierDto>(`/api/assessment/bookings/${bookingId}/chat`);
+  // Mở phòng chat trao đổi 1-on-1 kèm hồ sơ điểm rubric
+  getBookingChatDossier: async (id: number): Promise<BookingChatDossierDto> => {
+    return apiClient.get<BookingChatDossierDto>(`/api/assessment/bookings/${id}/chat`);
   },
 
-  // 5. POST /api/assessment/bookings/{id}/messages: Gửi tin nhắn mới vào phòng chat 1-on-1
-  async sendMessage(bookingId: number, content: string): Promise<ConsultationMessageDto> {
-    return apiClient.post<ConsultationMessageDto>(`/api/assessment/bookings/${bookingId}/messages`, { content });
+  // Gửi tin nhắn mới trong phòng trao đổi 1-on-1
+  sendMessage: async (id: number, content: string): Promise<ConsultationMessageDto> => {
+    return apiClient.post<ConsultationMessageDto>(`/api/assessment/bookings/${id}/messages`, { content });
   },
 
-  // 6. PUT /api/assessment/bookings/{id}/status: Cập nhật trạng thái lịch hẹn (Xác nhận, Hoàn thành)
-  async updateBookingStatus(
-    bookingId: number,
-    status: BookingStatus,
-    expertSummaryNote?: string
-  ): Promise<ExpertBookingDto> {
-    return apiClient.put<ExpertBookingDto>(`/api/assessment/bookings/${bookingId}/status`, {
-      status,
-      expertSummaryNote,
-    });
+  // Cập nhật trạng thái buổi hẹn (Confirmed, InProgress, Completed kèm ghi chú)
+  updateBookingStatus: async (id: number, request: UpdateBookingStatusRequest): Promise<ExpertBookingDto> => {
+    return apiClient.put<ExpertBookingDto>(`/api/assessment/bookings/${id}/status`, request);
   },
 
-  // 7. POST /api/assessment/bookings/{id}/cancel: Hủy lịch hẹn
-  async cancelBooking(bookingId: number, reason?: string): Promise<ExpertBookingDto | void> {
+  // Hủy lịch hẹn và tự động hoàn trả 1 Consultation Credit
+  cancelBooking: async (id: number, reason?: string): Promise<ExpertBookingDto> => {
     const query = reason ? `?reason=${encodeURIComponent(reason)}` : "";
-    return apiClient.post<ExpertBookingDto>(`/api/assessment/bookings/${bookingId}/cancel${query}`);
+    return apiClient.post<ExpertBookingDto>(`/api/assessment/bookings/${id}/cancel${query}`);
   },
 };
