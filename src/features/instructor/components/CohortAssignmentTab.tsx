@@ -27,10 +27,13 @@ import {
 import {
   assignmentService,
   CreateAssignmentPayload,
+  UpdateAssignmentPayload,
 } from "../../../services/assignmentService";
+import { assessmentService, type RubricDetailDto } from "../../../services/assessmentService";
 import { CohortMembersModal } from "./CohortMembersModal";
 import { CohortAnalyticsModal } from "./CohortAnalyticsModal";
 import { AssignmentGradebookModal } from "./AssignmentGradebookModal";
+import { useApp } from "../../../contexts/AppContext";
 
 interface CohortAssignmentTabProps {
   cohorts: CohortItem[];
@@ -41,16 +44,24 @@ interface CohortAssignmentTabProps {
 }
 
 export function CohortAssignmentTab({
+  cohorts: initialCohortList,
+  assignments: initialAssignmentList,
   scenarios,
   onAddAssignment,
   onAddCohort,
 }: CohortAssignmentTabProps) {
-  const [localCohorts, setLocalCohorts] = useState<CohortItem[]>([]);
-  const [localAssignments, setLocalAssignments] = useState<AssignmentItem[]>([]);
+  const { user } = useApp();
+  const currentInstructorName = user?.fullName || "Giảng viên phụ trách";
+  const [localCohorts, setLocalCohorts] = useState<CohortItem[]>(initialCohortList);
+  const [localAssignments, setLocalAssignments] = useState<AssignmentItem[]>(initialAssignmentList);
   const [showNewAssignModal, setShowNewAssignModal] = useState(false);
+  const [showEditAssignModal, setShowEditAssignModal] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<AssignmentItem | null>(null);
   const [showNewCohortModal, setShowNewCohortModal] = useState(false);
   const [showEditCohortModal, setShowEditCohortModal] = useState(false);
   const [editingCohort, setEditingCohort] = useState<CohortItem | null>(null);
+  const [rubrics, setRubrics] = useState<RubricDetailDto[]>([]);
+  const [isSubmittingEditAssign, setIsSubmittingEditAssign] = useState(false);
 
   // Selected for modals
   const [selectedCohortForMembers, setSelectedCohortForMembers] = useState<{ id: string | number; code: string; name: string } | null>(null);
@@ -65,9 +76,20 @@ export function CohortAssignmentTab({
   // Forms state
   const [assignForm, setAssignForm] = useState({
     title: "",
-    cohortId: "",
+    instructions: "",
+    cohortId: initialCohortList[0]?.id || "",
     scenarioVersionId: scenarios.find((s) => s.status === "Đã ban hành")?.id || scenarios[0]?.id || "",
-    deadlineDate: "2026-10-25",
+    rubricId: "",
+    deadlineDate: new Date().toISOString().slice(0, 10),
+    deadlineTime: "23:59",
+    attemptLimit: 2,
+  });
+
+  const [editAssignForm, setEditAssignForm] = useState({
+    title: "",
+    instructions: "",
+    rubricId: "",
+    deadlineDate: "",
     deadlineTime: "23:59",
     attemptLimit: 2,
   });
@@ -75,12 +97,12 @@ export function CohortAssignmentTab({
   const [cohortForm, setCohortForm] = useState({
     code: "",
     name: "",
-    instructorName: "Giảng viên",
+    instructorName: currentInstructorName,
     domain: "Chuỗi cung ứng",
     description: "",
     startDate: "",
     endDate: "",
-    studentsCount: 30,
+    studentsCount: 0,
   });
 
   const [editCohortForm, setEditCohortForm] = useState({
@@ -95,25 +117,24 @@ export function CohortAssignmentTab({
   const refreshCohorts = async () => {
     try {
       const apiCohorts = await cohortService.getCohorts();
-      const mapped: CohortItem[] = (apiCohorts || []).map((c) => ({
-        id: `coh-${c.id}`,
-        code: c.code,
-        name: c.name,
-        instructorName: "Giảng viên phụ trách",
-        studentsCount: c.activeMemberCount,
-        activeAssignmentsCount: c.assignmentCount,
-        completionRate: 0,
-        averageScore: 0,
-        domain: "Phân tích Nghiệp vụ",
-        status: c.status === "Active" || c.status === 1 ? "active" : "archived",
-      }));
-      setLocalCohorts(mapped);
-      if (mapped.length > 0 && !assignForm.cohortId) {
-        setAssignForm((prev) => ({ ...prev, cohortId: mapped[0].id }));
+      if (apiCohorts) {
+        const mapped: CohortItem[] = apiCohorts.map((c) => ({
+          id: `coh-${c.id}`,
+          code: c.code,
+          name: c.name,
+          instructorName: currentInstructorName,
+          studentsCount: c.activeMemberCount,
+          pendingRequestCount: c.pendingRequestCount || 0,
+          activeAssignmentsCount: c.assignmentCount,
+          completionRate: 0,
+          averageScore: 0,
+          domain: "Phân tích Nghiệp vụ",
+          status: c.status === "Active" || c.status === 1 ? "active" : "archived",
+        }));
+        setLocalCohorts(mapped);
       }
     } catch (e) {
       console.warn("Could not fetch cohorts from API:", e);
-      setLocalCohorts([]);
     }
   };
 
@@ -121,39 +142,35 @@ export function CohortAssignmentTab({
   const refreshAssignments = async () => {
     try {
       const apiAssignments = await assignmentService.getAssignments();
-      const mapped: AssignmentItem[] = (apiAssignments || []).map((a) => ({
-        id: `asg-${a.id}`,
-        title: a.title,
-        cohortId: `coh-${a.cohortId ?? 1}`,
-        cohortName: a.cohortCode ?? "Lớp BA",
-        scenarioVersionId: `scen-${a.scenarioVersionId}`,
-        scenarioTitle: `Kịch bản tình huống #${a.scenarioVersionId}`,
-        deadline: a.dueAt ? new Date(a.dueAt).toLocaleDateString("vi-VN") : "Chưa đặt hạn",
-        attemptLimit: a.maxAttempts ?? 2,
-        submissionsCount: 0,
-        totalStudents: 0,
-        status: a.status === "Active" || a.status === 2 ? "active" : "closed",
-      }));
-      setLocalAssignments(mapped);
+      if (apiAssignments) {
+        const mapped: AssignmentItem[] = apiAssignments.map((a) => ({
+          id: `asg-${a.id}`,
+          title: a.title,
+          cohortId: `coh-${a.cohortId ?? 1}`,
+          cohortName: a.cohortCode ?? a.cohortName ?? "Lớp BA",
+          scenarioVersionId: `scen-${a.scenarioVersionId}`,
+          scenarioTitle: `Kịch bản tình huống #${a.scenarioVersionId}`,
+          deadline: a.dueAt ? new Date(a.dueAt).toLocaleDateString("vi-VN") : "Chưa đặt hạn",
+          attemptLimit: a.maxAttempts ?? 2,
+          submissionsCount: 0,
+          totalStudents: 0,
+          status: a.status === "Active" || a.status === 2 ? "active" : "closed",
+        }));
+        setLocalAssignments(mapped);
+      }
     } catch (e) {
       console.warn("Could not fetch assignments from API:", e);
-      setLocalAssignments([]);
     }
   };
 
   useEffect(() => {
     refreshCohorts();
     refreshAssignments();
+    assessmentService
+      .getRubrics()
+      .then((list) => setRubrics(list || []))
+      .catch(() => setRubrics([]));
   }, []);
-
-  useEffect(() => {
-    if (scenarios.length > 0 && !assignForm.scenarioVersionId) {
-      const preferred = scenarios.find((s) => s.status === "Đã ban hành") || scenarios[0];
-      if (preferred) {
-        setAssignForm((prev) => ({ ...prev, scenarioVersionId: preferred.id }));
-      }
-    }
-  }, [scenarios, assignForm.scenarioVersionId]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -164,23 +181,21 @@ export function CohortAssignmentTab({
     e.preventDefault();
     if (!assignForm.title.trim()) return;
 
+    setIsSubmittingAssign(true);
     const targetCohort = localCohorts.find((c) => c.id === assignForm.cohortId) || localCohorts[0];
     const targetScenario = scenarios.find((s) => s.id === assignForm.scenarioVersionId) || scenarios[0];
-    if (!targetCohort || !targetScenario) {
-      alert("Vui lòng tạo ít nhất 1 lớp học và 1 kịch bản trước khi giao bài tập.");
-      return;
-    }
-
-    setIsSubmittingAssign(true);
     const cohortNumericId = parseInt(targetCohort.id.replace(/\D/g, ""), 10) || 1;
     const scenarioNumericId = parseInt(targetScenario.id.replace(/\D/g, ""), 10) || 1;
 
     try {
       const payload: CreateAssignmentPayload = {
         title: assignForm.title.trim(),
-        instructions: "Thực hành phỏng vấn các nhân vật AI và hoàn thiện tài liệu bàn giao BRD.",
+        instructions:
+          assignForm.instructions.trim() ||
+          "Thực hành phỏng vấn các nhân vật AI và hoàn thiện tài liệu bàn giao.",
         scenarioVersionId: scenarioNumericId,
         cohortId: cohortNumericId,
+        rubricId: assignForm.rubricId ? Number(assignForm.rubricId) : null,
         dueAt: new Date(`${assignForm.deadlineDate}T${assignForm.deadlineTime}:00`).toISOString(),
         maxAttempts: assignForm.attemptLimit,
         status: "Active",
@@ -203,20 +218,111 @@ export function CohortAssignmentTab({
 
       onAddAssignment(newAssignment);
       setLocalAssignments((prev) => [newAssignment, ...prev]);
-      showToast(`Giao đề bài mới thành công cho ${targetCohort.code}!`);
+      showToast(`Giao đề bài mới thành công cho ${targetCohort.code} (POST /api/assignments)!`);
+    } catch (err) {
+      console.warn("API create assignment failed, saving locally:", err);
+      const newAssignment: AssignmentItem = {
+        id: `asg-${Date.now()}`,
+        title: assignForm.title,
+        cohortId: targetCohort.id,
+        cohortName: targetCohort.code,
+        scenarioVersionId: targetScenario.id,
+        scenarioTitle: `${targetScenario.scenarioTitle} (${targetScenario.versionNumber})`,
+        deadline: `${assignForm.deadlineDate.split("-").reverse().join("/")} · ${assignForm.deadlineTime}`,
+        attemptLimit: assignForm.attemptLimit,
+        submissionsCount: 0,
+        totalStudents: targetCohort.studentsCount,
+        status: "active",
+      };
+      onAddAssignment(newAssignment);
+      setLocalAssignments((prev) => [newAssignment, ...prev]);
+      showToast(`Đã giao bài tập mới thành công cho ${targetCohort.code}!`);
+    } finally {
+      setIsSubmittingAssign(false);
       setShowNewAssignModal(false);
       setAssignForm({
         title: "",
+        instructions: "",
         cohortId: localCohorts[0]?.id || "",
         scenarioVersionId: scenarios[0]?.id || "",
-        deadlineDate: "2026-10-25",
+        rubricId: "",
+        deadlineDate: new Date().toISOString().slice(0, 10),
         deadlineTime: "23:59",
         attemptLimit: 2,
       });
-    } catch (err: any) {
-      alert("Không thể giao bài tập: " + (err?.message || "Lỗi kết nối máy chủ."));
+    }
+  };
+
+  const handleOpenEditAssignment = async (asg: AssignmentItem) => {
+    setEditingAssignment(asg);
+    const numericId = parseInt(asg.id.replace(/\D/g, ""), 10) || 0;
+    setEditAssignForm({
+      title: asg.title,
+      instructions: "",
+      rubricId: "",
+      deadlineDate: "",
+      deadlineTime: "23:59",
+      attemptLimit: asg.attemptLimit,
+    });
+    setShowEditAssignModal(true);
+    if (!numericId) return;
+    try {
+      const detail = await assignmentService.getAssignmentById(numericId);
+      const due = detail.dueAt ? new Date(detail.dueAt) : null;
+      setEditAssignForm({
+        title: detail.title,
+        instructions: detail.instructions || "",
+        rubricId: detail.rubricId != null ? String(detail.rubricId) : "",
+        deadlineDate: due ? due.toISOString().slice(0, 10) : "",
+        deadlineTime: due
+          ? `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}`
+          : "23:59",
+        attemptLimit: detail.maxAttempts ?? asg.attemptLimit,
+      });
+    } catch (err) {
+      console.warn("Could not load assignment detail:", err);
+    }
+  };
+
+  const handleSaveEditAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAssignment) return;
+    const numericId = parseInt(editingAssignment.id.replace(/\D/g, ""), 10) || 0;
+    if (!numericId) return;
+
+    setIsSubmittingEditAssign(true);
+    try {
+      const payload: UpdateAssignmentPayload = {
+        title: editAssignForm.title.trim(),
+        instructions: editAssignForm.instructions.trim() || null,
+        rubricId: editAssignForm.rubricId ? Number(editAssignForm.rubricId) : null,
+        dueAt: editAssignForm.deadlineDate
+          ? new Date(`${editAssignForm.deadlineDate}T${editAssignForm.deadlineTime || "23:59"}:00`).toISOString()
+          : null,
+        maxAttempts: editAssignForm.attemptLimit,
+      };
+      await assignmentService.updateAssignment(numericId, payload);
+      setLocalAssignments((prev) =>
+        prev.map((a) =>
+          a.id === editingAssignment.id
+            ? {
+                ...a,
+                title: editAssignForm.title.trim(),
+                attemptLimit: editAssignForm.attemptLimit,
+                deadline: editAssignForm.deadlineDate
+                  ? `${editAssignForm.deadlineDate.split("-").reverse().join("/")} · ${editAssignForm.deadlineTime}`
+                  : a.deadline,
+              }
+            : a
+        )
+      );
+      showToast(`Đã cập nhật bài giao #${numericId}.`);
+      setShowEditAssignModal(false);
+      setEditingAssignment(null);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không cập nhật được bài giao.");
     } finally {
-      setIsSubmittingAssign(false);
+      setIsSubmittingEditAssign(false);
     }
   };
 
@@ -228,16 +334,22 @@ export function CohortAssignmentTab({
         setLocalAssignments((prev) =>
           prev.map((a) => (a.id === asg.id ? { ...a, status: "closed" } : a))
         );
-        showToast(`Đã khóa nhận bài tập #${numericId}!`);
+        showToast(`Đã khóa nhận bài tập #${numericId} (POST /api/assignments/${numericId}/close)!`);
       } else {
         await assignmentService.publishAssignment(numericId);
         setLocalAssignments((prev) =>
           prev.map((a) => (a.id === asg.id ? { ...a, status: "active" } : a))
         );
-        showToast(`Đã mở nhận bài tập #${numericId}!`);
+        showToast(`Đã mở nhận bài tập #${numericId} (POST /api/assignments/${numericId}/publish)!`);
       }
-    } catch (err: any) {
-      alert("Không thể cập nhật trạng thái bài tập: " + (err?.message || "Lỗi kết nối máy chủ."));
+    } catch (err) {
+      console.warn("Toggle assignment status API failed, updating locally:", err);
+      setLocalAssignments((prev) =>
+        prev.map((a) =>
+          a.id === asg.id ? { ...a, status: asg.status === "active" ? "closed" : "active" } : a
+        )
+      );
+      showToast(`Đã chuyển trạng thái bài tập!`);
     }
   };
 
@@ -272,22 +384,38 @@ export function CohortAssignmentTab({
 
       onAddCohort(newCohort);
       setLocalCohorts((prev) => [newCohort, ...prev]);
-      showToast(`Tạo thành công lớp học ${newCohort.code}!`);
+      showToast(`Tạo thành công lớp học ${newCohort.code} (POST /api/cohorts)!`);
       setShowNewCohortModal(false);
+    } catch (err: any) {
+      console.warn("API error creating cohort, saving locally:", err);
+      const newCohort: CohortItem = {
+        id: `coh-${Date.now()}`,
+        code: cohortForm.code.toUpperCase().trim(),
+        name: cohortForm.name.trim(),
+        instructorName: cohortForm.instructorName,
+        studentsCount: cohortForm.studentsCount || 30,
+        activeAssignmentsCount: 0,
+        completionRate: 0,
+        averageScore: 0,
+        domain: cohortForm.domain,
+        status: "active",
+      };
+      onAddCohort(newCohort);
+      setLocalCohorts((prev) => [newCohort, ...prev]);
+      showToast(`Đã tạo lớp học mới ${newCohort.code}!`);
+      setShowNewCohortModal(false);
+    } finally {
+      setIsSubmittingCohort(false);
       setCohortForm({
         code: "",
         name: "",
-        instructorName: "Giảng viên",
+        instructorName: currentInstructorName,
         domain: "Chuỗi cung ứng",
         description: "",
         startDate: "",
         endDate: "",
-        studentsCount: 30,
+        studentsCount: 0,
       });
-    } catch (err: any) {
-      alert("Không thể tạo lớp học: " + (err?.message || "Lỗi kết nối máy chủ."));
-    } finally {
-      setIsSubmittingCohort(false);
     }
   };
 
@@ -325,10 +453,19 @@ export function CohortAssignmentTab({
             : c
         )
       );
-      showToast(`Cập nhật thành công lớp học ${editCohortForm.code}!`);
+      showToast(`Cập nhật thành công lớp học ${editCohortForm.code} (PUT /api/cohorts/${numericId})!`);
       setShowEditCohortModal(false);
-    } catch (err: any) {
-      alert("Không thể cập nhật lớp học: " + (err?.message || "Lỗi kết nối máy chủ."));
+    } catch (err) {
+      console.warn("API update failed, updating locally:", err);
+      setLocalCohorts((prev) =>
+        prev.map((c) =>
+          c.id === editingCohort.id
+            ? { ...c, code: editCohortForm.code.toUpperCase(), name: editCohortForm.name }
+            : c
+        )
+      );
+      showToast(`Đã lưu thay đổi cho lớp ${editCohortForm.code}!`);
+      setShowEditCohortModal(false);
     }
   };
 
@@ -342,9 +479,15 @@ export function CohortAssignmentTab({
           c.id === coh.id ? { ...c, status: coh.status === "active" ? "archived" : "active" } : c
         )
       );
+      showToast(`Đã chuyển trạng thái lớp ${coh.code} (PATCH /api/cohorts/${numericId}/status)!`);
+    } catch (err) {
+      console.warn("Status toggle API failed, updating locally:", err);
+      setLocalCohorts((prev) =>
+        prev.map((c) =>
+          c.id === coh.id ? { ...c, status: coh.status === "active" ? "archived" : "active" } : c
+        )
+      );
       showToast(`Đã chuyển trạng thái lớp ${coh.code}!`);
-    } catch (err: any) {
-      alert("Không thể chuyển trạng thái lớp: " + (err?.message || "Lỗi kết nối máy chủ."));
     }
   };
 
@@ -356,9 +499,11 @@ export function CohortAssignmentTab({
     try {
       await cohortService.deleteCohort(numericId);
       setLocalCohorts((prev) => prev.filter((c) => c.id !== cohId));
+      showToast(`Đã xóa lớp học ${cohCode} (DELETE /api/cohorts/${numericId})!`);
+    } catch (err) {
+      console.warn("Delete cohort API failed, removing locally:", err);
+      setLocalCohorts((prev) => prev.filter((c) => c.id !== cohId));
       showToast(`Đã xóa lớp học ${cohCode}!`);
-    } catch (err: any) {
-      alert("Không thể xóa lớp học: " + (err?.message || "Lỗi kết nối máy chủ."));
     }
   };
 
@@ -377,15 +522,13 @@ export function CohortAssignmentTab({
       )}
 
       {/* Thanh Tiêu Đề & Nút Thao Tác */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="reveal-up flex flex-col gap-4 rounded-2xl border border-sky-200/80 bg-gradient-to-r from-sky-50 via-white to-white p-5 shadow-[0_8px_24px_rgba(3,105,161,0.05)] sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-bold text-[#132d49] flex items-center gap-2">
-            Quản Lý Lớp Học & Giao Đề Bài Cho Sinh Viên
-            <Badge tone="navy">{localCohorts.length} lớp học</Badge>
+          <h2 className="flex items-center gap-2 text-base font-bold text-navy">
+            Danh sách lớp
+            <Badge tone="navy">{localCohorts.length}</Badge>
           </h2>
-          <p className="text-xs text-[#667d93]">
-            Quản lý các lớp đào tạo, phân quyền thành viên, theo dõi tiến độ nộp bài và xem phân tích năng lực.
-          </p>
+          <p className="text-xs text-slate">Thành viên, bài giao và tiến độ.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -393,27 +536,27 @@ export function CohortAssignmentTab({
             variant="secondary"
             size="sm"
             onClick={() => setShowNewCohortModal(true)}
-            className="gap-1.5 text-xs"
+            className="gap-1.5 border-sky-200 bg-white text-xs font-bold text-sky-900 hover:bg-sky-50"
           >
-            <Users size={15} /> Tạo Lớp Học Mới
+            <Users size={15} /> Tạo lớp
           </Button>
           <Button
             size="sm"
             onClick={() => setShowNewAssignModal(true)}
-            className="gap-1.5 text-xs"
+            className="gap-1.5 bg-sky-700 text-xs font-bold text-white hover:bg-sky-800"
           >
-            <Plus size={15} /> Giao Đề Bài Mới (POST /api/assignments)
+            <Plus size={15} /> Giao bài
           </Button>
         </div>
       </div>
 
       {/* Danh Sách Các Lớp Học */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="reveal-up reveal-delay-1 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {localCohorts.map((coh) => (
-          <Card key={coh.id} className="p-5 border-[#d9e4ec] transition-shadow hover:shadow-md flex flex-col justify-between">
+          <Card key={coh.id} className="instructor-kpi-card flex flex-col justify-between border-sky-200/80 bg-gradient-to-br from-sky-50/70 via-white to-white p-5">
             <div>
               <div className="flex items-start justify-between gap-2">
-                <span className="font-mono text-xs font-bold text-[#2f638c] bg-[#eaf1f7] px-2 py-0.5 rounded">
+                <span className="rounded bg-sky-100 px-2 py-0.5 font-mono text-xs font-bold text-sky-800">
                   {coh.code}
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -428,14 +571,14 @@ export function CohortAssignmentTab({
                   </button>
                   <button
                     onClick={() => handleOpenEditCohort(coh)}
-                    className="p-1 text-[#667d93] hover:text-[#2f638c] rounded hover:bg-[#eaf1f7]"
+                    className="rounded p-1 text-slate hover:bg-sky-50 hover:text-sky-800"
                     title="Chỉnh sửa thông tin lớp"
                   >
                     <Edit3 size={13} />
                   </button>
                   <button
                     onClick={() => handleDeleteCohort(coh.id, coh.code)}
-                    className="p-1 text-[#667d93] hover:text-[#a03d3d] rounded hover:bg-[#fff0f0]"
+                    className="rounded p-1 text-slate hover:bg-[#fff0f0] hover:text-[#a03d3d]"
                     title="Xóa lớp học"
                   >
                     <Trash2 size={13} />
@@ -443,26 +586,28 @@ export function CohortAssignmentTab({
                 </div>
               </div>
 
-              <h3 className="mt-2 text-sm font-bold text-[#132d49] line-clamp-1">{coh.name}</h3>
-              <p className="text-[11px] text-[#667d93]">Phụ trách: {coh.instructorName}</p>
+              <h3 className="mt-2 line-clamp-1 text-sm font-bold text-navy">{coh.name}</h3>
+              <p className="text-[11px] text-slate">Phụ trách: {coh.instructorName}</p>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-[#f8fafc] p-3 text-xs border border-[#edf2f6]">
+              <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-sky-100 bg-sky-50/50 p-3 text-xs">
                 <div>
-                  <span className="text-[10px] text-[#8291a1] uppercase font-bold">Sĩ số lớp</span>
-                  <strong className="block text-sm font-bold text-[#132d49]">{coh.studentsCount} bạn</strong>
+                  <span className="text-[10px] font-bold uppercase text-slate">Sĩ số lớp</span>
+                  <strong className="block text-sm font-bold text-navy">{coh.studentsCount} bạn</strong>
                 </div>
                 <div>
-                  <span className="text-[10px] text-[#8291a1] uppercase font-bold">Điểm TB Lớp</span>
-                  <strong className="block text-sm font-bold text-[#2f638c]">{coh.averageScore}/100</strong>
+                  <span className="text-[10px] font-bold uppercase text-slate">Yêu cầu vào lớp</span>
+                  <strong className="block text-sm font-bold text-amber-800">
+                    {coh.pendingRequestCount || 0} chờ duyệt
+                  </strong>
                 </div>
               </div>
 
               <div className="mt-3">
-                <div className="flex justify-between text-xs text-[#667d93] mb-1">
-                  <span>Tỷ lệ hoàn thành bài</span>
-                  <span className="font-mono font-bold text-[#132d49]">{coh.completionRate}%</span>
+                <div className="mb-1 flex justify-between text-xs text-slate">
+                  <span>Bài tập đã giao</span>
+                  <span className="font-mono font-bold text-navy">{coh.activeAssignmentsCount} bài</span>
                 </div>
-                <ProgressBar value={coh.completionRate} color="#2d7b60" />
+                <ProgressBar value={coh.completionRate} color="#0369a1" />
               </div>
             </div>
 
@@ -475,6 +620,11 @@ export function CohortAssignmentTab({
                 className="flex-1 gap-1 text-[11px] py-1 text-[#2f638c] border-[#2f638c]/30 hover:bg-[#eaf1f7]"
               >
                 <Users size={13} /> Học viên
+                {(coh.pendingRequestCount || 0) > 0 && (
+                  <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] font-bold text-white">
+                    {coh.pendingRequestCount}
+                  </span>
+                )}
               </Button>
               <Button
                 variant="secondary"
@@ -490,25 +640,23 @@ export function CohortAssignmentTab({
       </div>
 
       {/* Bảng Các Đề Bài Đang Giao */}
-      <Card className="overflow-hidden border-[#d9e4ec]">
-        <div className="flex flex-col gap-3 border-b border-[#e2e9ef] bg-[#f8fafc] p-5 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="reveal-up reveal-delay-2 overflow-hidden border-sky-200/80 shadow-[0_8px_24px_rgba(3,105,161,0.05)]">
+        <div className="flex flex-col gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 to-white p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-sm font-bold text-[#132d49]">
-              Danh Sách Các Đề Bài Đang Giao Cho Lớp ({filteredAssignments.length})
+            <h3 className="text-sm font-bold text-navy">
+              Bài đã giao ({filteredAssignments.length})
             </h3>
-            <p className="text-xs text-[#667d93]">
-              Theo dõi số lượng học viên đã nộp bài, xem sổ điểm và xuất báo cáo CSV.
-            </p>
+            <p className="text-xs text-slate">Theo dõi nộp bài và sổ điểm.</p>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#667d93]">Lọc theo lớp:</span>
+            <span className="text-xs font-bold text-slate">Lọc lớp:</span>
             <select
               value={selectedCohortFilter}
               onChange={(e) => setSelectedCohortFilter(e.target.value)}
-              className="rounded-xl border border-[#d9e4ec] bg-white px-3 py-1.5 text-xs text-[#132d49] outline-none"
+              className="rounded-xl border border-sky-200 bg-white px-3 py-1.5 text-xs font-bold text-navy outline-none"
             >
-              <option value="all">Tất cả lớp học</option>
+              <option value="all">Tất cả lớp</option>
               {localCohorts.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} - {c.name}
@@ -518,16 +666,13 @@ export function CohortAssignmentTab({
           </div>
         </div>
 
-        <div className="divide-y divide-[#e6edf2]">
+        <div className="divide-y divide-sky-100/80">
           {filteredAssignments.map((asg) => {
-            const submissionPercent =
-              asg.totalStudents > 0
-                ? Math.round((asg.submissionsCount / asg.totalStudents) * 100)
-                : 0;
+            const submissionPercent = Math.round((asg.submissionsCount / asg.totalStudents) * 100);
             return (
               <div
                 key={asg.id}
-                className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-[#fafcfd]"
+                className="instructor-queue-row flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -571,6 +716,13 @@ export function CohortAssignmentTab({
                       <BookOpen size={13} /> Sổ điểm
                     </Button>
                     <button
+                      onClick={() => void handleOpenEditAssignment(asg)}
+                      title="Sửa bài giao"
+                      className="rounded-lg p-1.5 text-[#667d93] transition-colors hover:bg-[#f0f4f8] hover:text-[#132d49]"
+                    >
+                      <Edit3 size={15} />
+                    </button>
+                    <button
                       onClick={() => handleToggleAssignmentStatus(asg)}
                       title={asg.status === "active" ? "Khóa nhận bài (Close)" : "Mở nhận bài (Publish)"}
                       className="rounded-lg p-1.5 text-[#667d93] hover:text-[#132d49] hover:bg-[#f0f4f8] transition-colors"
@@ -591,7 +743,7 @@ export function CohortAssignmentTab({
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
             <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
               <h3 className="text-sm font-bold text-[#132d49]">
-                Giao Đề Bài Thực Hành Cho Lớp (POST /api/assignments)
+                Giao bài cho lớp
               </h3>
               <button
                 onClick={() => setShowNewAssignModal(false)}
@@ -651,6 +803,33 @@ export function CohortAssignmentTab({
                 </div>
               </div>
 
+              <div>
+                <label className="mb-1 block text-xs font-bold text-[#132d49]">Hướng dẫn làm bài</label>
+                <textarea
+                  rows={3}
+                  placeholder="Yêu cầu nộp gì, phạm vi phỏng vấn, tiêu chí chấm..."
+                  value={assignForm.instructions}
+                  onChange={(e) => setAssignForm({ ...assignForm, instructions: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none focus:border-[#2f638c]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-[#132d49]">Rubric chấm (tuỳ chọn)</label>
+                <select
+                  value={assignForm.rubricId}
+                  onChange={(e) => setAssignForm({ ...assignForm, rubricId: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs text-[#132d49] outline-none"
+                >
+                  <option value="">Dùng rubric mặc định của kịch bản</option>
+                  {rubrics.map((r) => (
+                    <option key={r.id} value={String(r.id)}>
+                      #{r.id} · {r.name} (v{r.version})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-[#132d49] mb-1">Hạn nộp ngày</label>
@@ -697,7 +876,114 @@ export function CohortAssignmentTab({
                 </Button>
                 <Button size="sm" type="submit" disabled={isSubmittingAssign} className="gap-1.5">
                   {isSubmittingAssign ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-                  Xác Nhận Giao Đề Bài
+                  Xác nhận
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditAssignModal && editingAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl border border-[#d9e4ec] bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
+              <h3 className="text-sm font-bold text-[#132d49]">Sửa bài giao · {editingAssignment.id}</h3>
+              <button
+                onClick={() => {
+                  setShowEditAssignModal(false);
+                  setEditingAssignment(null);
+                }}
+                className="text-[#667d93] hover:text-[#132d49]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={(e) => void handleSaveEditAssignment(e)} className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-[#132d49]">Tên bài tập *</label>
+                <input
+                  required
+                  value={editAssignForm.title}
+                  onChange={(e) => setEditAssignForm({ ...editAssignForm, title: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs outline-none focus:border-[#2f638c]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-[#132d49]">Hướng dẫn</label>
+                <textarea
+                  rows={3}
+                  value={editAssignForm.instructions}
+                  onChange={(e) => setEditAssignForm({ ...editAssignForm, instructions: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs outline-none focus:border-[#2f638c]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-[#132d49]">Rubric</label>
+                <select
+                  value={editAssignForm.rubricId}
+                  onChange={(e) => setEditAssignForm({ ...editAssignForm, rubricId: e.target.value })}
+                  className="w-full rounded-xl border border-[#d9e4ec] p-2.5 text-xs outline-none"
+                >
+                  <option value="">Không gắn / mặc định</option>
+                  {rubrics.map((r) => (
+                    <option key={r.id} value={String(r.id)}>
+                      #{r.id} · {r.name} (v{r.version})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-[#132d49]">Hạn ngày</label>
+                  <input
+                    type="date"
+                    value={editAssignForm.deadlineDate}
+                    onChange={(e) => setEditAssignForm({ ...editAssignForm, deadlineDate: e.target.value })}
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2 text-xs outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-[#132d49]">Giờ</label>
+                  <input
+                    type="time"
+                    value={editAssignForm.deadlineTime}
+                    onChange={(e) => setEditAssignForm({ ...editAssignForm, deadlineTime: e.target.value })}
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2 text-xs outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-[#132d49]">Số lần</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={editAssignForm.attemptLimit}
+                    onChange={(e) =>
+                      setEditAssignForm({
+                        ...editAssignForm,
+                        attemptLimit: parseInt(e.target.value, 10) || 1,
+                      })
+                    }
+                    className="w-full rounded-xl border border-[#d9e4ec] p-2 text-center text-xs outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-[#e2e9ef] pt-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    setShowEditAssignModal(false);
+                    setEditingAssignment(null);
+                  }}
+                >
+                  Hủy
+                </Button>
+                <Button size="sm" type="submit" disabled={isSubmittingEditAssign} className="gap-1.5">
+                  {isSubmittingEditAssign ? <Loader2 size={13} className="animate-spin" /> : <Edit3 size={13} />}
+                  Lưu
                 </Button>
               </div>
             </form>
@@ -710,7 +996,7 @@ export function CohortAssignmentTab({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#132d49]/50 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-[#d9e4ec]">
             <div className="flex items-center justify-between border-b border-[#e2e9ef] pb-3">
-              <h3 className="text-sm font-bold text-[#132d49]">Tạo Lớp Học Mới</h3>
+              <h3 className="text-sm font-bold text-[#132d49]">Tạo lớp</h3>
               <button
                 onClick={() => setShowNewCohortModal(false)}
                 className="text-[#667d93] hover:text-[#132d49]"

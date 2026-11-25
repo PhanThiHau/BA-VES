@@ -1,7 +1,7 @@
 import { apiClient } from "./apiClient";
 
 export type CohortStatus = "Draft" | "Active" | "Completed" | "Archived" | number;
-export type CohortMemberStatus = "Active" | "Removed" | "Completed" | number;
+export type CohortMemberStatus = "Active" | "Removed" | "Completed" | "Pending" | number;
 
 export interface CohortSummaryDto {
   id: number;
@@ -16,6 +16,7 @@ export interface CohortSummaryDto {
   assignmentCount: number;
   createdAt: string;
   updatedAt: string | null;
+  pendingRequestCount?: number;
 }
 
 export interface CohortDetailDto {
@@ -46,6 +47,24 @@ export interface LearnerCohortDto {
   memberStatus: CohortMemberStatus;
   joinedAt: string;
   activeAssignmentCount: number;
+  instructorName?: string | null;
+  instructorEmail?: string | null;
+}
+
+export interface AvailableCohortDto {
+  id: number;
+  instructorId: number;
+  instructorName: string;
+  instructorEmail: string | null;
+  code: string;
+  name: string;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: CohortStatus;
+  activeMemberCount: number;
+  assignmentCount: number;
+  myMemberStatus: CohortMemberStatus | null;
 }
 
 export interface CohortMemberDto {
@@ -153,9 +172,22 @@ export const cohortService = {
     return apiClient.get<CohortAnalyticsDto>(`/api/cohorts/${id}/analytics`);
   },
 
-  // 2. Lớp học của Học viên hiện tại
+  // 2. Lớp học của Học viên hiện tại & Gửi yêu cầu tham gia lớp của Giảng viên
   async getMyCohorts(): Promise<LearnerCohortDto[]> {
     return apiClient.get<LearnerCohortDto[]>("/api/me/cohorts");
+  },
+
+  async getAvailableCohorts(search?: string): Promise<AvailableCohortDto[]> {
+    const qs = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+    return apiClient.get<AvailableCohortDto[]>(`/api/cohorts/available${qs}`);
+  },
+
+  async requestJoinCohort(cohortId: number): Promise<LearnerCohortDto> {
+    return apiClient.post<LearnerCohortDto>(`/api/cohorts/${cohortId}/join-request`, {});
+  },
+
+  async requestJoinCohortByCode(code: string): Promise<LearnerCohortDto> {
+    return apiClient.post<LearnerCohortDto>("/api/cohorts/join-by-code", { code: code.trim() });
   },
 
   // 3. Quản lý Thành viên Lớp học (Cohort Members)
@@ -170,15 +202,24 @@ export const cohortService = {
     return apiClient.post<CohortMemberDto>(`/api/cohorts/${cohortId}/members`, payload);
   },
 
+  async approveCohortMember(cohortId: number, learnerId: number): Promise<CohortMemberDto> {
+    return apiClient.post<CohortMemberDto>(
+      `/api/cohorts/${cohortId}/members/${learnerId}/approve`,
+      {}
+    );
+  },
+
   async batchAddCohortMembers(
     cohortId: number,
     payload: { learnerIds?: number[]; emails?: string[] }
   ): Promise<BatchAddCohortMembersResultDto> {
-    return apiClient.post<BatchAddCohortMembersResultDto>(`/api/cohorts/${cohortId}/members/batch`, payload);
+    return apiClient.post<BatchAddCohortMembersResultDto>(
+      `/api/cohorts/${cohortId}/members/batch`,
+      payload
+    );
   },
 
   async removeCohortMember(cohortId: number, learnerId: number): Promise<void> {
     return apiClient.delete<void>(`/api/cohorts/${cohortId}/members/${learnerId}`);
   },
 };
-

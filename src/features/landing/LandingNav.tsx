@@ -66,6 +66,16 @@ export function LandingNav({ navigate }: LandingNavProps) {
         <div className="hidden items-center gap-3 lg:flex">
           <button
             type="button"
+            onClick={() => go("payment")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${scrolled
+              ? "text-navy hover:text-brass"
+              : "text-white/90 hover:text-white"
+              }`}
+          >
+            Gói cước & Credits
+          </button>
+          <button
+            type="button"
             onClick={() => go("login")}
             className={`rounded-full border px-5 py-2 text-sm font-semibold transition-colors ${scrolled
               ? "border-navy/20 text-navy hover:border-navy/50"
@@ -121,6 +131,13 @@ export function LandingNav({ navigate }: LandingNavProps) {
             </button>
           ))}
           <div className="mt-3 flex flex-col gap-2 border-t border-slate/10 pt-4">
+            <button
+              type="button"
+              onClick={() => go("payment")}
+              className="w-full rounded-full border border-brass/40 bg-brass/10 px-5 py-2.5 text-sm font-semibold text-navy"
+            >
+              Gói cước & Credits
+            </button>
             <button
               type="button"
               onClick={() => go("login")}

@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { Theme } from "@astryxdesign/core/theme";
+import { neutralTheme } from "@astryxdesign/theme-neutral/built";
 import { AppProvider } from "./contexts/AppContext";
 import { AppRoutes } from "./routes/AppRoutes";
 
@@ -14,8 +16,11 @@ export default function App() {
       e.preventDefault();
     };
 
-    // 2. Chặn các phím tắt duyệt web (F5, Ctrl+R, Ctrl+S, Ctrl+P)
+    // 2. Chặn các phím tắt duyệt web (chỉ kích hoạt trên production để tránh vô tình mất bài thi)
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cho phép F5 và Ctrl+R khi đang ở môi trường dev để cập nhật code mượt mà
+      if (import.meta.env.DEV) return;
+
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
 
@@ -42,6 +47,12 @@ export default function App() {
     };
   }, []);
 
-  return <AppProvider><AppRoutes /></AppProvider>;
+  return (
+    <Theme theme={neutralTheme} mode="light">
+      <AppProvider>
+        <AppRoutes />
+      </AppProvider>
+    </Theme>
+  );
 }
 

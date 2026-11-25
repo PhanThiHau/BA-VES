@@ -1,0 +1,48 @@
+/** Accent theo chức năng Instructor — đồng bộ với Overview */
+
+export const instructorAccent = {
+  authoring: {
+    border: "border-brass/25",
+    surface: "bg-gradient-to-br from-[#fbf6ec] via-white to-white",
+    header: "border-brass/20 bg-gradient-to-r from-[#fbf6ec] to-white",
+    icon: "bg-brass/15 text-brass",
+    chip: "bg-brass/10 text-brass",
+    selected: "border-brass/50 bg-[#fbf6ec] ring-2 ring-brass/20",
+    soft: "border-brass/15 bg-white/80",
+    button: "border-brass/30 bg-white text-brass hover:bg-[#fbf6ec]",
+    primary: "bg-brass text-navy hover:bg-brass-light",
+  },
+  review: {
+    border: "border-amber-200/80",
+    surface: "bg-gradient-to-br from-amber-50/80 via-white to-white",
+    header: "border-amber-100 bg-gradient-to-r from-amber-50 to-white",
+    icon: "bg-amber-100 text-amber-900",
+    chip: "bg-amber-100 text-amber-900",
+    selected: "border-l-4 border-l-amber-500 bg-amber-50/70",
+    soft: "border-amber-100 bg-white/80",
+    button: "border-amber-200 bg-white text-amber-900 hover:bg-amber-50",
+    primary: "bg-amber-700 text-white hover:bg-amber-800",
+  },
+  cohorts: {
+    border: "border-sky-200/80",
+    surface: "bg-gradient-to-br from-sky-50/80 via-white to-white",
+    header: "border-sky-100 bg-gradient-to-r from-sky-50 to-white",
+    icon: "bg-sky-100 text-sky-800",
+    chip: "bg-sky-100 text-sky-800",
+    selected: "border-sky-400 bg-sky-50 ring-2 ring-sky-200/50",
+    soft: "border-sky-100 bg-white/80",
+    button: "border-sky-200 bg-white text-sky-900 hover:bg-sky-50",
+    primary: "bg-sky-700 text-white hover:bg-sky-800",
+  },
+  analytics: {
+    border: "border-navy/15",
+    surface: "bg-gradient-to-br from-mist/70 via-white to-white",
+    header: "border-navy/10 bg-gradient-to-r from-mist/80 to-white",
+    icon: "bg-navy/10 text-navy",
+    chip: "bg-navy/8 text-navy",
+    selected: "border-navy/30 bg-mist/50 ring-2 ring-navy/10",
+    soft: "border-navy/10 bg-white/80",
+    button: "border-navy/20 bg-white text-navy hover:bg-mist/50",
+    primary: "bg-navy text-white hover:bg-navy-light",
+  },
+} as const;

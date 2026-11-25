@@ -9,8 +9,9 @@ interface FooterSectionProps {
 const accessLinks = [
   { label: "Create account", route: "register" as const },
   { label: "Sign in", route: "login" as const },
-  { label: "Instructor workspace", route: "login" as const },
   { label: "All scenarios", route: "scenarios" as const },
+  { label: "Gói cước & Bản quyền", route: "payment" as const },
+  { label: "Lịch hẹn Chuyên gia", route: "booking" as const },
 ];
 
 export function FooterSection({ navigate }: FooterSectionProps) {
