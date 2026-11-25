@@ -1,15 +1,12 @@
 import {
   ArrowRight,
-  Award,
-  CalendarDays,
-  MessageSquareText,
+  Download,
   Sparkles,
+  Target,
   TrendingUp,
-  BookOpen,
-  Loader2,
-  PhoneCall,
+  Zap,
 } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -19,257 +16,438 @@ import type { RouteKey } from "../../types/models";
 import { useApp } from "../../contexts/AppContext";
 import {
   assessmentService,
-  type BabokTaskDto,
-  type FinalSubmissionReportDto,
+  type CompetencyKnowledgeAreaDto,
+  type CompetencyProgressDto,
+  type CompetencySessionScoreDto,
 } from "../../services/assessmentService";
-import {
-  simulationService,
-  type SessionHistoryItemDto,
-} from "../../services/simulationService";
-import { ConsultationModal } from "../../components/common/ConsultationModal";
+import { resolveBabokAreaMeta, sortBabokAreas } from "./babokCatalog";
+
+type AreaView = {
+  code: string;
+  nameVi: string;
+  score: number | null;
+};
+
+function levelFromScore(score: number | null): { label: string; hint: string } {
+  if (score == null) {
+    return {
+      label: "Chưa định hình",
+      hint: "Hoàn thành và chấm ít nhất một phiên để thấy chân dung năng lực.",
+    };
+  }
+  if (score >= 85) {
+    return { label: "Vững chắc", hint: "Duy trì phong độ và thử kịch bản khó hơn." };
+  }
+  if (score >= 70) {
+    return { label: "Khá tốt", hint: "Đã có nền tảng — hãy khoét sâu vùng còn thấp." };
+  }
+  if (score >= 55) {
+    return { label: "Đang phát triển", hint: "Cần luyện thêm để các vùng đạt mức ổn định." };
+  }
+  return { label: "Cần củng cố", hint: "Ưu tiên 1–2 vùng yếu trước khi mở rộng phạm vi." };
+}
+
+function toAreaViews(areas: CompetencyKnowledgeAreaDto[]): AreaView[] {
+  return sortBabokAreas(areas).map((area) => {
+    const meta = resolveBabokAreaMeta(area.code, area.name);
+    return {
+      code: meta.code,
+      nameVi: meta.nameVi,
+      score: area.averageScore != null ? Math.round(Number(area.averageScore)) : null,
+    };
+  });
+}
+
+function CompetencyRadar({ areas }: { areas: AreaView[] }) {
+  const size = 220;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 78;
+  const n = Math.max(areas.length, 1);
+
+  const pointAt = (index: number, value: number) => {
+    const angle = (-Math.PI / 2) + (index * 2 * Math.PI) / n;
+    const r = (Math.max(0, Math.min(100, value)) / 100) * radius;
+    return {
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+    };
+  };
+
+  const rings = [25, 50, 75, 100];
+  const polygon = areas
+    .map((area, i) => {
+      const p = pointAt(i, area.score ?? 0);
+      return `${p.x},${p.y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="relative mx-auto w-full max-w-[260px]">
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-auto w-full" role="img" aria-label="Biểu đồ năng lực BABOK">
+        {rings.map((ring) => (
+          <polygon
+            key={ring}
+            fill="none"
+            stroke="#d9e4ec"
+            strokeWidth="1"
+            points={Array.from({ length: n }, (_, i) => {
+              const p = pointAt(i, ring);
+              return `${p.x},${p.y}`;
+            }).join(" ")}
+          />
+        ))}
+        {areas.map((_, i) => {
+          const edge = pointAt(i, 100);
+          return <line key={i} x1={cx} y1={cy} x2={edge.x} y2={edge.y} stroke="#e5edf4" strokeWidth="1" />;
+        })}
+        <polygon points={polygon} fill="rgba(16,42,67,0.18)" stroke="#102a43" strokeWidth="2" />
+        {areas.map((area, i) => {
+          const p = pointAt(i, area.score ?? 0);
+          return <circle key={area.code} cx={p.x} cy={p.y} r="3.5" fill={area.score == null ? "#94a3b8" : "#102a43"} />;
+        })}
+      </svg>
+      <div className="mt-1 grid grid-cols-3 gap-1.5 text-center">
+        {areas.map((area) => (
+          <div key={area.code} className="rounded-md bg-mist/40 px-1 py-1">
+            <span className="block font-mono text-[10px] font-bold text-navy">{area.code}</span>
+            <span className="font-mono text-[10px] text-slate">{area.score != null ? `${area.score}%` : "—"}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SessionSparkline({ sessions }: { sessions: CompetencySessionScoreDto[] }) {
+  const points = [...sessions]
+    .filter((s) => s.displayScore != null)
+    .slice(0, 8)
+    .reverse()
+    .map((s) => Math.round(Number(s.displayScore)));
+
+  if (points.length === 0) {
+    return <p className="py-6 text-center text-xs text-slate">Chưa có điểm phiên để vẽ xu hướng.</p>;
+  }
+
+  const max = Math.max(100, ...points);
+  return (
+    <div className="flex h-28 items-end gap-1.5">
+      {points.map((value, idx) => (
+        <div key={idx} className="flex flex-1 flex-col items-center justify-end gap-1">
+          <span className="font-mono text-[10px] font-semibold text-navy">{value}</span>
+          <div
+            className="w-full rounded-t-md bg-navy/85 transition-all"
+            style={{ height: `${Math.max(8, (value / max) * 100)}%` }}
+            title={`${value}/100`}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function ProgressPage({ navigate }: { navigate: (route: RouteKey) => void }) {
-  const { currentSessionId, currentSubmissionId, setCurrentSessionId, setCurrentScenarioVersionId } = useApp();
-  const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
-  const [babokTasks, setBabokTasks] = useState<BabokTaskDto[]>([]);
-  const [mySessions, setMySessions] = useState<SessionHistoryItemDto[]>([]);
+  const { setCurrentSessionId, setCurrentSubmissionId } = useApp();
+  const [progress, setProgress] = useState<CompetencyProgressDto | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showConsultationModal, setShowConsultationModal] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    async function loadAssessmentProgress() {
+    async function load() {
       setLoading(true);
       try {
-        const [rep, tasks, sessions] = await Promise.allSettled([
-          currentSubmissionId ? assessmentService.getFinalReport(currentSubmissionId) : Promise.resolve(null),
-          assessmentService.getBabokTasks(),
-          simulationService.getMySessions(),
-        ]);
-        if (rep.status === "fulfilled" && rep.value) setReport(rep.value);
-        if (tasks.status === "fulfilled" && Array.isArray(tasks.value)) setBabokTasks(tasks.value);
-        if (sessions.status === "fulfilled" && Array.isArray(sessions.value)) setMySessions(sessions.value);
+        setProgress(await assessmentService.getCompetencyProgress());
       } catch (err) {
-        console.warn("Chưa tải được dữ liệu tiến độ:", err);
+        console.warn("Chưa tải được hồ sơ năng lực:", err);
+        setProgress(null);
       } finally {
         setLoading(false);
       }
     }
-    loadAssessmentProgress();
-  }, [currentSessionId, currentSubmissionId]);
+    void load();
+  }, []);
 
-  const knowledgeAreas = useMemo(() => {
-    const map = new Map<string, { code: string; name: string; tasksCount: number }>();
-    for (const t of babokTasks) {
-      const code = t.knowledgeAreaCode || "BABOK";
-      const prev = map.get(code);
-      if (prev) prev.tasksCount += 1;
-      else map.set(code, { code, name: t.knowledgeAreaName || code, tasksCount: 1 });
+  const exportPdf = () => {
+    const node = printRef.current;
+    if (!node) return;
+    const popup = window.open("", "_blank", "noopener,noreferrer,width=960,height=720");
+    if (!popup) {
+      window.print();
+      return;
     }
-    return Array.from(map.values());
-  }, [babokTasks]);
+    popup.document.write(`<!doctype html><html><head><title>Hồ sơ năng lực BA-VES</title>
+      <style>
+        body{font-family:Segoe UI,Arial,sans-serif;color:#102a43;padding:24px;line-height:1.45}
+        h1{font-size:22px;margin:0 0 6px} h2{font-size:14px;margin:18px 0 8px}
+        .muted{color:#667d93;font-size:12px} .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e5edf4}
+        .kpi{font-size:28px;font-weight:800}
+      </style></head><body>${node.innerHTML}</body></html>`);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  };
 
-  const criteriaScores =
-    report?.expertReview?.criterionScores && report.expertReview.criterionScores.length > 0
-      ? report.expertReview.criterionScores
-      : report?.aiFeedback?.criterionScores || [];
+  const averageScore =
+    progress?.averageDisplayScore != null ? Math.round(Number(progress.averageDisplayScore)) : null;
+  const sessions = progress?.sessions ?? [];
+  const areas = useMemo(() => toAreaViews(progress?.knowledgeAreas ?? []), [progress]);
+  const level = levelFromScore(averageScore);
 
-  const latestScore =
-    report?.finalScore != null
-      ? Math.round(Number(report.finalScore))
-      : report?.aiFeedback?.suggestedScore != null
-      ? Math.round(Number(report.aiFeedback.suggestedScore))
-      : null;
+  const scoredAreas = areas.filter((a) => a.score != null) as Array<AreaView & { score: number }>;
+  const strengths = [...scoredAreas].sort((a, b) => b.score - a.score).slice(0, 2);
+  const strengthCodes = new Set(strengths.map((s) => s.code));
+  const weakest = [...scoredAreas]
+    .sort((a, b) => a.score - b.score)
+    .filter((a) => !strengthCodes.has(a.code) || scoredAreas.length <= 2)
+    .slice(0, 2);
+  const unscored = areas.filter((a) => a.score == null);
+  const improveList = [...weakest, ...unscored].slice(0, 3);
 
-  const completedCount = mySessions.filter(
-    (s) => String(s.status).toLowerCase() === "completed" || String(s.status).toLowerCase() === "submitted"
-  ).length;
+  const coveredCount = scoredAreas.length;
+  const focusArea = improveList[0] ?? null;
 
   return (
     <>
       <PageHeader
-        eyebrow="Hồ sơ năng lực thực chiến · BABOK® v3"
-        title="Hồ sơ phát triển Năng lực Thực hành"
-        description="Theo dõi sự tiến bộ và tích lũy bằng chứng năng lực qua các kịch bản mô phỏng doanh nghiệp ảo từ hệ thống."
+        eyebrow="Hồ sơ năng lực · BABOK® v3"
+        title="Chân dung năng lực của bạn"
+        description="Nhìn nhanh: đang ở mức nào, mạnh ở đâu, cần luyện gì tiếp."
         actions={
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-brass/30 bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">
-              <Sparkles size={14} /> {mySessions.length} phiên thực hành
-            </span>
             <Button
               variant="secondary"
-              onClick={() => setShowConsultationModal(true)}
-              className="gap-1.5 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30"
-              title="Đặt lịch hoặc mở phòng trao đổi trực tiếp với Chuyên gia BA"
+              onClick={exportPdf}
+              disabled={!progress}
+              className="gap-2 border-slate/20 text-xs font-semibold text-navy"
             >
-              <PhoneCall size={14} className="text-emerald-700" /> Tư vấn 1-on-1 với Chuyên gia
+              <Download size={14} /> Xuất PDF
             </Button>
             <Button
               onClick={() => navigate("scenarios")}
-              className="gap-2 bg-navy text-xs font-semibold hover:bg-navy-light text-white shadow-sm"
+              className="gap-2 bg-navy text-xs font-semibold text-white shadow-sm hover:bg-navy-light"
             >
-              Thực hành kịch bản mới <ArrowRight size={14} />
+              Luyện tiếp <ArrowRight size={14} />
             </Button>
           </div>
         }
       />
 
-      {/* KPI Counters */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        {[
-          [TrendingUp, `${completedCount}/${mySessions.length}`, "Phiên đã hoàn thành / Tổng phiên", "text-emerald-700 bg-emerald-500/10"],
-          [Award, latestScore !== null ? `${latestScore}/100` : "--", "Điểm bài nộp gần nhất", "text-navy bg-navy/10"],
-          [CalendarDays, `${knowledgeAreas.length} vùng`, "Chuẩn tri thức BABOK® v3 tích hợp", "text-brass bg-brass/10"],
-        ].map(([Icon, value, label, tone]) => (
-          <Card key={String(label)} className="flex items-center gap-4 p-5 border-slate/15">
-            <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${tone}`}>
-              <Icon size={22} />
-            </span>
+      <div ref={printRef} className="space-y-5">
+        {/* Snapshot */}
+        <section className="overflow-hidden rounded-2xl border border-slate/15 bg-gradient-to-br from-navy via-navy to-[#1a3a5c] p-5 text-white shadow-sm sm:p-6">
+          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             <div>
-              <strong className="block text-2xl font-bold text-navy">{String(value)}</strong>
-              <span className="text-xs font-medium text-slate">{String(label)}</span>
-            </div>
-          </Card>
-        ))}
-      </div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">
+                Mức năng lực hiện tại
+              </p>
+              <div className="mt-2 flex flex-wrap items-end gap-3">
+                <strong className="font-display text-4xl font-black tracking-tight sm:text-5xl">
+                  {loading ? "…" : averageScore != null ? averageScore : "—"}
+                </strong>
+                <span className="mb-1 text-sm text-white/70">/ 100</span>
+                <span className="mb-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold">
+                  {loading ? "Đang tải" : level.label}
+                </span>
+              </div>
+              <p className="mt-2 max-w-xl text-sm text-white/75">{level.hint}</p>
 
-      {/* 2 Main Columns */}
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <Card className="p-6 border-slate/15">
-          <div className="flex items-center gap-2">
-            <BookOpen size={18} className="text-navy" />
-            <h2 className="text-base font-bold text-navy">Khung Tri thức BABOK® v3 từ Hệ thống</h2>
-          </div>
-          <p className="mt-0.5 text-xs text-slate">Các vùng tri thức và tác vụ nghiệp vụ được đồng bộ từ Backend Assessment module.</p>
-
-          {loading ? (
-            <div className="py-10 text-center text-xs text-slate">
-              <Loader2 size={20} className="mx-auto mb-2 animate-spin text-navy" />
-              Đang tải dữ liệu BABOK...
-            </div>
-          ) : knowledgeAreas.length === 0 ? (
-            <div className="mt-4 rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
-              Chưa có dữ liệu BABOK Knowledge Areas trên máy chủ.
-            </div>
-          ) : (
-            <div className="mt-5 space-y-3">
-              {knowledgeAreas.map((ka) => (
-                <div key={ka.code} className="rounded-xl border border-slate/10 bg-white p-4 shadow-xs flex items-center justify-between">
-                  <div>
-                    <strong className="text-xs font-bold text-navy">{ka.name}</strong>
-                    <span className="mt-0.5 block font-mono text-[11px] text-slate">{ka.code}</span>
-                  </div>
-                  <Badge tone="navy">{ka.tasksCount} Tasks</Badge>
+              <div className="mt-5 flex flex-wrap gap-4 text-xs">
+                <div>
+                  <span className="block text-white/50">Phiên hoàn thành</span>
+                  <strong className="mt-0.5 block font-mono text-base">
+                    {progress?.completedSessions ?? 0}/{progress?.totalSessions ?? 0}
+                  </strong>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
+                <div>
+                  <span className="block text-white/50">Vùng đã có điểm</span>
+                  <strong className="mt-0.5 block font-mono text-base">{coveredCount}/6</strong>
+                </div>
+                <div>
+                  <span className="block text-white/50">Đã chấm</span>
+                  <strong className="mt-0.5 block font-mono text-base">
+                    {sessions.filter((s) => s.displayScore != null).length} phiên
+                  </strong>
+                </div>
+              </div>
 
-        <Card className="p-6 border-slate/15">
-          <h2 className="text-base font-bold text-navy">Kết quả Đánh giá theo Tiêu chí (Rubric Criteria)</h2>
-          <p className="mt-0.5 text-xs text-slate">Điểm số chi tiết từ lần chấm bài gần nhất của bạn.</p>
-          {criteriaScores.length === 0 ? (
-            <div className="mt-5 rounded-xl border border-dashed border-slate/20 p-8 text-center text-xs text-slate">
-              Chưa có kết quả chấm điểm chi tiết cho bài nộp hiện tại.
+              {focusArea && (
+                <div className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs">
+                  <Target size={14} className="text-brass" />
+                  <span>
+                    Ưu tiên tiếp theo:{" "}
+                    <strong>
+                      {focusArea.code} — {focusArea.nameVi}
+                    </strong>
+                    {focusArea.score != null ? ` (${focusArea.score}%)` : " (chưa có điểm)"}
+                  </span>
+                  <Button
+                    onClick={() => navigate("scenarios")}
+                    className="ml-1 h-7 gap-1 bg-brass px-2.5 text-[11px] font-bold text-navy hover:bg-brass/90"
+                  >
+                    Chọn kịch bản <ArrowRight size={12} />
+                  </Button>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="mt-5 space-y-4">
-              {criteriaScores.map((crit) => {
-                const max = crit.maxScore || 100;
-                const pct = Math.round((Number(crit.score) / max) * 100);
-                return (
-                  <div key={crit.rubricCriterionId} className="rounded-xl border border-slate/10 bg-white p-4 shadow-xs">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <strong className="text-xs font-bold text-navy">{crit.criterionName || crit.criterionCode}</strong>
-                        {crit.comment && <span className="mt-0.5 block text-[11px] text-slate">{crit.comment}</span>}
-                      </div>
-                      <strong className="font-mono text-base font-bold text-navy">
-                        {Math.round(Number(crit.score))}/{max}
+
+            <div className="rounded-xl bg-white/95 p-4 text-navy shadow-inner">
+              {areas.length > 0 ? (
+                <CompetencyRadar areas={areas} />
+              ) : (
+                <p className="py-10 text-center text-xs text-slate">
+                  {loading ? "Đang tải bản đồ năng lực…" : "Chưa có dữ liệu vùng tri thức."}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Strengths / Improve */}
+        <section className="grid gap-4 md:grid-cols-2">
+          <Card className="border-emerald-200/70 bg-emerald-50/40 p-5">
+            <div className="flex items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-600/15 text-emerald-700">
+                <Zap size={16} />
+              </span>
+              <h2 className="text-sm font-bold text-navy">Điểm mạnh — phát huy</h2>
+            </div>
+            <div className="mt-4 space-y-3">
+              {strengths.length > 0 ? (
+                strengths.map((area) => (
+                  <div key={area.code} className="flex items-center justify-between gap-3">
+                    <div>
+                      <strong className="text-xs font-bold text-navy">
+                        {area.code} — {area.nameVi}
                       </strong>
                     </div>
-                    <div className="mt-2.5">
-                      <ProgressBar value={pct} color="#c58b52" />
-                    </div>
+                    <span className="font-mono text-sm font-bold text-emerald-700">{area.score}%</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* History table */}
-      <Card className="mt-6 overflow-hidden border-slate/15">
-        <div className="flex items-center gap-3 border-b border-slate/10 p-5">
-          <MessageSquareText className="text-navy" size={20} />
-          <div>
-            <h2 className="text-base font-bold text-navy">Lịch sử các phiên mô phỏng doanh nghiệp của bạn</h2>
-            <p className="text-xs text-slate">Dữ liệu thực tế từ hệ thống GET /api/sessions.</p>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left text-xs">
-            <thead className="bg-mist/30 text-[11px] uppercase tracking-wider text-slate">
-              <tr>
-                <th className="px-5 py-3.5">Mã phiên</th>
-                <th className="px-5 py-3.5">Phiên bản kịch bản</th>
-                <th className="px-5 py-3.5">Tương tác</th>
-                <th className="px-5 py-3.5">Trạng thái</th>
-                <th className="px-5 py-3.5">Bắt đầu lúc</th>
-                <th className="px-5 py-3.5 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate/10">
-              {mySessions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-xs text-slate">
-                    Bạn chưa tham gia phiên thực hành mô phỏng nào.
-                  </td>
-                </tr>
+                ))
               ) : (
-                mySessions.map((ses) => {
-                  const st = String(ses.status);
-                  const isDone = st.toLowerCase() === "completed" || st.toLowerCase() === "submitted";
+                <p className="text-xs text-slate">
+                  Chưa đủ điểm để nhận diện điểm mạnh. Hoàn thành thêm phiên đã chấm.
+                </p>
+              )}
+            </div>
+          </Card>
+
+          <Card className="border-amber-200/80 bg-amber-50/35 p-5">
+            <div className="flex items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-amber-500/15 text-amber-700">
+                <TrendingUp size={16} />
+              </span>
+              <h2 className="text-sm font-bold text-navy">Cần cải thiện</h2>
+            </div>
+            <div className="mt-4 space-y-3">
+              {improveList.length > 0 ? (
+                improveList.map((area) => (
+                  <div key={area.code} className="flex items-center justify-between gap-3">
+                    <strong className="text-xs font-bold text-navy">
+                      {area.code} — {area.nameVi}
+                    </strong>
+                    <span className="font-mono text-sm font-bold text-amber-700">
+                      {area.score != null ? `${area.score}%` : "Chưa có"}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-slate">Chưa có gợi ý cải thiện — hãy bắt đầu một phiên mô phỏng.</p>
+              )}
+            </div>
+          </Card>
+        </section>
+
+        {/* KA bars + trend */}
+        <section className="grid gap-4 xl:grid-cols-2">
+          <Card className="border-slate/15 p-5">
+            <h2 className="text-sm font-bold text-navy">Sáu vùng tri thức</h2>
+            <div className="mt-4 space-y-3.5">
+              {areas.length > 0 ? (
+                areas.map((area) => {
+                  const isStrength = strengths.some((s) => s.code === area.code);
+                  const isFocus = focusArea?.code === area.code;
                   return (
-                    <tr key={ses.id} className="hover:bg-mist/10">
-                      <td className="px-5 py-4 font-mono font-bold text-navy">SES-{ses.id} (Lần {ses.attemptNo})</td>
-                      <td className="px-5 py-4 font-bold text-navy">Version #{ses.scenarioVersionId}</td>
-                      <td className="px-5 py-4 text-slate">
-                        {ses.agentCount} AI Stakeholders · {ses.messageCount} tin nhắn
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge tone={isDone ? "green" : "amber"}>{st}</Badge>
-                      </td>
-                      <td className="px-5 py-4 text-slate">
-                        {new Date(ses.startedAt).toLocaleString("vi-VN")}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setCurrentSessionId(ses.id);
-                            setCurrentScenarioVersionId(ses.scenarioVersionId);
-                            navigate(isDone ? "assessment" : "simulation");
-                          }}
-                          className="border-slate/20 text-[11px] py-1 px-2.5 font-semibold text-navy hover:bg-white"
-                        >
-                          {isDone ? "Xem báo cáo" : "Tiếp tục phiên"}
-                        </Button>
-                      </td>
-                    </tr>
+                    <div key={area.code}>
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-navy">
+                          {area.code} — {area.nameVi}
+                          {isStrength ? (
+                            <span className="ml-2 text-[10px] font-bold text-emerald-700">Mạnh</span>
+                          ) : null}
+                          {isFocus ? (
+                            <span className="ml-2 text-[10px] font-bold text-amber-700">Ưu tiên</span>
+                          ) : null}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-navy">
+                          {area.score != null ? `${area.score}%` : "—"}
+                        </span>
+                      </div>
+                      <ProgressBar
+                        value={area.score ?? 0}
+                        color={isStrength ? "#047857" : isFocus ? "#b45309" : "#102a43"}
+                      />
+                    </div>
                   );
                 })
+              ) : (
+                <p className="py-6 text-center text-xs text-slate">
+                  {loading ? "Đang tải…" : "Chưa có dữ liệu vùng tri thức."}
+                </p>
               )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+            </div>
+          </Card>
 
-      <ConsultationModal
-        isOpen={showConsultationModal}
-        onClose={() => setShowConsultationModal(false)}
-      />
+          <Card className="border-slate/15 p-5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-navy">Xu hướng gần đây</h2>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate">
+                <Sparkles size={12} /> {sessions.length} phiên
+              </span>
+            </div>
+            <div className="mt-4">
+              <SessionSparkline sessions={sessions} />
+            </div>
+            <div className="mt-4 max-h-48 space-y-2 overflow-y-auto pr-1">
+              {sessions.slice(0, 5).map((ses) => {
+                const done =
+                  ses.status.toLowerCase().includes("completed") || ses.completedAt != null;
+                return (
+                  <button
+                    key={ses.sessionId}
+                    type="button"
+                    onClick={() => {
+                      setCurrentSessionId(ses.sessionId);
+                      setCurrentSubmissionId(ses.latestSubmissionId ?? null);
+                      navigate(ses.latestSubmissionId ? "assessment" : "simulation");
+                    }}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate/10 bg-white px-3 py-2.5 text-left transition hover:border-navy/25 hover:bg-mist/20"
+                  >
+                    <div>
+                      <span className="font-mono text-[10px] font-bold text-brass">
+                        SES-{String(ses.sessionId).padStart(4, "0")}
+                      </span>
+                      <span className="mt-0.5 block text-xs font-semibold text-navy">
+                        Kịch bản #{ses.scenarioVersionId} · Lần {ses.attemptNo}
+                      </span>
+                    </div>
+                    <Badge tone={ses.displayScore != null ? "green" : done ? "amber" : "amber"}>
+                      {ses.displayScore != null
+                        ? `${Math.round(Number(ses.displayScore))}/100`
+                        : "Chưa chấm"}
+                    </Badge>
+                  </button>
+                );
+              })}
+              {sessions.length === 0 && (
+                <p className="py-4 text-center text-xs text-slate">
+                  {loading ? "Đang tải…" : "Chưa có phiên. Bắt đầu từ Thư viện kịch bản."}
+                </p>
+              )}
+            </div>
+          </Card>
+        </section>
+      </div>
     </>
   );
 }

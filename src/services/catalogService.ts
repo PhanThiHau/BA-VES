@@ -31,6 +31,9 @@ export interface ScenarioItem {
   description: string | null;
   status: number | string;
   hasPublishedVersion: boolean;
+  publishedVersionId?: number | null;
+  difficulty?: string | null;
+  isFreeAccess?: boolean;
   application: {
     id: number;
     code: string;
@@ -53,6 +56,7 @@ export interface ScenarioContextDto {
   outOfScope: string | null;
   knownConstraints: string | null;
   difficulty: number | string;
+  isFreeAccess?: boolean;
 }
 
 export const catalogService = {
@@ -67,13 +71,11 @@ export const catalogService = {
     return apiClient.get<ApplicationItem[]>(`/api/applications${query}`);
   },
 
-  // FE-06: Danh sách Kịch bản: GET /api/scenarios?applicationId={id}&isPublished={true|false}
-  async getScenarios(applicationId?: number, isPublished: boolean | null = true): Promise<ScenarioItem[]> {
+  // FE-06: Danh sách Kịch bản: GET /api/scenarios?applicationId={id}&isPublished=true
+  async getScenarios(applicationId?: number, isPublished = true): Promise<ScenarioItem[]> {
     const params = new URLSearchParams();
     if (applicationId) params.append("applicationId", String(applicationId));
-    if (isPublished !== undefined && isPublished !== null) {
-      params.append("isPublished", String(isPublished));
-    }
+    if (isPublished !== undefined) params.append("isPublished", String(isPublished));
     const qs = params.toString() ? `?${params.toString()}` : "";
     return apiClient.get<ScenarioItem[]>(`/api/scenarios${qs}`);
   },

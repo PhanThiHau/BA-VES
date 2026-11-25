@@ -8,6 +8,8 @@ export interface SessionAgentDto {
   trustLevel: number;
   patienceLevel: number;
   cooperationLevel: number;
+  initials?: string;
+  color?: string;
 }
 
 export interface SessionDto {
@@ -37,10 +39,12 @@ export interface SessionHistoryItemDto {
 
 export interface AgentMessageDto {
   id: number;
-  sessionAgentId: number;
-  senderRole: "Learner" | "Stakeholder" | "System" | string;
+  sessionId?: number;
+  sessionAgentId?: number;
+  senderType?: "Learner" | "Stakeholder" | "System" | number | string;
+  senderRole?: "Learner" | "Stakeholder" | "System" | string;
   content: string;
-  sequenceNumber: number;
+  sequenceNumber?: number;
   createdAt: string;
 }
 
@@ -50,12 +54,17 @@ export interface SendMessageResponseDto {
   usedKnowledgeItemIds?: number[];
 }
 
-export interface AgentMessagesListDto {
-  sessionId: number;
-  agentId: number;
-  totalCount: number;
-  messages: AgentMessageDto[];
+export interface AgentMessagePageDto {
+  items: AgentMessageDto[];
+  page: number;
+  pageSize: number;
+  total: number;
 }
+
+export type AgentMessagesListDto = AgentMessagePageDto & {
+  messages?: AgentMessageDto[];
+  totalCount?: number;
+};
 
 export interface CoachFeedbackDto {
   id: number;
@@ -89,10 +98,13 @@ export interface ScenarioEventAvailabilityDto {
   id: number;
   title: string;
   description: string;
-  triggerType: "Manual" | "MessageCount" | "TimeElapsed" | "Condition" | string;
+  triggerType: "Manual" | "MessageCount" | "TimeElapsed" | "Condition" | "AfterSprintEnds" | string;
   displayOrder: number;
   isTriggered: boolean;
   triggeredAt: string | null;
+  afterSprintNo?: number | null;
+  isUnlocked?: boolean;
+  unlockHint?: string | null;
 }
 
 export interface TriggerSessionEventResultDto {
@@ -131,12 +143,11 @@ export const simulationService = {
   async getMessages(
     sessionId: number,
     agentId: number,
-    limit = 100,
-    beforeSeq?: number
-  ): Promise<AgentMessagesListDto> {
-    const qs = beforeSeq ? `?limit=${limit}&beforeSeq=${beforeSeq}` : `?limit=${limit}`;
-    return apiClient.get<AgentMessagesListDto>(
-      `/api/sessions/${sessionId}/agents/${agentId}/messages${qs}`
+    page = 1,
+    pageSize = 100
+  ): Promise<AgentMessagePageDto> {
+    return apiClient.get<AgentMessagePageDto>(
+      `/api/sessions/${sessionId}/agents/${agentId}/messages?page=${page}&pageSize=${pageSize}`
     );
   },
 
@@ -188,4 +199,92 @@ export const simulationService = {
   async getCoachFeedback(sessionId: number): Promise<CoachFeedbackDto> {
     return apiClient.get<CoachFeedbackDto>(`/api/sessions/${sessionId}/coach-feedback`);
   },
+
+  async getSprintBoard(sessionId: number): Promise<SprintBoardDto> {
+    return apiClient.get<SprintBoardDto>(`/api/sessions/${sessionId}/sprints`);
+  },
+
+  async reviewSprint(
+    sessionId: number,
+    sprintNo: number,
+    learnerReply: string,
+    finalizeSprint: boolean
+  ): Promise<SprintReviewTurnDto> {
+    return apiClient.post<SprintReviewTurnDto>(`/api/sessions/${sessionId}/sprints/${sprintNo}/review`, {
+      learnerReply,
+      finalizeSprint,
+    });
+  },
 };
+
+export interface SprintDiscussionMessageDto {
+  speaker: string;
+  content: string;
+}
+
+export interface SprintTaskDto {
+  sprintNo: number;
+  name: string;
+  focus: string;
+  status: string;
+  score?: number | null;
+  decision?: string | null;
+  digest?: string | null;
+  challengeQuestions: string[];
+  improvementNotes?: string[];
+  chairSpeakerName?: string | null;
+  chairReply?: string | null;
+  discussion?: SprintDiscussionMessageDto[];
+  /** Thời hạn tương đối: số ngày/tuần từ lúc bắt đầu sprint hiện tại. */
+  durationValue?: number;
+  durationUnit?: "days" | "weeks" | string;
+  requiredTemplateCodes?: string[];
+  submittedTemplateCodes?: string[];
+  missingTemplateCodes?: string[];
+}
+
+export interface SprintFinalEvaluationDto {
+  averageScore?: number | null;
+  summary: string;
+  sprints: Array<{ sprintNo: number; score?: number | null; decision?: string | null; digest?: string | null }>;
+}
+
+export interface PriorSprintReassessmentDto {
+  sprintNo: number;
+  previousScore?: number | null;
+  reassessedScore?: number | null;
+  improved: boolean;
+  notes: string;
+}
+
+export interface SprintBoardDto {
+  sessionId: number;
+  currentSprintNo: number;
+  totalSprints: number;
+  projectFinalized: boolean;
+  sprints: SprintTaskDto[];
+  finalEvaluation?: SprintFinalEvaluationDto | null;
+  currentSprintStartedAt?: string | null;
+  currentSprintDueAt?: string | null;
+  sprintDurationMinutes: number;
+  isOverdue: boolean;
+  minutesRemaining?: number | null;
+  reviewRequired: boolean;
+}
+
+export interface SprintReviewTurnDto {
+  sprintNo: number;
+  status: string;
+  chairSpeakerName: string;
+  chairReply: string;
+  challengeQuestions: string[];
+  score?: number | null;
+  decision?: string | null;
+  digest?: string | null;
+  projectFinalized: boolean;
+  finalEvaluation?: SprintFinalEvaluationDto | null;
+  reviewPhase: string;
+  revealNumericScore: boolean;
+  improvementNotes: string[];
+  priorSprintReassessment?: PriorSprintReassessmentDto | null;
+}

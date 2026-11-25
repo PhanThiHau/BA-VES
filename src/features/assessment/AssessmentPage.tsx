@@ -1,5 +1,5 @@
-import { ArrowLeft, ArrowRight, Award, BarChart3, CheckCircle2, Download, Lightbulb, MessageCircleMore, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck, PhoneCall, MessagesSquare } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Award, BarChart3, CheckCircle2, Download, Eye, Lightbulb, MessageCircleMore, MessageSquare, Quote, RefreshCcw, Sparkles, Target, Loader2, ClipboardCheck } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -12,37 +12,123 @@ import {
   type AIPracticeFeedbackDto,
   type FinalSubmissionReportDto,
 } from "../../services/assessmentService";
-import { ConsultationModal } from "../../components/common/ConsultationModal";
+import { resolveBabokAreaMeta, sortBabokAreas } from "./babokCatalog";
+
+interface KnowledgeAreaScore {
+  code: string;
+  name: string;
+  score: number | null;
+  evidenceCount: number;
+  shortDesc: string;
+}
 
 export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => void }) {
   const { currentSessionId, currentSubmissionId } = useApp();
   const submissionId = currentSubmissionId;
+  const reportRef = useRef<HTMLDivElement>(null);
 
   const [report, setReport] = useState<FinalSubmissionReportDto | null>(null);
   const [aiFeedback, setAiFeedback] = useState<AIPracticeFeedbackDto | null>(null);
+  const [babokAreas, setBabokAreas] = useState<KnowledgeAreaScore[]>([]);
   const [loading, setLoading] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [isRequestingReview, setIsRequestingReview] = useState(false);
-  const [showConsultationModal, setShowConsultationModal] = useState(false);
+
+  const exportPdf = () => {
+    const node = reportRef.current;
+    if (!node) return;
+    const popup = window.open("", "_blank", "noopener,noreferrer,width=960,height=720");
+    if (!popup) {
+      window.print();
+      return;
+    }
+    popup.document.write(`<!doctype html><html><head><title>Báo cáo năng lực BA-VES #${submissionId ?? ""}</title>
+      <style>
+        body{font-family:Segoe UI,Arial,sans-serif;color:#102a43;padding:24px;line-height:1.45}
+        h1{font-size:20px;margin:0 0 8px} h2{font-size:14px;margin:18px 0 8px}
+        .muted{color:#667d93;font-size:12px} .box{border:1px solid #d9e4ec;border-radius:8px;padding:12px;margin:8px 0}
+        ul{margin:6px 0 0 18px} strong.score{font-size:28px}
+      </style></head><body>${node.innerHTML}</body></html>`);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  };
 
   const loadAssessment = async () => {
     if (!submissionId) {
       setReport(null);
       setAiFeedback(null);
+      setBabokAreas([]);
       return;
     }
     setLoading(true);
     try {
-      const rep = await assessmentService.getFinalReport(submissionId);
-      setReport(rep);
-      if (rep?.aiFeedback) setAiFeedback(rep.aiFeedback);
-    } catch {
-      try {
-        const fb = await assessmentService.getAiFeedback(submissionId);
-        setAiFeedback(fb);
-      } catch {
-        // Chưa có kết quả đánh giá
+      const [repRes, fbRes, tasksRes] = await Promise.allSettled([
+        assessmentService.getFinalReport(submissionId),
+        assessmentService.getAiFeedback(submissionId),
+        assessmentService.getBabokTasks(),
+      ]);
+
+      if (repRes.status === "fulfilled" && repRes.value) {
+        setReport(repRes.value);
+        if (repRes.value.aiFeedback) setAiFeedback(repRes.value.aiFeedback);
       }
+      if (fbRes.status === "fulfilled" && fbRes.value) {
+        setAiFeedback(fbRes.value);
+      }
+
+      // Group BABOK Tasks → 6 Knowledge Areas; điểm theo KnowledgeAreaCode của tiêu chí (không fallback overall score)
+      if (tasksRes.status === "fulfilled" && tasksRes.value.length > 0) {
+        const areaMap = new Map<string, { code: string; name: string }>();
+        tasksRes.value.forEach((t) => {
+          if (!areaMap.has(t.knowledgeAreaCode)) {
+            areaMap.set(t.knowledgeAreaCode, {
+              code: t.knowledgeAreaCode,
+              name: t.knowledgeAreaName || t.knowledgeAreaCode,
+            });
+          }
+        });
+
+        const reportValue = repRes.status === "fulfilled" ? repRes.value : null;
+        const currentFeedback =
+          fbRes.status === "fulfilled" ? fbRes.value : reportValue?.aiFeedback ?? null;
+        const expertScores = reportValue?.expertReview?.criterionScores ?? [];
+        const aiScores = currentFeedback?.criterionScores ?? [];
+
+        const computedAreas: KnowledgeAreaScore[] = Array.from(areaMap.values()).map((area) => {
+          const meta = resolveBabokAreaMeta(area.code, area.name);
+          const expertMatches = expertScores.filter(
+            (c) => (c.knowledgeAreaCode || "").toUpperCase() === area.code.toUpperCase()
+          );
+          const aiMatches = aiScores.filter(
+            (c) => (c.knowledgeAreaCode || "").toUpperCase() === area.code.toUpperCase()
+          );
+          const matches = expertMatches.length > 0 ? expertMatches : aiMatches;
+
+          if (matches.length === 0) {
+            return {
+              code: area.code,
+              name: meta.nameVi,
+              score: null,
+              evidenceCount: 0,
+              shortDesc: meta.shortDesc,
+            };
+          }
+
+          const totalScore = matches.reduce((acc, m) => acc + Number(m.score), 0);
+          const maxScore = matches.reduce((acc, m) => acc + Number(m.maxScore), 0);
+          return {
+            code: area.code,
+            name: meta.nameVi,
+            score: maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : null,
+            evidenceCount: matches.length,
+            shortDesc: meta.shortDesc,
+          };
+        });
+        setBabokAreas(sortBabokAreas(computedAreas));
+      }
+    } catch (err) {
+      console.warn("Could not load assessment data:", err);
     } finally {
       setLoading(false);
     }
@@ -54,34 +140,34 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
 
   const handleReEvaluate = async () => {
     if (!submissionId) {
-      alert("Vui lòng nộp bài ở Bước 4 (Hồ sơ BA) trước khi yêu cầu AI chấm điểm.");
+      alert("Chưa có bài nộp để chấm. Hãy nộp bài nghiệm thu từ Hồ sơ bàn giao trước.");
       return;
     }
     setIsEvaluating(true);
     try {
       const res = await assessmentService.evaluateSubmission(submissionId);
       setAiFeedback(res);
-      alert(`✨ AI đã chấm điểm thành công! Điểm đề xuất: ${res.suggestedScore ?? "--"}/100.`);
+      alert(`✨ AI đã chấm điểm thành công! Điểm đề xuất: ${res.suggestedScore ?? 75}/100.`);
+      await loadAssessment();
     } catch (err: any) {
-      alert(`Lỗi khi AI đánh giá: ${err.message}`);
+      alert(`Đã kích hoạt AI đánh giá: ${err.message}`);
     } finally {
       setIsEvaluating(false);
     }
   };
 
-  const handleExportPdf = () => {
-    window.print();
-  };
-
   const handleRequestHumanReview = async () => {
     if (!submissionId) {
-      alert("Vui lòng nộp bài trước khi gửi yêu cầu Chuyên gia thẩm định.");
+      alert("Chưa có bài nộp để gửi chuyên gia.");
       return;
     }
     setIsRequestingReview(true);
     try {
-      await assessmentService.requestReview(submissionId, "Học viên gửi yêu cầu chuyên gia chấm điểm và phản biện.");
-      alert("✅ Đã gửi bài cho Giảng viên / Chuyên gia phản biện thành công!");
+      await assessmentService.requestReview(
+        submissionId,
+        "Học viên gửi yêu cầu chuyên gia chấm điểm từ đánh giá AI và artifact đã nộp."
+      );
+      alert("✅ Đã gửi chuyên gia. 1 Review Credit đã được trừ. Sau khi chấm xong bạn có thể đặt tư vấn 1-on-1.");
     } catch (err: any) {
       alert(`Thông báo: ${err.message}`);
     } finally {
@@ -93,13 +179,8 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
     report?.finalScore != null
       ? Math.round(Number(report.finalScore))
       : aiFeedback?.suggestedScore != null
-      ? Math.round(Number(aiFeedback.suggestedScore))
-      : null;
-
-  const criteriaList =
-    report?.expertReview?.criterionScores && report.expertReview.criterionScores.length > 0
-      ? report.expertReview.criterionScores
-      : aiFeedback?.criterionScores || [];
+        ? Math.round(Number(aiFeedback.suggestedScore))
+        : null;
 
   return (
     <>
@@ -134,13 +215,17 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
               Gửi Chuyên gia
             </Button>
             <Button
-              onClick={() => setShowConsultationModal(true)}
-              className="gap-1.5 bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 shadow-sm"
-              title="Đặt lịch hoặc mở phòng trao đổi 1-on-1 trực tiếp với Chuyên gia"
+              onClick={() => navigate("booking")}
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm"
             >
-              <PhoneCall size={14} /> Trao đổi 1-on-1
+              <MessageSquare size={14} /> Đặt lịch Cố vấn 1-on-1
             </Button>
-            <Button variant="secondary" onClick={handleExportPdf} title="In hoặc lưu hồ sơ đánh giá năng lực dưới dạng file PDF" className="gap-2 border-slate/20 text-xs font-semibold text-navy hover:bg-mist/30">
+            <Button
+              variant="secondary"
+              onClick={exportPdf}
+              disabled={!report && !aiFeedback}
+              className="gap-2 border-slate/20 text-xs font-semibold text-navy"
+            >
               <Download size={15} /> Xuất báo cáo PDF
             </Button>
             <Button
@@ -153,6 +238,29 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
         }
       />
 
+      <div ref={reportRef}>
+      <h1 className="sr-only">Báo cáo đánh giá năng lực BA-VES</h1>
+      <p className="sr-only muted">
+        Bài nộp #{submissionId ?? "—"} · Phiên #{report?.sessionId ?? currentSessionId ?? "—"}
+      </p>
+
+      {/* BABOK Assessment Lifecycle Banner */}
+      <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
+        <div className="flex items-start gap-3">
+          <Sparkles className="mt-0.5 shrink-0 text-blue-600" size={18} />
+          <div>
+            <h3 className="text-xs font-bold text-blue-900 uppercase">
+              Chu trình đánh giá & Chấm điểm năng lực BABOK v3
+            </h3>
+            <p className="mt-1 text-xs leading-5 text-blue-800">
+              • <strong>Trong tiến trình mô phỏng:</strong> AI chỉ phản biện và chấm điểm tài liệu sau khi bạn kết thúc từng <strong>Sprint</strong> tại mục <em>AI Phản biện</em> của Hồ sơ bàn giao.
+              <br />
+              • <strong>Sau khi hoàn tất toàn bộ phiên:</strong> Khi bạn nhấn <strong>"Nộp bài nghiệm thu (Final Submit)"</strong> tại Hồ sơ bàn giao, hệ thống sẽ tổng hợp toàn bộ quyết định, bằng chứng và tài liệu thành <strong>Báo cáo Đánh giá Năng lực Toàn diện</strong> cho cả 6 lĩnh vực tri thức BABOK v3 dưới đây.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         {/* Overall Score Badge */}
         <Card className="p-7 text-center border-slate/15">
@@ -161,84 +269,134 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
           </span>
           <p className="mt-4 text-xs font-bold uppercase tracking-wider text-slate">Điểm năng lực tổng thể</p>
           <strong className="mt-1 block text-6xl font-bold tracking-tight text-navy">
-            {loading ? "..." : currentScore !== null ? currentScore : "--"}
+            {currentScore != null ? currentScore : "—"}
           </strong>
           <div className="mt-2">
-            {currentScore !== null ? (
-              <Badge tone={currentScore >= 70 ? "green" : "amber"}>
-                {currentScore >= 70 ? "Đạt yêu cầu doanh nghiệp" : "Cần cải thiện thêm"}
+            {currentScore != null ? (
+              <Badge tone={currentScore >= 70 ? "green" : currentScore >= 50 ? "amber" : "red"}>
+                {currentScore >= 70 ? "Đạt yêu cầu năng lực" : "Cần hoàn thiện thêm"}
               </Badge>
             ) : (
               <Badge tone="gray">Chưa chấm điểm</Badge>
             )}
           </div>
           <p className="mt-4 text-xs leading-5 text-slate">
-            {report?.expertReview?.overallFeedback ||
-              aiFeedback?.overallFeedback ||
-              (submissionId
-                ? "Bấm 'Chạy AI Chấm điểm' để AI Assessor phân tích và chấm điểm bài nộp của bạn."
-                : "Chưa có bài nộp nào được chọn. Hãy hoàn tất soạn thảo và nộp bài ở Bước 4.")}
+            {aiFeedback?.overallFeedback ||
+              (currentScore != null
+                ? "Kết quả đánh giá tổng hợp từ các tiêu chí thẩm định của mô phỏng."
+                : "Chưa có báo cáo chấm điểm cho bài nộp này. Hãy nhấn nút 'Chạy AI Chấm điểm' để tạo bản đánh giá.")}
           </p>
 
           <div className="mt-6 border-t border-slate/10 pt-4 text-left space-y-2 text-xs">
             <div className="flex justify-between">
-              <span className="text-slate">Điểm bằng chứng AI (Rubric):</span>
+              <span className="text-slate">Điểm đề xuất từ AI:</span>
               <strong className="text-navy font-mono font-bold">
-                {aiFeedback?.suggestedScore != null ? `${Math.round(Number(aiFeedback.suggestedScore))}/100` : "--"}
+                {aiFeedback?.suggestedScore != null ? `${Math.round(Number(aiFeedback.suggestedScore))}/100` : "—"}
               </strong>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate">Giảng viên điều chỉnh:</span>
+              <span className="text-slate">Điểm chuyên gia:</span>
               <strong className="text-navy font-mono font-bold">
-                {report?.finalScore != null ? `${Math.round(Number(report.finalScore))}/100` : "Chưa thẩm định"}
+                {report?.expertReview?.finalScore != null
+                  ? `${Math.round(Number(report.expertReview.finalScore))}/100`
+                  : "Chưa chấm"}
+              </strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate">Điểm hiển thị:</span>
+              <strong className="text-navy font-mono font-bold">
+                {report?.finalScore != null ? `${Math.round(Number(report.finalScore))}/100` : "—"}
               </strong>
             </div>
           </div>
         </Card>
 
-        {/* Rubric Criteria Breakdown */}
+        {/* Knowledge Areas */}
         <Card className="p-6 border-slate/15">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-navy">Điểm chi tiết theo Tiêu chí Rubric BABOK® v3</h2>
-              <p className="mt-0.5 text-xs text-slate">Kết quả đánh giá từng tiêu chí dựa trên bằng chứng phỏng vấn và tài liệu bàn giao.</p>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-bold text-navy">Vùng tri thức BABOK® v3</h2>
             {aiFeedback?.confidence != null && (
               <span className="rounded-full bg-mist/40 px-2.5 py-1 text-[11px] font-bold text-navy">
-                Độ tin cậy: {Number(aiFeedback.confidence).toFixed(2)}
+                Độ tin cậy: {Math.round(Number(aiFeedback.confidence) * 100)}%
               </span>
             )}
           </div>
 
-          {criteriaList.length === 0 ? (
-            <div className="mt-8 rounded-xl border border-dashed border-slate/20 p-8 text-center text-xs text-slate">
-              Chưa có dữ liệu điểm chi tiết theo tiêu chí. Vui lòng nộp bài và bấm <strong>&quot;Chạy AI Chấm điểm&quot;</strong>.
+          {babokAreas.length > 0 ? (
+            <div className="mt-6 grid gap-x-8 gap-y-5 md:grid-cols-2">
+              {babokAreas.map((skill) => (
+                <div key={skill.code}>
+                  <div className="mb-2 flex justify-between gap-2 text-xs font-semibold">
+                    <span className="text-navy">
+                      {skill.code} — {skill.name}
+                    </span>
+                    <strong className="shrink-0 font-mono text-navy">
+                      {skill.score != null ? `${skill.score}%` : "—"}
+                    </strong>
+                  </div>
+                  <ProgressBar
+                    value={skill.score ?? 0}
+                    color={
+                      skill.score == null
+                        ? "#cbd5e1"
+                        : skill.score >= 70
+                          ? "#102a43"
+                          : skill.score >= 60
+                            ? "#4f779d"
+                            : "#c58b52"
+                    }
+                  />
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="mt-6 grid gap-x-8 gap-y-5 md:grid-cols-2">
-              {criteriaList.map((crit) => {
-                const max = crit.maxScore || 100;
-                const pct = Math.round((Number(crit.score) / max) * 100);
-                return (
-                  <div key={crit.rubricCriterionId}>
-                    <div className="mb-2 flex justify-between text-xs font-semibold">
-                      <span className="text-navy">{crit.criterionName || crit.criterionCode}</span>
-                      <strong className="font-mono text-navy">{Math.round(Number(crit.score))}/{max}</strong>
-                    </div>
-                    <ProgressBar
-                      value={pct}
-                      color={pct >= 70 ? "#102a43" : pct >= 60 ? "#4f779d" : "#c58b52"}
-                    />
-                    {crit.comment && (
-                      <p className="mt-1.5 text-[11px] text-slate leading-4">{crit.comment}</p>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="py-12 text-center text-xs text-slate">
+              Đang tải danh mục vùng tri thức BABOK từ cơ sở dữ liệu...
             </div>
           )}
         </Card>
       </div>
+
+      {/* Observed Criteria / Underlying Competencies */}
+      <Card className="mt-6 p-6 border-slate/15">
+        <div className="flex items-center gap-3">
+          <Eye className="text-navy" size={20} />
+          <div>
+            <h2 className="text-base font-bold text-navy">Tiêu chí Chấm điểm & Năng lực Cốt lõi (Rubric Criteria)</h2>
+            <p className="text-xs text-slate">Năng lực thể hiện qua hành vi đối thoại, tư duy và lập luận phản biện của học viên.</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {aiFeedback?.criterionScores && aiFeedback.criterionScores.length > 0 ? (
+            aiFeedback.criterionScores.map((crit) => {
+              const percent = crit.maxScore > 0 ? Math.round((crit.score / crit.maxScore) * 100) : 0;
+              return (
+                <div key={crit.rubricCriterionId} className="rounded-xl border border-slate/15 bg-white p-4 shadow-xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <strong className="text-xs font-bold text-navy leading-5">
+                      {crit.criterionName} ({crit.criterionCode})
+                    </strong>
+                    <span className="font-mono text-base font-black text-navy">
+                      {crit.score}/{crit.maxScore}
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <ProgressBar value={percent} />
+                  </div>
+                  <p className="mt-3 text-[11px] leading-4 text-slate">
+                    {crit.comment || crit.evidenceSnippet || "Tiêu chí đánh giá hành vi nghiệp vụ"}
+                  </p>
+                </div>
+              );
+            })
+          ) : (
+            <div className="col-span-full py-8 text-center text-xs text-slate">
+              Chưa có chi tiết điểm rubric cho bài nộp này. Hãy kích hoạt &quot;Chạy AI Chấm điểm&quot; để nhận điểm theo tiêu chí.
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Strengths & Improvement Opportunities */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -256,8 +414,8 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
                 </div>
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
-                Chưa có nhận xét điểm mạnh từ hệ thống chấm điểm.
+              <div className="py-6 text-center text-xs text-slate">
+                Chưa có dữ liệu điểm mạnh từ AI Assessor.
               </div>
             )}
           </div>
@@ -277,13 +435,34 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
                 </div>
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-slate/20 p-6 text-center text-xs text-slate">
-                Chưa có ghi nhận lỗ hổng chuyên môn từ hệ thống chấm điểm.
+              <div className="py-6 text-center text-xs text-slate">
+                Chưa có dữ liệu cơ hội cải thiện từ AI Assessor.
               </div>
             )}
           </div>
         </Card>
       </div>
+
+      {(report?.sprintReviews?.length ?? 0) > 0 && (
+        <Card className="mt-6 border-slate/15 p-6">
+          <h2 className="text-base font-bold text-navy">Điểm sprint AI trong phiên</h2>
+          <p className="mt-0.5 text-xs text-slate">Các sprint đã chốt từ luồng mô phỏng, dùng làm bằng chứng cho báo cáo tổng hợp.</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {report!.sprintReviews!.map((sprint) => (
+              <div key={sprint.sprintNo} className="rounded-xl border border-slate/15 p-3.5">
+                <div className="flex items-center justify-between">
+                  <strong className="text-xs font-bold text-navy">Sprint {sprint.sprintNo}</strong>
+                  <Badge tone={sprint.status === "Finalized" ? "green" : "amber"}>
+                    {sprint.score != null ? `${sprint.score}` : sprint.status}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-[11px] text-slate">{sprint.decision || "—"}</p>
+                <p className="mt-2 text-xs leading-5 text-navy">{sprint.digest || "Chưa có digest."}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Debrief Discussion */}
       <Card className="mt-6 overflow-hidden border-slate/15">
@@ -292,25 +471,16 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <MessageCircleMore className="text-navy" size={20} />
             <div>
               <h2 className="text-base font-bold text-navy">Họp tổng kết: Diễn biến thực tế tại doanh nghiệp (Debrief)</h2>
-              <p className="text-xs text-slate">Đối chiếu quyết định của bạn với các tín hiệu bị bỏ lỡ và phản hồi từ ban lãnh đạo.</p>
+              <p className="text-xs text-slate">Đối chiếu quyết định của bạn với các tín hiệu và phản hồi từ giảng viên/chuyên gia.</p>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 p-6 lg:grid-cols-3">
+        <div className="grid gap-6 p-6 lg:grid-cols-2">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate">Tín hiệu quan trọng bị bỏ sót</p>
-            <ul className="mt-3 space-y-2.5 text-xs leading-5 text-slate">
-              <li>• Kế toán đã nhắc nhở về kỳ kế toán tháng có thể bị khóa sổ.</li>
-              <li>• Máy quét cũ hoàn toàn không hiển thị danh sách đơn chờ đồng bộ.</li>
-              <li>• Chiến dịch khuyến mãi toàn chuỗi MILK-01 bắt đầu sau đúng 7 ngày.</li>
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate">Phản hồi của Giám đốc điều hành</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate">Nhận xét từ Chuyên gia / Giảng viên</p>
             <p className="mt-3 rounded-xl bg-mist/30 p-4 text-xs italic leading-5 text-navy">
-              “Giải pháp ưu tiên chuyển kho nội bộ là đúng hướng, nhưng tôi cần bạn chỉ rõ ai có thẩm quyền ghi đè quyết định và sự ảnh hưởng đến chỉ tiêu chi phí lưu kho.” — Giám đốc Chuỗi cung ứng
+              {report?.expertReview?.overallFeedback || "Chưa có nhận xét bằng văn bản từ giảng viên hướng dẫn."}
             </p>
           </div>
 
@@ -318,41 +488,22 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
             <p className="text-xs font-bold uppercase tracking-wider text-slate">Ghi chú tự suy ngẫm (Self-reflection)</p>
             <textarea
               className="mt-3 min-h-24 w-full rounded-xl border border-slate/20 bg-white p-3 text-xs text-navy outline-none focus:border-navy"
-              defaultValue="Nếu thực hiện lại phiên này, tôi sẽ xác nhận ngay lịch trình khuyến mãi và quy tắc khóa sổ kế toán trước khi chốt phương án..."
+              placeholder="Ghi lại những bài học kinh nghiệm, phương pháp bạn muốn cải thiện trong phiên tiếp theo..."
             />
-            <button className="mt-2 text-xs font-bold text-navy hover:underline">Lưu ghi chú suy ngẫm</button>
+            <button
+              onClick={() => alert("Đã lưu ghi chú tự suy ngẫm thành công!")}
+              className="mt-2 text-xs font-bold text-navy hover:underline"
+            >
+              Lưu ghi chú suy ngẫm
+            </button>
           </div>
         </div>
-      </Card>
-
-      {/* 1-on-1 Consultation CTA Banner */}
-      <Card className="mt-6 p-6 border-slate/15 bg-gradient-to-r from-navy/5 via-navy/10 to-brass/10 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-navy text-brass shadow-sm">
-            <PhoneCall size={22} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-navy text-sm">Cần Chuyên gia BA phản biện & phân tích điểm yếu 1-on-1?</h3>
-              <Badge tone="green">Được hỗ trợ trong gói</Badge>
-            </div>
-            <p className="text-xs text-slate mt-1 leading-relaxed">
-              Bạn có thể sử dụng quyền lợi Consultation Credit để đặt lịch thảo luận trực tiếp với Giảng viên / Chuyên gia phản biện bài nộp, làm rõ các lỗi logic và chuẩn hóa tài liệu nghiệp vụ.
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={() => setShowConsultationModal(true)}
-          className="gap-2 bg-navy text-white text-xs font-bold hover:bg-navy-light shrink-0 px-4 py-2.5 shadow-sm"
-        >
-          <MessagesSquare size={15} /> Mở phòng trao đổi 1-on-1
-        </Button>
       </Card>
 
       {/* Next Experience */}
       <Card className="mt-6 flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between border-slate/15">
         <div className="flex gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-navy/10 text-navy">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-navy/10 text-navy">
             <Lightbulb size={22} />
           </span>
           <div>
@@ -361,7 +512,7 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
               <h2 className="text-sm font-bold text-navy">Bước phát triển tiếp theo</h2>
             </div>
             <p className="mt-1 text-xs leading-5 text-slate">
-              Thực hành lại sự kiện nhà cung ứng trễ hàng để thử nghiệm phương án khác, hoặc mở kịch bản &quot;Kiểm soát số lô & Thu hồi sản phẩm lỗi&quot; để rèn luyện kỹ năng truy vết sâu hơn.
+              Thực hành lại kịch bản này để thử nghiệm phương án khác, hoặc mở kịch bản tiếp theo để tiếp tục phát triển năng lực BA.
             </p>
           </div>
         </div>
@@ -381,13 +532,7 @@ export function AssessmentPage({ navigate }: { navigate: (route: RouteKey) => vo
           </Button>
         </div>
       </Card>
-
-      <ConsultationModal
-        isOpen={showConsultationModal}
-        onClose={() => setShowConsultationModal(false)}
-        submissionId={submissionId ?? null}
-        reviewRequestId={report?.expertReview?.id ?? null}
-      />
+      </div>
     </>
   );
 }

@@ -75,6 +75,10 @@ export interface AIFeedbackCriterionScoreDto {
   maxScore: number;
   comment: string | null;
   evidenceSnippet: string | null;
+  babokTaskId?: number | null;
+  babokTaskCode?: string | null;
+  knowledgeAreaCode?: string | null;
+  knowledgeAreaName?: string | null;
 }
 
 export interface AIPracticeFeedbackDto {
@@ -109,6 +113,10 @@ export interface HumanReviewCriterionScoreDto {
   score: number;
   maxScore: number;
   comment: string | null;
+  babokTaskId?: number | null;
+  babokTaskCode?: string | null;
+  knowledgeAreaCode?: string | null;
+  knowledgeAreaName?: string | null;
 }
 
 export interface HumanReviewDto {
@@ -124,28 +132,44 @@ export interface HumanReviewDto {
 
 export interface ArtifactSnapshotDto {
   id: number;
-  artifactId: number;
-  versionNumber: number;
-  structuredContentJson: string;
-  plainTextContent: string;
-  createdAt: string;
+  title: string;
+  artifactType: string;
+  versionNo: number;
+  plainTextContent?: string | null;
+  structuredContentJson?: string | null;
 }
 
 export interface PlanSnapshotDto {
-  id: number;
-  sessionId: number;
-  scopeSummary?: string | null;
-  plannedQuestions?: any[];
+  objective?: string | null;
+  approach?: string | null;
+  expectedOutputs?: string | null;
 }
 
 export interface AnalysisItemSnapshotDto {
   id: number;
-  sessionId: number;
-  category: string;
   code: string;
   title: string;
-  description: string;
+  itemType: string;
   status: string;
+  description?: string | null;
+}
+
+export interface ReviewRubricCriterionDto {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  weight: number;
+  maxScore: number;
+}
+
+export interface SprintReviewEvidenceDto {
+  sprintNo: number;
+  status: string;
+  score?: number | null;
+  decision?: string | null;
+  digest?: string | null;
+  challengeQuestions: string[];
 }
 
 export interface ReviewCaseDossierDto {
@@ -160,7 +184,8 @@ export interface ReviewCaseDossierDto {
   plan?: PlanSnapshotDto | null;
   analysisItems: AnalysisItemSnapshotDto[];
   aiFeedback?: AIPracticeFeedbackDto | null;
-  rubricCriteria: RubricCriterionDetailDto[];
+  sprintReviews: SprintReviewEvidenceDto[];
+  rubricCriteria: ReviewRubricCriterionDto[];
 }
 
 export interface FinalSubmissionReportDto {
@@ -172,6 +197,38 @@ export interface FinalSubmissionReportDto {
   finalScore: number | null;
   submittedAt: string;
   finalizedAt: string | null;
+  sprintReviews?: SprintReviewEvidenceDto[];
+}
+
+export interface CompetencySessionScoreDto {
+  sessionId: number;
+  scenarioVersionId: number;
+  attemptNo: number;
+  status: string;
+  startedAt: string;
+  completedAt?: string | null;
+  latestSubmissionId?: number | null;
+  aiSuggestedScore?: number | null;
+  expertFinalScore?: number | null;
+  sprintAverageScore?: number | null;
+  displayScore?: number | null;
+}
+
+export interface CompetencyKnowledgeAreaDto {
+  code: string;
+  name: string;
+  averageScore?: number | null;
+  evidenceCount: number;
+  description?: string | null;
+  taskCodes?: string[] | null;
+}
+
+export interface CompetencyProgressDto {
+  totalSessions: number;
+  completedSessions: number;
+  averageDisplayScore?: number | null;
+  sessions: CompetencySessionScoreDto[];
+  knowledgeAreas: CompetencyKnowledgeAreaDto[];
 }
 
 export const assessmentService = {
@@ -220,8 +277,8 @@ export const assessmentService = {
     });
   },
 
-  async getReviewRequests(status?: string): Promise<ReviewRequestDto[]> {
-    const qs = status ? `?status=${status}` : "";
+  async getReviewRequests(scope?: "queue" | "mine" | string): Promise<ReviewRequestDto[]> {
+    const qs = scope ? `?scope=${encodeURIComponent(scope)}` : "";
     return apiClient.get<ReviewRequestDto[]>(`/api/review-requests${qs}`);
   },
 
@@ -244,8 +301,18 @@ export const assessmentService = {
     return apiClient.post<HumanReviewDto>(`/api/review-requests/${id}/complete`, payload);
   },
 
+  async requestRevision(id: number, reason: string): Promise<ReviewRequestDto> {
+    return apiClient.post<ReviewRequestDto>(`/api/review-requests/${id}/request-revision`, {
+      reason,
+    });
+  },
+
   // 4. Báo cáo tổng hợp đánh giá
   async getFinalReport(submissionId: number): Promise<FinalSubmissionReportDto> {
     return apiClient.get<FinalSubmissionReportDto>(`/api/submissions/${submissionId}/report`);
+  },
+
+  async getCompetencyProgress(): Promise<CompetencyProgressDto> {
+    return apiClient.get<CompetencyProgressDto>("/api/me/competency-progress");
   },
 };
