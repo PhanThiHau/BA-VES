@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, BookOpenCheck, Bot, CheckCircle2, GraduationCap, Layers3, ShieldAlert, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Award, BarChart3, BookOpenCheck, Bot, CheckCircle2, GraduationCap, Layers3, MessageSquare, ShieldAlert, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import type { RouteKey } from "../../types/models";
 
@@ -16,6 +16,10 @@ export function RoleSelectionPage({ navigate }: { navigate: (route: RouteKey) =>
   const enterAdmin = () => {
     setRole("admin");
     navigate("admin");
+  };
+  const enterExpert = () => {
+    setRole("expert");
+    navigate("expert");
   };
 
   return (
@@ -184,6 +188,48 @@ export function RoleSelectionPage({ navigate }: { navigate: (route: RouteKey) =>
                 </div>
 
                 <div className="hidden sm:grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 group-hover:bg-white group-hover:text-navy group-hover:border-transparent">
+                  <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+                </div>
+              </div>
+            </button>
+
+            {/* Expert Card */}
+            <button
+              onClick={enterExpert}
+              className="group relative w-full overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] p-1 text-left transition-all duration-300 hover:-translate-y-1 hover:border-teal-400/40 hover:bg-white/[0.07] hover:shadow-[0_20px_60px_rgba(20,184,166,0.15)] focus:outline-none focus:ring-2 focus:ring-teal-400/50 backdrop-blur-xl"
+            >
+              <div className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-teal-400/30 bg-teal-500/15 text-teal-300 shadow-md transition-transform duration-300 group-hover:scale-105">
+                  <Award size={30} strokeWidth={1.75} />
+                </div>
+
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <strong className="font-display text-2xl font-bold tracking-tight text-white transition-colors group-hover:text-teal-300">
+                      Không gian Chuyên gia BA (BA Expert)
+                    </strong>
+                    <span className="rounded-full border border-teal-400/30 bg-teal-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-teal-300">
+                      Thẩm định & Cố vấn
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-mist/80">
+                    Thẩm định hồ sơ giải pháp (Dossier) theo chuẩn BABOK® v3, chấm điểm Rubric chuyên môn và tham gia các phiên cố vấn 1-on-1 trực tiếp với học viên.
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-mist/60">
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <BookOpenCheck size={14} className="text-teal-300" /> Thẩm định Hồ sơ Dossier
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <MessageSquare size={14} className="text-teal-300" /> Cố vấn 1-on-1
+                    </span>
+                    <span className="flex items-center gap-1.5 transition-colors group-hover:text-mist">
+                      <ShieldCheck size={14} className="text-teal-300" /> Hiệu chuẩn Rubric
+                    </span>
+                  </div>
+                </div>
+
+                <div className="hidden sm:grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white transition-all duration-300 group-hover:bg-teal-400 group-hover:text-navy group-hover:border-transparent">
                   <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
                 </div>
               </div>

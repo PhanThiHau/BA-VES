@@ -19,6 +19,20 @@ export interface UpdateUserStatusPayload {
   status: "Active" | "Suspended" | "Archived" | number;
 }
 
+export interface CreateAdminUserPayload {
+  email: string;
+  fullName: string;
+  password: string;
+  roles: string[];
+}
+
+export interface UpdateAdminUserPayload {
+  email: string;
+  fullName: string;
+  newPassword?: string | null;
+  roles?: string[];
+}
+
 export const userService = {
   // GET /api/users/me: Lấy thông tin cá nhân của người dùng hiện tại
   async getMe(): Promise<UserProfile> {
@@ -62,6 +76,16 @@ export const userService = {
   // PATCH /api/users/{id}/status: Admin cập nhật trạng thái tài khoản (Active = 0, Suspended = 1, Archived = 2)
   async updateUserStatus(id: number, status: "Active" | "Suspended" | "Archived" | number): Promise<UserProfile> {
     return apiClient.patch<UserProfile>(`/api/users/${id}/status`, { status });
+  },
+
+  // POST /api/users: Admin tạo tài khoản mới
+  async createUser(payload: CreateAdminUserPayload): Promise<UserProfile> {
+    return apiClient.post<UserProfile>("/api/users", payload);
+  },
+
+  // PUT /api/users/{id}: Admin cập nhật hồ sơ / mật khẩu / vai trò
+  async updateUser(id: number, payload: UpdateAdminUserPayload): Promise<UserProfile> {
+    return apiClient.put<UserProfile>(`/api/users/${id}`, payload);
   },
 };
 
