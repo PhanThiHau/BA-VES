@@ -7,11 +7,83 @@ const ACCESS_TOKEN_KEY = "baves_access_token";
 const REFRESH_TOKEN_KEY = "baves_refresh_token";
 const USER_KEY = "baves_user_profile";
 const BYOK_CONFIG_KEY = "baves_byok_config";
+const AI_USAGE_LOGS_KEY = "baves_ai_usage_logs";
 
 export interface ByokConfig {
   provider: "OpenAI" | "Gemini";
   model: string;
   apiKey: string;
+}
+
+export interface AiUsageEntry {
+  id: string;
+  timestamp: string;
+  keyMask: string;
+  provider: "OpenAI" | "Gemini" | string;
+  model: string;
+  endpoint: string;
+  feature: string;
+  status: "success" | "error";
+  statusCode: number;
+  durationMs: number;
+  tokens: number;
+  isEstimatedTokens: boolean;
+}
+
+export function maskApiKey(key: string): string {
+  const trimmed = key.trim();
+  if (!trimmed) return "Chưa gắn";
+  if (trimmed.length <= 10) return `${trimmed.slice(0, 3)}***${trimmed.slice(-2)}`;
+  return `${trimmed.slice(0, 6)}...${trimmed.slice(-4)}`;
+}
+
+export function getAiUsageLogs(): AiUsageEntry[] {
+  const raw = localStorage.getItem(AI_USAGE_LOGS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function clearAiUsageLogs() {
+  localStorage.removeItem(AI_USAGE_LOGS_KEY);
+}
+
+function resolveAiFeatureLabel(endpoint: string): string {
+  if (endpoint.includes("/api/ai/connections/validate")) return "Kiểm tra kết nối AI";
+  if (endpoint.includes("/coach")) return "AI Coach";
+  if (endpoint.includes("/events")) return "Biến cố mô phỏng";
+  if (endpoint.includes("/messages")) return "Phỏng vấn Stakeholder AI";
+  if (endpoint.includes("/analysis")) return "Phân tích yêu cầu AI";
+  if (endpoint.includes("/assessment")) return "Chấm điểm & Đánh giá AI";
+  if (endpoint.includes("/planning")) return "Lập kế hoạch BA";
+  return "Tác vụ AI";
+}
+
+function isAiTrackedEndpoint(endpoint: string, method: string): boolean {
+  if (endpoint.includes("/api/ai")) return true;
+  if (method !== "GET") {
+    return (
+      endpoint.includes("/simulations") ||
+      endpoint.includes("/analysis") ||
+      endpoint.includes("/assessment") ||
+      endpoint.includes("/coach")
+    );
+  }
+  return false;
+}
+
+function recordAiUsage(entry: AiUsageEntry) {
+  try {
+    const existing = getAiUsageLogs();
+    const updated = [entry, ...existing].slice(0, 200);
+    localStorage.setItem(AI_USAGE_LOGS_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore storage quota errors
+  }
 }
 
 export function getStoredTokens() {
@@ -44,6 +116,10 @@ export function getStoredByokConfig(): ByokConfig | null {
 
 export function setStoredByokConfig(config: ByokConfig) {
   localStorage.setItem(BYOK_CONFIG_KEY, JSON.stringify(config));
+}
+
+export function clearStoredByokConfig() {
+  localStorage.removeItem(BYOK_CONFIG_KEY);
 }
 
 export class ApiError extends Error {
@@ -96,6 +172,10 @@ async function request<T>(
     headers["X-AI-Key"] = byok.apiKey;
   }
 
+  const method = (options.method || "GET").toUpperCase();
+  const shouldTrackAi = Boolean(headers["X-AI-Key"] && isAiTrackedEndpoint(endpoint, method));
+  const startedAt = shouldTrackAi ? Date.now() : 0;
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -103,6 +183,22 @@ async function request<T>(
       headers,
     });
   } catch (err: any) {
+    if (shouldTrackAi) {
+      recordAiUsage({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        keyMask: maskApiKey(headers["X-AI-Key"]),
+        provider: headers["X-AI-Provider"] || "Unknown",
+        model: headers["X-AI-Model"] || "Unknown",
+        endpoint,
+        feature: resolveAiFeatureLabel(endpoint),
+        status: "error",
+        statusCode: 0,
+        durationMs: Date.now() - startedAt,
+        tokens: 0,
+        isEstimatedTokens: true,
+      });
+    }
     throw new ApiError(0, err.message || "Lỗi kết nối tới máy chủ.");
   }
 
@@ -162,18 +258,73 @@ async function request<T>(
   if (!response.ok) {
     let errorMessage = "Đã xảy ra lỗi máy chủ.";
     if (data && typeof data === "object") {
-      if (data.detail) {
+      const fieldErrors =
+        data.errors ||
+        (data.extensions && typeof data.extensions === "object"
+          ? data.extensions.errors
+          : undefined);
+      if (fieldErrors && typeof fieldErrors === "object") {
+        const errorList = Object.values(fieldErrors).flat().filter(Boolean);
+        if (errorList.length > 0) {
+          errorMessage = errorList.map(String).join("\n");
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (data.title) {
+          errorMessage = data.title;
+        }
+      } else if (data.detail) {
         errorMessage = data.detail;
       } else if (data.title) {
         errorMessage = data.title;
-      } else if (data.errors) {
-        const errorList = Object.values(data.errors).flat();
-        if (errorList.length > 0) errorMessage = String(errorList[0]);
       }
     } else if (typeof data === "string" && data.length > 0) {
       errorMessage = data;
     }
+    if (shouldTrackAi) {
+      recordAiUsage({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        keyMask: maskApiKey(headers["X-AI-Key"]),
+        provider: headers["X-AI-Provider"] || "Unknown",
+        model: headers["X-AI-Model"] || "Unknown",
+        endpoint,
+        feature: resolveAiFeatureLabel(endpoint),
+        status: "error",
+        statusCode: response.status,
+        durationMs: Date.now() - startedAt,
+        tokens: 0,
+        isEstimatedTokens: true,
+      });
+    }
     throw new ApiError(response.status, errorMessage, data);
+  }
+
+  if (shouldTrackAi) {
+    const reportedTokens =
+      (data && typeof data === "object" && (
+        data.usage?.totalTokens ??
+        data.usage?.total_tokens ??
+        data.tokenUsage?.totalTokens ??
+        data.tokensUsed
+      )) ||
+      0;
+    const reqSize = typeof options.body === "string" ? options.body.length : 0;
+    const resSize = typeof data === "string" ? data.length : JSON.stringify(data ?? "").length;
+    const estimatedTokens = Math.max(1, Math.ceil((reqSize + resSize) / 4));
+    recordAiUsage({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      keyMask: maskApiKey(headers["X-AI-Key"]),
+      provider: headers["X-AI-Provider"] || "Unknown",
+      model: headers["X-AI-Model"] || "Unknown",
+      endpoint,
+      feature: resolveAiFeatureLabel(endpoint),
+      status: "success",
+      statusCode: response.status,
+      durationMs: Date.now() - startedAt,
+      tokens: Number(reportedTokens) > 0 ? Number(reportedTokens) : estimatedTokens,
+      isEstimatedTokens: !(Number(reportedTokens) > 0),
+    });
   }
 
   return data as T;
