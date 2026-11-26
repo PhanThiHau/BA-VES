@@ -345,3 +345,51 @@ export const workspacePoints = {
     "Hiệu chuẩn kết quả chấm của AI và theo dõi năng lực theo chuẩn BABOK",
   ],
 } as const;
+
+export interface ScenarioObjective {
+  label: string;
+  baseline: string;
+  target: string;
+  owner: string;
+}
+
+export interface ScenarioConflict {
+  id: string;
+  topic: string;
+  positions: { stakeholder: string; position: string }[];
+  impact: string;
+  resolution: string;
+  status: "open" | "resolved";
+}
+
+export const scenarioObjectives: ScenarioObjective[] = [
+  { label: "Stockout", baseline: "12%", target: "< 5%", owner: "Supply Chain Director" },
+  { label: "Fill rate", baseline: "89%", target: ">= 96%", owner: "Supply Chain Director" },
+  { label: "Inventory accuracy", baseline: "91%", target: ">= 98%", owner: "Warehouse Manager" },
+  { label: "Holding cost", baseline: "100%", target: "Increase no more than 8%", owner: "Finance Manager" },
+];
+
+export const conflicts: ScenarioConflict[] = [
+  {
+    id: "CF-01",
+    topic: "Approval threshold for warehouse adjustments",
+    positions: [
+      { stakeholder: "Warehouse Manager", position: "Immediate approval for low-risk adjustments below VND 10 million to prevent operation bottlenecks." },
+      { stakeholder: "Finance Manager", position: "Creators must not approve their own transactions, and every adjustment needs an audit trail." }
+    ],
+    impact: "Without agreement, the process will be both slow and noncompliant.",
+    resolution: "Below VND 10 million: auto-approve with reason code; VND 10–50 million: Warehouse Manager approval; above VND 50 million: Finance Controller approval.",
+    status: "resolved"
+  },
+  {
+    id: "CF-02",
+    topic: "Fill rate versus holding cost",
+    positions: [
+      { stakeholder: "Supply Chain Director", position: "Prioritize achieving a 96% fill rate during the pilot." },
+      { stakeholder: "Finance Manager", position: "Holding cost must not increase by more than 8%." }
+    ],
+    impact: "Excess safety stock may meet service targets while violating the financial objective.",
+    resolution: "Priority and override thresholds by SKU class are still undefined.",
+    status: "open"
+  },
+];

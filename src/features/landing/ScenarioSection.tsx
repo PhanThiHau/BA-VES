@@ -1,6 +1,5 @@
 import type { RouteKey } from "../../types/models";
-import { scenarioChallenges, scenarioFacts } from "./data";
-import { scenarioObjectives, conflicts } from "../../constants/trainingScenario";
+import { scenarioChallenges, scenarioFacts, scenarioObjectives, conflicts } from "./data";
 import { Reveal } from "./Reveal";
 import { Eyebrow } from "./primitives";
 
