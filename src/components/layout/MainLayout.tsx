@@ -4,6 +4,7 @@ import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { ScenarioWorkflowBar } from "./ScenarioWorkflowBar";
 import { useApp } from "../../contexts/AppContext";
+import { SettingsModal } from "../common/SettingsModal";
 
 export function MainLayout({
   route,
@@ -36,6 +37,7 @@ export function MainLayout({
           {children}
         </main>
       </div>
+      <SettingsModal />
     </div>
   );
 }
